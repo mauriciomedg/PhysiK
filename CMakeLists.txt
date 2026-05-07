@@ -30,15 +30,21 @@ target_sources(
 
         include/PhysiK/PhysicsData/Material.h
         include/PhysiK/PhysicsData/Node.h
+        include/PhysiK/PhysicsData/Contact.h
         include/PhysiK/PhysicsData/PointConnection.h
         include/PhysiK/PhysicsData/Tet.h
 
         include/PhysiK/Components/Component.h
+        include/PhysiK/Components/CollisionComponent.h
+        include/PhysiK/Components/CollisionSphereComponent.h
         include/PhysiK/Components/TetMeshComponent.h
 
+        include/PhysiK/Core/Collision/CollisionDetectionEngine.h
         include/PhysiK/Core/World/World.h
     PRIVATE
         src/API/PhysiKAPI.cpp
+        src/Components/CollisionSphereComponent.cpp
+        src/Core/Collision/CollisionDetectionEngine.cpp
         src/Core/World/World.cpp
 )
 
@@ -53,10 +59,14 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Math/Vec4.h
     include/PhysiK/PhysicsData/Material.h
     include/PhysiK/PhysicsData/Node.h
+    include/PhysiK/PhysicsData/Contact.h
     include/PhysiK/PhysicsData/PointConnection.h
     include/PhysiK/PhysicsData/Tet.h
     include/PhysiK/Components/Component.h
+    include/PhysiK/Components/CollisionComponent.h
+    include/PhysiK/Components/CollisionSphereComponent.h
     include/PhysiK/Components/TetMeshComponent.h
+    include/PhysiK/Core/Collision/CollisionDetectionEngine.h
     include/PhysiK/Core/World/World.h
 )
 

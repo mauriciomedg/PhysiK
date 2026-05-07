@@ -3,9 +3,13 @@
 #include <memory>
 #include <vector>
 
+#include "PhysiK/Components/CollisionComponent.h"
+#include "PhysiK/Components/CollisionSphereComponent.h"
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Core/Collision/CollisionDetectionEngine.h"
 #include "PhysiK/Math/Vec3.h"
+#include "PhysiK/PhysicsData/Contact.h"
 #include "PhysiK/PhysicsData/Node.h"
 #include "PhysiK/PhysicsData/PointConnection.h"
 #include "PhysiK/PhysicsData/Tet.h"
@@ -25,6 +29,9 @@ namespace PhysiK
             int nodeCount,
             const int* tetIndices,
             int tetCount);
+        CollisionSphereComponent& CreateCollisionSphereComponent(
+            const Vec3& position,
+            float radius);
 
         void AddPointConnection(const PointConnection& connection);
 
@@ -33,10 +40,13 @@ namespace PhysiK
 
         Node& GetNode(int index);
         const Node& GetNode(int index) const;
+        const std::vector<Tet>& GetTets() const;
 
         const std::vector<PointConnection>& GetPointConnections() const;
 
     private:
+        void GenerateCollisionConnections();
+        void AddPointConnectionFromContact(const Contact& contact);
         void ApplyPointConnectionForces();
         void Integrate(float dt);
         void ClearForces();
@@ -47,8 +57,11 @@ namespace PhysiK
 
         std::vector<std::unique_ptr<Component>> components;
         std::vector<TetMeshComponent*> tetMeshes;
+        std::vector<CollisionComponent*> collisionComponents;
 
         std::vector<PointConnection> pointConnections;
+
+        CollisionDetectionEngine collisionDetectionEngine;
 
         int substepCount = 1;
     };

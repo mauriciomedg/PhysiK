@@ -41,6 +41,15 @@ extern "C"
         const int* tetIndices,
         int tetCount);
 
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateCollisionSphereComponent(
+        PhysiK::WorldHandle world,
+        float x,
+        float y,
+        float z,
+        float radius);
+
+    PHYSIK_API int PHYSIK_GetPointConnectionCount(PhysiK::WorldHandle world);
+
     PHYSIK_API void PHYSIK_AddPointConnection(
         PhysiK::WorldHandle world,
         int node0,
