@@ -42,22 +42,40 @@ namespace
         const float dz = a.z - b.z;
         return dx * dx + dy * dy + dz * dz;
     }
+
+    void CreateSingleTet(PhysiK::WorldHandle world, int (&outNodes)[4])
+    {
+        outNodes[0] = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
+        outNodes[1] = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
+        outNodes[2] = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 1.0f);
+        outNodes[3] = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+        PHYSIK_AddTet(world, outNodes[0], outNodes[1], outNodes[2], outNodes[3]);
+
+        const int tets[] = {0};
+        assert(PHYSIK_CreateTetMeshComponent(world, outNodes, 4, tets, 1) != nullptr);
+    }
+
+    Point GetTetCentroid(PhysiK::WorldHandle world, const int (&nodes)[4])
+    {
+        return BarycentricPoint(
+            GetNodePosition(world, nodes[0]),
+            GetNodePosition(world, nodes[1]),
+            GetNodePosition(world, nodes[2]),
+            GetNodePosition(world, nodes[3]),
+            0.25f,
+            0.25f,
+            0.25f,
+            0.25f);
+    }
 }
 
-int main()
+void ManualPointConnectionMovesBarycentricPoint()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    const int node0 = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
-    const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
-    const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 1.0f);
-    const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
-    PHYSIK_AddTet(world, node0, node1, node2, node3);
-
-    const int nodes[] = {node0, node1, node2, node3};
-    const int tets[] = {0};
-    assert(PHYSIK_CreateTetMeshComponent(world, nodes, 4, tets, 1) != nullptr);
+    int nodes[4] = {};
+    CreateSingleTet(world, nodes);
 
     const float w0 = 0.25f;
     const float w1 = 0.25f;
@@ -66,10 +84,10 @@ int main()
     const Point target{0.25f, 0.25f, 1.25f};
 
     const Point before = BarycentricPoint(
-        GetNodePosition(world, node0),
-        GetNodePosition(world, node1),
-        GetNodePosition(world, node2),
-        GetNodePosition(world, node3),
+        GetNodePosition(world, nodes[0]),
+        GetNodePosition(world, nodes[1]),
+        GetNodePosition(world, nodes[2]),
+        GetNodePosition(world, nodes[3]),
         w0,
         w1,
         w2,
@@ -77,10 +95,10 @@ int main()
 
     PHYSIK_AddPointConnection(
         world,
-        node0,
-        node1,
-        node2,
-        node3,
+        nodes[0],
+        nodes[1],
+        nodes[2],
+        nodes[3],
         w0,
         w1,
         w2,
@@ -94,10 +112,10 @@ int main()
     PHYSIK_Step(world, 0.1f);
 
     const Point after = BarycentricPoint(
-        GetNodePosition(world, node0),
-        GetNodePosition(world, node1),
-        GetNodePosition(world, node2),
-        GetNodePosition(world, node3),
+        GetNodePosition(world, nodes[0]),
+        GetNodePosition(world, nodes[1]),
+        GetNodePosition(world, nodes[2]),
+        GetNodePosition(world, nodes[3]),
         w0,
         w1,
         w2,
@@ -107,5 +125,34 @@ int main()
     assert(after.z > before.z);
 
     PHYSIK_DestroyWorld(world);
+}
+
+void SphereContactCreatesTransientConnectionAndMovesTet()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTet(world, nodes);
+
+    assert(PHYSIK_CreateCollisionSphereComponent(world, 0.25f, 0.25f, 0.25f, 0.75f) != nullptr);
+    assert(PHYSIK_GetPointConnectionCount(world) == 0);
+
+    const Point before = GetTetCentroid(world, nodes);
+
+    PHYSIK_Step(world, 0.1f);
+
+    const Point after = GetTetCentroid(world, nodes);
+
+    assert(after.z > before.z);
+    assert(PHYSIK_GetPointConnectionCount(world) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+int main()
+{
+    ManualPointConnectionMovesBarycentricPoint();
+    SphereContactCreatesTransientConnectionAndMovesTet();
     return 0;
 }

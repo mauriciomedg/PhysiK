@@ -47,6 +47,7 @@ namespace PhysiK
         for (int i = 0; i < steps; ++i)
         {
             ClearForces();
+            GenerateCollisionConnections();
             ApplyPointConnectionForces();
             Integrate(substepDt);
             pointConnections.clear();
@@ -92,6 +93,20 @@ namespace PhysiK
         return componentRef;
     }
 
+    CollisionSphereComponent& World::CreateCollisionSphereComponent(
+        const Vec3& position,
+        float radius)
+    {
+        auto component = std::make_unique<CollisionSphereComponent>();
+        component->transform.position = position;
+        component->radius = std::max(0.0f, radius);
+
+        CollisionSphereComponent& componentRef = *component;
+        collisionComponents.push_back(&componentRef);
+        components.push_back(std::move(component));
+        return componentRef;
+    }
+
     void World::AddPointConnection(const PointConnection& connection)
     {
         if (HasValidNodeIndices(connection))
@@ -122,9 +137,54 @@ namespace PhysiK
         return nodes[static_cast<std::size_t>(index)];
     }
 
+    const std::vector<Tet>& World::GetTets() const
+    {
+        return tets;
+    }
+
     const std::vector<PointConnection>& World::GetPointConnections() const
     {
         return pointConnections;
+    }
+
+    void World::GenerateCollisionConnections()
+    {
+        std::vector<Contact> contacts;
+
+        for (CollisionComponent* component : collisionComponents)
+        {
+            if (component == nullptr || component->isSensor || !component->generateConnections)
+            {
+                continue;
+            }
+
+            contacts.clear();
+            collisionDetectionEngine.QueryContacts(*this, *component, contacts);
+
+            for (const Contact& contact : contacts)
+            {
+                AddPointConnectionFromContact(contact);
+            }
+        }
+    }
+
+    void World::AddPointConnectionFromContact(const Contact& contact)
+    {
+        if (contact.penetrationDepth <= 0.0f)
+        {
+            return;
+        }
+
+        PointConnection connection;
+        connection.node0 = contact.tetNode0;
+        connection.node1 = contact.tetNode1;
+        connection.node2 = contact.tetNode2;
+        connection.node3 = contact.tetNode3;
+        connection.barycentric = contact.barycentric;
+        connection.targetPosition = contact.worldPoint + contact.normal * contact.penetrationDepth;
+        connection.stiffness = contact.stiffness;
+        connection.damping = contact.damping;
+        AddPointConnection(connection);
     }
 
     void World::ApplyPointConnectionForces()
