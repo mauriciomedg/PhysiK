@@ -17,9 +17,47 @@ target_include_directories(
 
 target_sources(
     PhysiK
+    PUBLIC
+        include/PhysiK/API/Handles.h
+        include/PhysiK/API/PhysiKAPI.h
+
+        include/PhysiK/Math/AABB.h
+        include/PhysiK/Math/Mat3.h
+        include/PhysiK/Math/Quaternion.h
+        include/PhysiK/Math/Transform.h
+        include/PhysiK/Math/Vec3.h
+        include/PhysiK/Math/Vec4.h
+
+        include/PhysiK/PhysicsData/Material.h
+        include/PhysiK/PhysicsData/Node.h
+        include/PhysiK/PhysicsData/PointConnection.h
+        include/PhysiK/PhysicsData/Tet.h
+
+        include/PhysiK/Components/Component.h
+        include/PhysiK/Components/TetMeshComponent.h
+
+        include/PhysiK/Core/World/World.h
     PRIVATE
         src/API/PhysiKAPI.cpp
         src/Core/World/World.cpp
+)
+
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" FILES
+    include/PhysiK/API/Handles.h
+    include/PhysiK/API/PhysiKAPI.h
+    include/PhysiK/Math/AABB.h
+    include/PhysiK/Math/Mat3.h
+    include/PhysiK/Math/Quaternion.h
+    include/PhysiK/Math/Transform.h
+    include/PhysiK/Math/Vec3.h
+    include/PhysiK/Math/Vec4.h
+    include/PhysiK/PhysicsData/Material.h
+    include/PhysiK/PhysicsData/Node.h
+    include/PhysiK/PhysicsData/PointConnection.h
+    include/PhysiK/PhysicsData/Tet.h
+    include/PhysiK/Components/Component.h
+    include/PhysiK/Components/TetMeshComponent.h
+    include/PhysiK/Core/World/World.h
 )
 
 target_compile_definitions(PhysiK PRIVATE PHYSIK_BUILDING_DLL)
