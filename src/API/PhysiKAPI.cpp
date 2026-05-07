@@ -38,6 +38,25 @@ extern "C"
         }
     }
 
+    PHYSIK_API void PHYSIK_SetExternalLogicCallback(
+        PhysiK::WorldHandle world,
+        PhysiK::ExternalLogicCallback callback,
+        void* userData)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetExternalLogicCallback(callback, userData);
+        }
+    }
+
+    PHYSIK_API void PHYSIK_ClearExternalLogicCallback(PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->ClearExternalLogicCallback();
+        }
+    }
+
     PHYSIK_API int PHYSIK_AddNode(
         PhysiK::WorldHandle world,
         float x,
