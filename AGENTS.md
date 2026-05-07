@@ -105,7 +105,7 @@ PhysiK/
         LineMeshComponent.h
         TriMeshComponent.h
 
-        CollisionEntityComponent.h
+        CollisionComponent.h
         CollisionSphereComponent.h
         CollisionCapsuleComponent.h
         CollisionBoxComponent.h
@@ -177,7 +177,7 @@ private:
     std::vector<LineMeshComponent*> lineMeshes;
     std::vector<TriMeshComponent*> triMeshes;
 
-    std::vector<CollisionEntityComponent*> collisionComponents;
+    std::vector<CollisionComponent*> collisionComponents;
     std::vector<GameplayComponent*> gameplayComponents;
 
     std::vector<PointConnection> pointConnections;
@@ -370,7 +370,7 @@ Core/Physics/Cloth
 
 ---
 
-# CollisionEntityComponent
+# CollisionComponent
 
 Persistent collision component.
 
@@ -382,7 +382,7 @@ Collision components:
 
 They do not directly deform simulation objects.
 
-class CollisionEntityComponent : public Component
+class CollisionComponent : public Component
 {
 public:
     Transform transform;
@@ -403,26 +403,26 @@ public:
 
 # Collision Components
 
-class CollisionSphereComponent : public CollisionEntityComponent
+class CollisionSphereComponent : public CollisionComponent
 {
 public:
     float radius;
 };
 
-class CollisionCapsuleComponent : public CollisionEntityComponent
+class CollisionCapsuleComponent : public CollisionComponent
 {
 public:
     float radius;
     float height;
 };
 
-class CollisionBoxComponent : public CollisionEntityComponent
+class CollisionBoxComponent : public CollisionComponent
 {
 public:
     Vec3 halfExtents;
 };
 
-class CollisionPlaneComponent : public CollisionEntityComponent
+class CollisionPlaneComponent : public CollisionComponent
 {
 public:
     Vec3 normal;
@@ -467,7 +467,7 @@ class CollisionDetectionEngine
 public:
     void QueryContacts(
         World& world,
-        const CollisionEntityComponent& component,
+        const CollisionComponent& component,
         std::vector<Contact>& outContacts);
 
 private:
@@ -570,7 +570,7 @@ Connections disappear after the substep.
 
 Only these systems create connections:
 
-- CollisionEntityComponent
+- CollisionComponent
 - GameplayComponent
 
 ---
