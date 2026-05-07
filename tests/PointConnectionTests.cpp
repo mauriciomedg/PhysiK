@@ -67,6 +67,34 @@ namespace
             0.25f,
             0.25f);
     }
+
+    struct ExternalLogicTestState
+    {
+        int callbackCount = 0;
+        int nodes[4] = {};
+    };
+
+    void AddPointConnectionFromExternalLogic(PhysiK::WorldHandle world, void* userData)
+    {
+        ExternalLogicTestState* state = static_cast<ExternalLogicTestState*>(userData);
+        ++state->callbackCount;
+
+        PHYSIK_AddPointConnection(
+            world,
+            state->nodes[0],
+            state->nodes[1],
+            state->nodes[2],
+            state->nodes[3],
+            0.25f,
+            0.25f,
+            0.25f,
+            0.25f,
+            0.25f,
+            0.25f,
+            1.25f,
+            100.0f,
+            0.0f);
+    }
 }
 
 void ManualPointConnectionMovesBarycentricPoint()
@@ -150,9 +178,34 @@ void SphereContactCreatesTransientConnectionAndMovesTet()
     PHYSIK_DestroyWorld(world);
 }
 
+void ExternalLogicHookRunsOnceBeforeSubsteps()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    ExternalLogicTestState state;
+    CreateSingleTet(world, state.nodes);
+    PHYSIK_SetSubstepCount(world, 4);
+    PHYSIK_SetExternalLogicCallback(world, AddPointConnectionFromExternalLogic, &state);
+
+    const Point before = GetTetCentroid(world, state.nodes);
+
+    PHYSIK_Step(world, 0.1f);
+
+    const Point after = GetTetCentroid(world, state.nodes);
+
+    assert(state.callbackCount == 1);
+    assert(after.z > before.z);
+    assert(PHYSIK_GetPointConnectionCount(world) == 0);
+
+    PHYSIK_ClearExternalLogicCallback(world);
+    PHYSIK_DestroyWorld(world);
+}
+
 int main()
 {
     ManualPointConnectionMovesBarycentricPoint();
     SphereContactCreatesTransientConnectionAndMovesTet();
+    ExternalLogicHookRunsOnceBeforeSubsteps();
     return 0;
 }
