@@ -19,6 +19,11 @@ extern "C"
 
     PHYSIK_API void PHYSIK_Step(PhysiK::WorldHandle world, float dt);
     PHYSIK_API void PHYSIK_SetSubstepCount(PhysiK::WorldHandle world, int substepCount);
+    PHYSIK_API void PHYSIK_SetExternalLogicCallback(
+        PhysiK::WorldHandle world,
+        PhysiK::ExternalLogicCallback callback,
+        void* userData);
+    PHYSIK_API void PHYSIK_ClearExternalLogicCallback(PhysiK::WorldHandle world);
 
     PHYSIK_API int PHYSIK_AddNode(
         PhysiK::WorldHandle world,

@@ -41,6 +41,8 @@ namespace PhysiK
             return;
         }
 
+        RunExternalLogic();
+
         const int steps = std::max(1, substepCount);
         const float substepDt = frameDt / static_cast<float>(steps);
 
@@ -115,6 +117,18 @@ namespace PhysiK
         }
     }
 
+    void World::SetExternalLogicCallback(ExternalLogicCallback callback, void* userData)
+    {
+        externalLogicCallback = callback;
+        externalLogicUserData = userData;
+    }
+
+    void World::ClearExternalLogicCallback()
+    {
+        externalLogicCallback = nullptr;
+        externalLogicUserData = nullptr;
+    }
+
     void World::SetSubstepCount(int count)
     {
         substepCount = std::max(1, count);
@@ -145,6 +159,14 @@ namespace PhysiK
     const std::vector<PointConnection>& World::GetPointConnections() const
     {
         return pointConnections;
+    }
+
+    void World::RunExternalLogic()
+    {
+        if (externalLogicCallback != nullptr)
+        {
+            externalLogicCallback(static_cast<WorldHandle>(this), externalLogicUserData);
+        }
     }
 
     void World::GenerateCollisionConnections()

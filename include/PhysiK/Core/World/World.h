@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "PhysiK/API/Handles.h"
 #include "PhysiK/Components/CollisionComponent.h"
 #include "PhysiK/Components/CollisionSphereComponent.h"
 #include "PhysiK/Components/Component.h"
@@ -34,6 +35,8 @@ namespace PhysiK
             float radius);
 
         void AddPointConnection(const PointConnection& connection);
+        void SetExternalLogicCallback(ExternalLogicCallback callback, void* userData);
+        void ClearExternalLogicCallback();
 
         void SetSubstepCount(int count);
         int GetSubstepCount() const;
@@ -45,6 +48,7 @@ namespace PhysiK
         const std::vector<PointConnection>& GetPointConnections() const;
 
     private:
+        void RunExternalLogic();
         void GenerateCollisionConnections();
         void AddPointConnectionFromContact(const Contact& contact);
         void ApplyPointConnectionForces();
@@ -62,6 +66,9 @@ namespace PhysiK
         std::vector<PointConnection> pointConnections;
 
         CollisionDetectionEngine collisionDetectionEngine;
+
+        ExternalLogicCallback externalLogicCallback = nullptr;
+        void* externalLogicUserData = nullptr;
 
         int substepCount = 1;
     };
