@@ -43,6 +43,7 @@ target_sources(
         include/PhysiK/Core/World/World.h
     PRIVATE
         src/API/PhysiKAPI.cpp
+        src/Components/CollisionComponent.cpp
         src/Components/CollisionSphereComponent.cpp
         src/Core/Collision/CollisionDetectionEngine.cpp
         src/Core/World/World.cpp

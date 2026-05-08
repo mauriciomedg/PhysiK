@@ -1,6 +1,7 @@
 #include "PhysiK/API/PhysiKAPI.h"
 
 #include "PhysiK/Core/World/World.h"
+#include "PhysiK/Components/CollisionComponent.h"
 
 namespace
 {
@@ -115,6 +116,26 @@ extern "C"
         }
 
         return nullptr;
+    }
+
+
+    PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        float x,
+        float y,
+        float z)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        auto* collision = static_cast<PhysiK::CollisionComponent*>(component);
+        if (worldPtr == nullptr || collision == nullptr || !worldPtr->IsCollisionComponent(collision))
+        {
+            return;
+        }
+
+        PhysiK::Transform target = collision->transform;
+        target.position = PhysiK::Vec3{x, y, z};
+        collision->SetKinematicTarget(target);
     }
 
     PHYSIK_API int PHYSIK_GetPointConnectionCount(PhysiK::WorldHandle world)

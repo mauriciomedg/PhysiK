@@ -46,9 +46,11 @@ namespace PhysiK
         const std::vector<Tet>& GetTets() const;
 
         const std::vector<PointConnection>& GetPointConnections() const;
+        bool IsCollisionComponent(const CollisionComponent* component) const;
 
     private:
         void RunExternalLogic();
+        void UpdateKinematicTargets();
         void GenerateCollisionConnections();
         void AddPointConnectionFromContact(const Contact& contact);
         void ApplyPointConnectionForces();

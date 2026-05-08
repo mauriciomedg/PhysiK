@@ -42,6 +42,7 @@ namespace PhysiK
         }
 
         RunExternalLogic();
+        UpdateKinematicTargets();
 
         const int steps = std::max(1, substepCount);
         const float substepDt = frameDt / static_cast<float>(steps);
@@ -161,11 +162,35 @@ namespace PhysiK
         return pointConnections;
     }
 
+    bool World::IsCollisionComponent(const CollisionComponent* component) const
+    {
+        return std::find(collisionComponents.begin(), collisionComponents.end(), component) !=
+            collisionComponents.end();
+    }
+
+
     void World::RunExternalLogic()
     {
         if (externalLogicCallback != nullptr)
         {
             externalLogicCallback(static_cast<WorldHandle>(this), externalLogicUserData);
+        }
+    }
+
+    void World::UpdateKinematicTargets()
+    {
+        for (CollisionComponent* component : collisionComponents)
+        {
+            if (component == nullptr)
+            {
+                continue;
+            }
+
+            Transform target;
+            if (component->ConsumeKinematicTarget(target))
+            {
+                component->transform = target;
+            }
         }
     }
 
