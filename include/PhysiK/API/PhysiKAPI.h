@@ -53,6 +53,14 @@ extern "C"
         float z,
         float radius);
 
+    PHYSIK_API void PHYSIK_DestroyComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component);
+
+    PHYSIK_API int PHYSIK_IsComponentHandleValid(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component);
+
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component,

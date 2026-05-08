@@ -26,14 +26,17 @@ namespace PhysiK
         int AddNode(const Vec3& position, float inverseMass = 1.0f);
         int AddTet(int node0, int node1, int node2, int node3);
 
-        TetMeshComponent& CreateTetMeshComponent(
+        ComponentHandle CreateTetMeshComponent(
             const int* nodeIndices,
             int nodeCount,
             const int* tetIndices,
             int tetCount);
-        CollisionSphereComponent& CreateCollisionSphereComponent(
+        ComponentHandle CreateCollisionSphereComponent(
             const Vec3& position,
             float radius);
+        Component* GetComponent(ComponentHandle handle);
+        const Component* GetComponent(ComponentHandle handle) const;
+        void DestroyComponent(ComponentHandle handle);
 
         void AddPointConnection(const PointConnection& connection);
         void SetExternalLogicCallback(ExternalLogicCallback callback, void* userData);
@@ -48,9 +51,17 @@ namespace PhysiK
         const std::vector<Tet>& GetTets() const;
 
         const std::vector<PointConnection>& GetPointConnections() const;
-        bool IsCollisionComponent(const CollisionComponent* component) const;
 
     private:
+        struct ComponentSlot
+        {
+            std::unique_ptr<Component> component;
+            std::uint32_t generation = 1u;
+        };
+
+        ComponentHandle StoreComponent(std::unique_ptr<Component> component);
+        bool IsComponentHandleValid(ComponentHandle handle) const;
+        void RemoveTypedComponentReferences(Component* component);
         void RunExternalLogic();
         void UpdateKinematicTargets();
         void ApplyFEMForces();
@@ -64,7 +75,8 @@ namespace PhysiK
         std::vector<Node> nodes;
         std::vector<Tet> tets;
 
-        std::vector<std::unique_ptr<Component>> components;
+        std::vector<ComponentSlot> componentSlots;
+        std::vector<std::uint32_t> freeComponentSlots;
         std::vector<TetMeshComponent*> tetMeshes;
         std::vector<CollisionComponent*> collisionComponents;
 

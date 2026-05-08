@@ -97,10 +97,10 @@ extern "C"
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            return &worldPtr->CreateTetMeshComponent(nodeIndices, nodeCount, tetIndices, tetCount);
+            return worldPtr->CreateTetMeshComponent(nodeIndices, nodeCount, tetIndices, tetCount);
         }
 
-        return nullptr;
+        return PhysiK::ComponentHandle{};
     }
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateCollisionSphereComponent(
@@ -112,12 +112,33 @@ extern "C"
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            return &worldPtr->CreateCollisionSphereComponent(PhysiK::Vec3{x, y, z}, radius);
+            return worldPtr->CreateCollisionSphereComponent(PhysiK::Vec3{x, y, z}, radius);
         }
 
-        return nullptr;
+        return PhysiK::ComponentHandle{};
     }
 
+    PHYSIK_API void PHYSIK_DestroyComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->DestroyComponent(component);
+        }
+    }
+
+    PHYSIK_API int PHYSIK_IsComponentHandleValid(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetComponent(component) != nullptr ? 1 : 0;
+        }
+
+        return 0;
+    }
 
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
         PhysiK::WorldHandle world,
@@ -127,8 +148,13 @@ extern "C"
         float z)
     {
         PhysiK::World* worldPtr = AsWorld(world);
-        auto* collision = static_cast<PhysiK::CollisionComponent*>(component);
-        if (worldPtr == nullptr || collision == nullptr || !worldPtr->IsCollisionComponent(collision))
+        if (worldPtr == nullptr)
+        {
+            return;
+        }
+
+        auto* collision = dynamic_cast<PhysiK::CollisionComponent*>(worldPtr->GetComponent(component));
+        if (collision == nullptr)
         {
             return;
         }
