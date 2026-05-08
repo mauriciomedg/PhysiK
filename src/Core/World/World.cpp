@@ -50,6 +50,7 @@ namespace PhysiK
         for (int i = 0; i < steps; ++i)
         {
             ClearForces();
+            ApplyFEMForces();
             GenerateCollisionConnections();
             ApplyPointConnectionForces();
             Integrate(substepDt);
@@ -69,6 +70,7 @@ namespace PhysiK
     int World::AddTet(int node0, int node1, int node2, int node3)
     {
         tets.push_back(Tet{node0, node1, node2, node3});
+        FEMModel::InitializeTetRestData(tets.back(), nodes);
         return static_cast<int>(tets.size()) - 1;
     }
 
@@ -88,6 +90,17 @@ namespace PhysiK
         if (tetIndices != nullptr && tetCount > 0)
         {
             component->tetIndices.assign(tetIndices, tetIndices + tetCount);
+
+            for (int tetIndex : component->tetIndices)
+            {
+                if (tetIndex >= 0 && tetIndex < static_cast<int>(tets.size()))
+                {
+                    Tet& tet = tets[static_cast<std::size_t>(tetIndex)];
+                    tet.stiffness = component->material.stiffness;
+                    tet.damping = component->material.damping;
+                    FEMModel::InitializeTetRestData(tet, nodes);
+                }
+            }
         }
 
         TetMeshComponent& componentRef = *component;
@@ -152,6 +165,14 @@ namespace PhysiK
         return nodes[static_cast<std::size_t>(index)];
     }
 
+    void World::SetNodePosition(int index, const Vec3& position)
+    {
+        assert(index >= 0 && index < static_cast<int>(nodes.size()));
+        Node& node = nodes[static_cast<std::size_t>(index)];
+        node.position = position;
+        node.velocity = Vec3{};
+    }
+
     const std::vector<Tet>& World::GetTets() const
     {
         return tets;
@@ -192,6 +213,11 @@ namespace PhysiK
                 component->transform = target;
             }
         }
+    }
+
+    void World::ApplyFEMForces()
+    {
+        FEMModel::AccumulateElasticForces(tets, nodes);
     }
 
     void World::GenerateCollisionConnections()

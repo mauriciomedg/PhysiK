@@ -84,4 +84,11 @@ extern "C"
         float* outX,
         float* outY,
         float* outZ);
+
+    PHYSIK_API void PHYSIK_SetNodePosition(
+        PhysiK::WorldHandle world,
+        int nodeIndex,
+        float x,
+        float y,
+        float z);
 }

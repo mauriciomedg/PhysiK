@@ -243,11 +243,42 @@ void KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps()
     PHYSIK_DestroyWorld(world);
 }
 
+void FEMElasticityMovesDistortedTetTowardRestShape()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node0 = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 0.0f);
+    const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 0.0f);
+    const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 0.0f);
+    const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+    PHYSIK_AddTet(world, node0, node1, node2, node3);
+
+    const int nodes[] = {node0, node1, node2, node3};
+    const int tets[] = {0};
+    assert(PHYSIK_CreateTetMeshComponent(world, nodes, 4, tets, 1) != nullptr);
+
+    const Point restPosition = GetNodePosition(world, node3);
+    PHYSIK_SetNodePosition(world, node3, 0.0f, 0.0f, 1.25f);
+    const Point distortedPosition = GetNodePosition(world, node3);
+
+    PHYSIK_SetSubstepCount(world, 4);
+    PHYSIK_Step(world, 0.1f);
+
+    const Point after = GetNodePosition(world, node3);
+
+    assert(DistanceSquared(after, restPosition) < DistanceSquared(distortedPosition, restPosition));
+    assert(after.z < distortedPosition.z);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 int main()
 {
     ManualPointConnectionMovesBarycentricPoint();
     SphereContactCreatesTransientConnectionAndMovesTet();
     ExternalLogicHookRunsOnceBeforeSubsteps();
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
+    FEMElasticityMovesDistortedTetTowardRestShape();
     return 0;
 }
