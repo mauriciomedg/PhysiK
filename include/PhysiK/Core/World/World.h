@@ -9,6 +9,7 @@
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Collision/CollisionDetectionEngine.h"
+#include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/PhysicsData/Contact.h"
 #include "PhysiK/PhysicsData/Node.h"
@@ -43,6 +44,7 @@ namespace PhysiK
 
         Node& GetNode(int index);
         const Node& GetNode(int index) const;
+        void SetNodePosition(int index, const Vec3& position);
         const std::vector<Tet>& GetTets() const;
 
         const std::vector<PointConnection>& GetPointConnections() const;
@@ -51,6 +53,7 @@ namespace PhysiK
     private:
         void RunExternalLogic();
         void UpdateKinematicTargets();
+        void ApplyFEMForces();
         void GenerateCollisionConnections();
         void AddPointConnectionFromContact(const Contact& contact);
         void ApplyPointConnectionForces();

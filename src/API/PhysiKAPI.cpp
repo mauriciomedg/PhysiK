@@ -211,4 +211,17 @@ extern "C"
             }
         }
     }
+
+    PHYSIK_API void PHYSIK_SetNodePosition(
+        PhysiK::WorldHandle world,
+        int nodeIndex,
+        float x,
+        float y,
+        float z)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetNodePosition(nodeIndex, PhysiK::Vec3{x, y, z});
+        }
+    }
 }
