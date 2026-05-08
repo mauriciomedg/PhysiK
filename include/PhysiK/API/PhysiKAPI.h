@@ -48,7 +48,7 @@ extern "C"
         PhysiK::WorldHandle world,
         const int* nodeIndices,
         int nodeCount,
-        const int* tetIndices,
+        const int* tetNodeIndices,
         int tetCount);
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateCollisionSphereComponent(
@@ -63,6 +63,10 @@ extern "C"
         PhysiK::ComponentHandle component);
 
     PHYSIK_API int PHYSIK_IsComponentHandleValid(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component);
+
+    PHYSIK_API int PHYSIK_GetTetMeshTetCount(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component);
 

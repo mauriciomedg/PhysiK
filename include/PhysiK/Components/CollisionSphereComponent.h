@@ -9,6 +9,9 @@ namespace PhysiK
     public:
         float radius = 0.5f;
 
-        void QueryContacts(World& world, std::vector<Contact>& outContacts) override;
+        void QueryContacts(
+            World& world,
+            CollisionDetectionEngine& collisionDetectionEngine,
+            std::vector<Contact>& outContacts) override;
     };
 }

@@ -8,6 +8,8 @@
 
 namespace PhysiK
 {
+    class CollisionDetectionEngine;
+
     class CollisionComponent : public Component
     {
     public:
@@ -23,7 +25,10 @@ namespace PhysiK
         void SetKinematicTarget(const Transform& target);
         bool ConsumeKinematicTarget(Transform& outTarget);
 
-        virtual void QueryContacts(World& world, std::vector<Contact>& outContacts) = 0;
+        virtual void QueryContacts(
+            World& world,
+            CollisionDetectionEngine& collisionDetectionEngine,
+            std::vector<Contact>& outContacts) = 0;
 
     private:
         bool hasKinematicTarget = false;

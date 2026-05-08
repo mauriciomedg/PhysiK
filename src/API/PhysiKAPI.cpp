@@ -1,7 +1,8 @@
 #include "PhysiK/API/PhysiKAPI.h"
 
-#include "PhysiK/Core/World/World.h"
 #include "PhysiK/Components/CollisionComponent.h"
+#include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Core/World/World.h"
 
 namespace
 {
@@ -104,12 +105,12 @@ extern "C"
         PhysiK::WorldHandle world,
         const int* nodeIndices,
         int nodeCount,
-        const int* tetIndices,
+        const int* tetNodeIndices,
         int tetCount)
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            return worldPtr->CreateTetMeshComponent(nodeIndices, nodeCount, tetIndices, tetCount);
+            return worldPtr->CreateTetMeshComponent(nodeIndices, nodeCount, tetNodeIndices, tetCount);
         }
 
         return PhysiK::ComponentHandle{};
@@ -150,6 +151,26 @@ extern "C"
         }
 
         return 0;
+    }
+
+    PHYSIK_API int PHYSIK_GetTetMeshTetCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr)
+        {
+            return 0;
+        }
+
+        const auto* tetMesh = dynamic_cast<const PhysiK::TetMeshComponent*>(
+            worldPtr->GetComponent(component));
+        if (tetMesh == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(tetMesh->tets.size());
     }
 
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(

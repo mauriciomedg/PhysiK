@@ -1411,6 +1411,8 @@ extern "C"
 
     PHYSIK_API ComponentHandle PHYSIK_CreateCollisionSphereComponent(...);
 
+    PHYSIK_API int PHYSIK_GetTetMeshTetCount(...);
+
     PHYSIK_API void PHYSIK_AddPointConnection(
         WorldHandle world,
         int node0,
@@ -1431,6 +1433,11 @@ extern "C"
         WorldHandle world,
         int substepCount);
 }
+
+PHYSIK_CreateTetMeshComponent receives global node indices and tetrahedron node-index tuples.
+The created TetMeshComponent owns the tetrahedra.
+
+Do not route new code through a global PHYSIK_AddTet-style World tet store.
 
 ---
 

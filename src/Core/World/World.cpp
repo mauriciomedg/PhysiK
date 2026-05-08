@@ -34,10 +34,7 @@ namespace PhysiK
         }
     }
 
-    World::World()
-    {
-        physicsModels.push_back(&femModel);
-    }
+    World::World() = default;
 
     void World::Step(float frameDt)
     {
@@ -71,15 +68,17 @@ namespace PhysiK
 
     int World::AddTet(int node0, int node1, int node2, int node3)
     {
-        tets.push_back(Tet{node0, node1, node2, node3});
-        FEMModel::InitializeTetRestData(tets.back(), nodes);
-        return static_cast<int>(tets.size()) - 1;
+        (void)node0;
+        (void)node1;
+        (void)node2;
+        (void)node3;
+        return -1;
     }
 
     ComponentHandle World::CreateTetMeshComponent(
         const int* nodeIndices,
         int nodeCount,
-        const int* tetIndices,
+        const int* tetNodeIndices,
         int tetCount)
     {
         auto component = std::make_unique<TetMeshComponent>();
@@ -89,20 +88,21 @@ namespace PhysiK
             component->nodeIndices.assign(nodeIndices, nodeIndices + nodeCount);
         }
 
-        if (tetIndices != nullptr && tetCount > 0)
+        if (tetNodeIndices != nullptr && tetCount > 0)
         {
-            component->tetIndices.assign(tetIndices, tetIndices + tetCount);
-
-            for (int tetIndex : component->tetIndices)
+            component->tets.reserve(static_cast<std::size_t>(tetCount));
+            for (int i = 0; i < tetCount; ++i)
             {
-                if (tetIndex >= 0 && tetIndex < static_cast<int>(tets.size()))
-                {
-                    Tet& tet = tets[static_cast<std::size_t>(tetIndex)];
-                    tet.youngModulus = component->material.youngModulus;
-                    tet.poissonRatio = component->material.poissonRatio;
-                    tet.damping = component->material.damping;
-                    FEMModel::InitializeTetRestData(tet, nodes);
-                }
+                Tet tet;
+                tet.node0 = tetNodeIndices[i * 4 + 0];
+                tet.node1 = tetNodeIndices[i * 4 + 1];
+                tet.node2 = tetNodeIndices[i * 4 + 2];
+                tet.node3 = tetNodeIndices[i * 4 + 3];
+                tet.youngModulus = component->material.youngModulus;
+                tet.poissonRatio = component->material.poissonRatio;
+                tet.damping = component->material.damping;
+                FEMModel::InitializeTetRestData(tet, nodes);
+                component->tets.push_back(tet);
             }
         }
 
@@ -229,9 +229,9 @@ namespace PhysiK
         node.velocity = Vec3{};
     }
 
-    const std::vector<Tet>& World::GetTets() const
+    const std::vector<TetMeshComponent*>& World::GetTetMeshes() const
     {
-        return tets;
+        return tetMeshes;
     }
 
     const std::vector<PointConnection>& World::GetPointConnections() const
@@ -241,18 +241,22 @@ namespace PhysiK
 
     ComponentHandle World::StoreComponent(std::unique_ptr<Component> component)
     {
+        Component* rawComponent = component.get();
+
         if (!freeComponentSlots.empty())
         {
             const std::uint32_t slotIndex = freeComponentSlots.back();
             freeComponentSlots.pop_back();
             ComponentSlot& slot = componentSlots[slotIndex];
             slot.component = std::move(component);
+            components.push_back(rawComponent);
             return ComponentHandle{slotIndex, slot.generation};
         }
 
         ComponentSlot slot;
         slot.component = std::move(component);
         componentSlots.push_back(std::move(slot));
+        components.push_back(rawComponent);
 
         return ComponentHandle{
             static_cast<std::uint32_t>(componentSlots.size() - 1u),
@@ -286,6 +290,10 @@ namespace PhysiK
                     return tetMesh == component;
                 }),
             tetMeshes.end());
+
+        components.erase(
+            std::remove(components.begin(), components.end(), component),
+            components.end());
 
         if (auto* collision = dynamic_cast<CollisionComponent*>(component))
         {
@@ -397,11 +405,11 @@ namespace PhysiK
 
     void World::AddPhysicsModelForces(SolverData& solverData, float dt)
     {
-        for (PhysicsModel* model : physicsModels)
+        for (Component* component : components)
         {
-            if (model != nullptr)
+            if (component != nullptr && component->active)
             {
-                model->UpdateSystem(*this, solverData, dt);
+                component->UpdateSystem(*this, solverData, dt);
             }
         }
     }
@@ -417,10 +425,10 @@ namespace PhysiK
         }
 
         PointConnection connection;
-        connection.node0 = contact.tetNode0;
-        connection.node1 = contact.tetNode1;
-        connection.node2 = contact.tetNode2;
-        connection.node3 = contact.tetNode3;
+        connection.node0 = contact.node0;
+        connection.node1 = contact.node1;
+        connection.node2 = contact.node2;
+        connection.node3 = contact.node3;
         connection.barycentric = contact.barycentric;
         connection.targetPosition = contact.worldPoint + contact.normal * contact.penetrationDepth;
         connection.stiffness = contact.stiffness;

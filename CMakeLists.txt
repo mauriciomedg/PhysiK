@@ -53,6 +53,7 @@ target_sources(
         src/API/PhysiKAPI.cpp
         src/Components/CollisionComponent.cpp
         src/Components/CollisionSphereComponent.cpp
+        src/Components/TetMeshComponent.cpp
         src/Core/Collision/CollisionDetectionEngine.cpp
         src/Core/Physics/FEM/FEMModel.cpp
         src/Core/PhysicsConnections/PointConnection.cpp
