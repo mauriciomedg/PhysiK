@@ -74,7 +74,7 @@ namespace PhysiK
         return static_cast<int>(tets.size()) - 1;
     }
 
-    TetMeshComponent& World::CreateTetMeshComponent(
+    ComponentHandle World::CreateTetMeshComponent(
         const int* nodeIndices,
         int nodeCount,
         const int* tetIndices,
@@ -105,11 +105,10 @@ namespace PhysiK
 
         TetMeshComponent& componentRef = *component;
         tetMeshes.push_back(&componentRef);
-        components.push_back(std::move(component));
-        return componentRef;
+        return StoreComponent(std::move(component));
     }
 
-    CollisionSphereComponent& World::CreateCollisionSphereComponent(
+    ComponentHandle World::CreateCollisionSphereComponent(
         const Vec3& position,
         float radius)
     {
@@ -119,8 +118,47 @@ namespace PhysiK
 
         CollisionSphereComponent& componentRef = *component;
         collisionComponents.push_back(&componentRef);
-        components.push_back(std::move(component));
-        return componentRef;
+        return StoreComponent(std::move(component));
+    }
+
+    Component* World::GetComponent(ComponentHandle handle)
+    {
+        if (!IsComponentHandleValid(handle))
+        {
+            return nullptr;
+        }
+
+        return componentSlots[handle.index].component.get();
+    }
+
+    const Component* World::GetComponent(ComponentHandle handle) const
+    {
+        if (!IsComponentHandleValid(handle))
+        {
+            return nullptr;
+        }
+
+        return componentSlots[handle.index].component.get();
+    }
+
+    void World::DestroyComponent(ComponentHandle handle)
+    {
+        if (!IsComponentHandleValid(handle))
+        {
+            return;
+        }
+
+        ComponentSlot& slot = componentSlots[handle.index];
+        RemoveTypedComponentReferences(slot.component.get());
+        slot.component.reset();
+        ++slot.generation;
+
+        if (slot.generation == 0u)
+        {
+            slot.generation = 1u;
+        }
+
+        freeComponentSlots.push_back(handle.index);
     }
 
     void World::AddPointConnection(const PointConnection& connection)
@@ -183,12 +221,61 @@ namespace PhysiK
         return pointConnections;
     }
 
-    bool World::IsCollisionComponent(const CollisionComponent* component) const
+    ComponentHandle World::StoreComponent(std::unique_ptr<Component> component)
     {
-        return std::find(collisionComponents.begin(), collisionComponents.end(), component) !=
-            collisionComponents.end();
+        if (!freeComponentSlots.empty())
+        {
+            const std::uint32_t slotIndex = freeComponentSlots.back();
+            freeComponentSlots.pop_back();
+            ComponentSlot& slot = componentSlots[slotIndex];
+            slot.component = std::move(component);
+            return ComponentHandle{slotIndex, slot.generation};
+        }
+
+        ComponentSlot slot;
+        slot.component = std::move(component);
+        componentSlots.push_back(std::move(slot));
+
+        return ComponentHandle{
+            static_cast<std::uint32_t>(componentSlots.size() - 1u),
+            componentSlots.back().generation};
     }
 
+    bool World::IsComponentHandleValid(ComponentHandle handle) const
+    {
+        if (!handle.IsValid() || handle.index >= componentSlots.size())
+        {
+            return false;
+        }
+
+        const ComponentSlot& slot = componentSlots[handle.index];
+        return slot.generation == handle.generation && slot.component != nullptr;
+    }
+
+    void World::RemoveTypedComponentReferences(Component* component)
+    {
+        if (component == nullptr)
+        {
+            return;
+        }
+
+        tetMeshes.erase(
+            std::remove_if(
+                tetMeshes.begin(),
+                tetMeshes.end(),
+                [component](const TetMeshComponent* tetMesh)
+                {
+                    return tetMesh == component;
+                }),
+            tetMeshes.end());
+
+        if (auto* collision = dynamic_cast<CollisionComponent*>(component))
+        {
+            collisionComponents.erase(
+                std::remove(collisionComponents.begin(), collisionComponents.end(), collision),
+                collisionComponents.end());
+        }
+    }
 
     void World::RunExternalLogic()
     {
