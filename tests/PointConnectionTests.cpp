@@ -52,7 +52,9 @@ namespace
         PHYSIK_AddTet(world, outNodes[0], outNodes[1], outNodes[2], outNodes[3]);
 
         const int tets[] = {0};
-        assert(PHYSIK_CreateTetMeshComponent(world, outNodes, 4, tets, 1) != nullptr);
+        const PhysiK::ComponentHandle tetMesh =
+            PHYSIK_CreateTetMeshComponent(world, outNodes, 4, tets, 1);
+        assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
     }
 
     Point GetTetCentroid(PhysiK::WorldHandle world, const int (&nodes)[4])
@@ -163,7 +165,9 @@ void SphereContactCreatesTransientConnectionAndMovesTet()
     int nodes[4] = {};
     CreateSingleTet(world, nodes);
 
-    assert(PHYSIK_CreateCollisionSphereComponent(world, 0.25f, 0.25f, 0.25f, 0.75f) != nullptr);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.25f, 0.25f, 0.25f, 0.75f);
+    assert(PHYSIK_IsComponentHandleValid(world, sphere) == 1);
     assert(PHYSIK_GetPointConnectionCount(world) == 0);
 
     const Point before = GetTetCentroid(world, nodes);
@@ -214,11 +218,11 @@ void KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps()
 
     const PhysiK::ComponentHandle sphere =
         PHYSIK_CreateCollisionSphereComponent(world, 2.0f, 2.0f, 2.0f, 0.75f);
-    assert(sphere != nullptr);
+    assert(PHYSIK_IsComponentHandleValid(world, sphere) == 1);
 
     struct State
     {
-        PhysiK::ComponentHandle sphere = nullptr;
+        PhysiK::ComponentHandle sphere;
         int callbackCount = 0;
     } state{sphere, 0};
 
@@ -256,7 +260,9 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
 
     const int nodes[] = {node0, node1, node2, node3};
     const int tets[] = {0};
-    assert(PHYSIK_CreateTetMeshComponent(world, nodes, 4, tets, 1) != nullptr);
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(world, nodes, 4, tets, 1);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
 
     const Point restPosition = GetNodePosition(world, node3);
     PHYSIK_SetNodePosition(world, node3, 0.0f, 0.0f, 1.25f);
@@ -273,6 +279,31 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
     PHYSIK_DestroyWorld(world);
 }
 
+void DestroyComponentInvalidatesHandle()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTet(world, nodes);
+
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 2.0f, 2.0f, 2.0f, 0.75f);
+    assert(PHYSIK_IsComponentHandleValid(world, sphere) == 1);
+
+    PHYSIK_DestroyComponent(world, sphere);
+    assert(PHYSIK_IsComponentHandleValid(world, sphere) == 0);
+
+    PHYSIK_SetCollisionComponentKinematicTarget(world, sphere, 0.25f, 0.25f, 0.25f);
+    const Point before = GetTetCentroid(world, nodes);
+    PHYSIK_Step(world, 0.1f);
+    const Point after = GetTetCentroid(world, nodes);
+
+    assert(DistanceSquared(after, before) < 0.000001f);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 int main()
 {
     ManualPointConnectionMovesBarycentricPoint();
@@ -280,5 +311,6 @@ int main()
     ExternalLogicHookRunsOnceBeforeSubsteps();
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();
+    DestroyComponentInvalidatesHandle();
     return 0;
 }
