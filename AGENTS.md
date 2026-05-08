@@ -28,6 +28,7 @@ Persistent objects:
 - Collision primitives
 - Meshes
 - Materials
+- Physics models
 
 Transient objects:
 
@@ -40,6 +41,12 @@ Most important rule:
 Only the solver modifies simulation state.
 
 Collision systems and gameplay systems only generate contacts, events, or transient connections.
+
+Connections are not components.
+
+Connections are not persistent simulation objects.
+
+Connections are transient penalty-energy terms generated for one frame or one physics substep.
 
 ---
 
@@ -58,6 +65,8 @@ PhysiK/
           World.h
 
         Physics/
+          PhysicsModel.h
+
           FEM/
             FEMModel.h
             TetElement.h
@@ -76,6 +85,16 @@ PhysiK/
             TriangleElement.h
             ClothEnergy.h
 
+        PhysicsConnections/
+          PhysicsConnection.h
+
+          PointConnection.h
+          SurfaceConnection.h
+          LineConnection.h
+
+          RigidBodyConnection.h
+          RigidBodyOrientationConnection.h
+
         Collision/
           CollisionDetectionEngine.h
           BroadPhase.h
@@ -83,6 +102,8 @@ PhysiK/
           SpatialHashMap.h
 
         Solvers/
+          SolverData.h
+
           Linear/
             ConjugateGradientSolver.h
             LDLTSolver.h
@@ -129,15 +150,14 @@ PhysiK/
         Contact.h
         ContactCandidate.h
 
-        PointConnection.h
-        SurfaceConnection.h
-        LineConnection.h
-
-        RigidBodyConnection.h
-        RigidBodyOrientationConnection.h
-
   src/
     Core/
+      World/
+      Physics/
+      PhysicsConnections/
+      Collision/
+      Solvers/
+
     Components/
     Math/
     PhysicsData/
@@ -154,6 +174,7 @@ Responsibilities:
 
 - Own simulation data.
 - Own all components.
+- Own all physics models.
 - Own collision engine.
 - Own solver systems.
 - Run simulation pipeline.
@@ -179,6 +200,8 @@ private:
 
     std::vector<CollisionComponent*> collisionComponents;
     std::vector<GameplayComponent*> gameplayComponents;
+
+    std::vector<PhysicsModel*> physicsModels;
 
     std::vector<PointConnection> pointConnections;
     std::vector<SurfaceConnection> surfaceConnections;
@@ -221,7 +244,9 @@ For each physics substep:
         Collision detection
         Contact generation
         Internal connection generation
-        Pre-update physics models
+        SolverData clear
+        PhysicsModel::UpdateSystem(...)
+        PhysicsConnection::UpdateSystem(...)
         Solver assembly
         Numerical solve
         Integration
@@ -239,6 +264,33 @@ Connections live for one physics substep only.
 If a contact persists, the connection must be recreated in the next substep.
 
 Gameplay does not run inside the substep loop.
+
+---
+
+# SolverData
+
+SolverData is the temporary structure used to assemble the current physics system.
+
+Physics models and physics connections write their contributions into SolverData.
+
+class SolverData
+{
+public:
+    void Clear();
+
+    // Force / residual vector
+    // Stiffness matrix
+    // Mass matrix
+    // Damping matrix
+    // Temporary solver buffers
+};
+
+Important:
+
+- Physics models contribute internal material behavior.
+- Physics connections contribute transient penalty energies.
+- The solver consumes SolverData.
+- Only the solver modifies the final simulation state.
 
 ---
 
@@ -260,6 +312,10 @@ It decides what should happen during the frame:
 
 Gameplay runs once per frame, after external sync and before animation/physics.
 
+Gameplay does not directly deform simulation objects.
+
+Gameplay creates transient connections.
+
 ---
 
 # Components
@@ -278,6 +334,10 @@ public:
     virtual void Update(World& world, float dt) {}
     virtual ~Component() = default;
 };
+
+Components do not solve physics.
+
+Components do not directly modify simulation state.
 
 ---
 
@@ -453,6 +513,7 @@ Examples:
 
 - ManualGrabComponent
 - MetricsLoggerComponent
+- ToolInteractionComponent
 
 ---
 
@@ -556,6 +617,8 @@ struct Contact
 
 The querying component decides the response.
 
+A collision component can convert a contact into a transient connection.
+
 ---
 
 # Connection Architecture
@@ -563,6 +626,8 @@ The querying component decides the response.
 Connections are transient solver inputs.
 
 Connections are not components.
+
+Connections are not persistent simulation objects.
 
 Connections are consumed by the solver during one physics substep.
 
@@ -572,14 +637,66 @@ Only these systems create connections:
 
 - CollisionComponent
 - GameplayComponent
+- internal physics interaction logic
+
+Connections live in:
+
+Core/PhysicsConnections/
+
+A connection represents a penalty energy over simulation variables.
+
+A connection contributes force, residual, stiffness, damping, or Jacobian terms into SolverData.
+
+A connection does not directly modify:
+
+- node positions
+- node velocities
+- rigid-body positions
+- rigid-body orientations
+- rigid-body velocities
+
+## Base PhysicsConnection
+
+class PhysicsConnection
+{
+public:
+    virtual void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) = 0;
+
+    virtual ~PhysicsConnection() = default;
+};
 
 ---
 
 # Soft-Body Connections
 
+Soft-body connections apply to a material point inside a tetrahedron.
+
+The connection receives:
+
+- the 4 nodes of the tetrahedron
+- barycentric coordinates defining the material point inside the tetrahedron
+- target data
+- stiffness
+- damping
+
+Material point:
+
+Vec3 p =
+    barycentric.x * x0 +
+    barycentric.y * x1 +
+    barycentric.z * x2 +
+    barycentric.w * x3;
+
+---
+
 ## PointConnection
 
-struct PointConnection
+PointConnection pulls a tetrahedral material point toward a target world-space point.
+
+struct PointConnection : public PhysicsConnection
 {
     int node0;
     int node1;
@@ -592,27 +709,34 @@ struct PointConnection
 
     float stiffness;
     float damping;
+
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override;
 };
-
-Material point:
-
-Vec3 p =
-    barycentric.x * x0 +
-    barycentric.y * x1 +
-    barycentric.z * x2 +
-    barycentric.w * x3;
 
 Energy:
 
-E = 0.5 * k * ||p - target||²
+E = 0.5 * k * ||p - targetPosition||²
 
 Force is distributed to the four tet nodes using barycentric weights.
+
+Use cases:
+
+- grabbing
+- tool interaction
+- contact response
+- manual gameplay connection
+- temporary attachment
 
 ---
 
 ## SurfaceConnection
 
-struct SurfaceConnection
+SurfaceConnection pushes or pulls a tetrahedral material point toward a plane or surface.
+
+struct SurfaceConnection : public PhysicsConnection
 {
     int node0;
     int node1;
@@ -626,18 +750,35 @@ struct SurfaceConnection
 
     float stiffness;
     float damping;
+
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override;
 };
+
+Signed distance:
+
+float d = dot(p - surfacePoint, surfaceNormal);
 
 Energy:
 
-d = dot(p - surfacePoint, surfaceNormal)
 E = 0.5 * k * d²
+
+Use cases:
+
+- plane contact
+- wall contact
+- surface projection
+- tool-surface interaction
 
 ---
 
 ## LineConnection
 
-struct LineConnection
+LineConnection pulls a tetrahedral material point toward a line.
+
+struct LineConnection : public PhysicsConnection
 {
     int node0;
     int node1;
@@ -651,12 +792,30 @@ struct LineConnection
 
     float stiffness;
     float damping;
+
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override;
 };
+
+Closest point:
+
+Vec3 closestPoint = ClosestPointOnLine(
+    p,
+    linePoint,
+    lineDirection);
 
 Energy:
 
-closestPoint = ClosestPointOnLine(p, linePoint, lineDirection)
 E = 0.5 * k * ||p - closestPoint||²
+
+Use cases:
+
+- sliding interaction
+- guide constraints
+- catheter/tool alignment
+- line-based temporary control
 
 ---
 
@@ -668,7 +827,7 @@ Rigid-body interactions use transient energy connections.
 
 ## RigidBodyConnection
 
-struct RigidBodyConnection
+struct RigidBodyConnection : public PhysicsConnection
 {
     RigidBodyHandle rigidBody;
 
@@ -677,6 +836,11 @@ struct RigidBodyConnection
 
     float stiffness;
     float damping;
+
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override;
 };
 
 World-space point:
@@ -685,7 +849,7 @@ Vec3 p = rigidBody.position + rigidBody.orientation * localPoint;
 
 Energy:
 
-E = 0.5 * k * ||p - target||²
+E = 0.5 * k * ||p - targetPosition||²
 
 Produces:
 
@@ -696,7 +860,7 @@ Produces:
 
 ## RigidBodyOrientationConnection
 
-struct RigidBodyOrientationConnection
+struct RigidBodyOrientationConnection : public PhysicsConnection
 {
     RigidBodyHandle rigidBody;
 
@@ -704,6 +868,11 @@ struct RigidBodyOrientationConnection
 
     float stiffness;
     float damping;
+
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override;
 };
 
 Orientation error:
@@ -727,6 +896,8 @@ Physics models define:
 - forces
 - residuals
 - Jacobians
+- stiffness matrices
+- damping matrices
 - mass matrices
 
 Physics models do not hardcode numerical solvers.
@@ -737,6 +908,102 @@ Examples:
 - Core/Physics/RigidBody
 - Core/Physics/CosseratRod
 - Core/Physics/Cloth
+
+Physics models are persistent engine systems.
+
+Physics models are not components.
+
+Each physics model contributes to SolverData through UpdateSystem.
+
+## Base PhysicsModel
+
+class PhysicsModel
+{
+public:
+    virtual void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) = 0;
+
+    virtual ~PhysicsModel() = default;
+};
+
+---
+
+# FEMModel
+
+FEMModel is the physics model responsible for volumetric deformable simulation.
+
+class FEMModel : public PhysicsModel
+{
+public:
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override;
+};
+
+Responsibilities:
+
+- Iterate over tetrahedra.
+- Compute deformation gradients.
+- Compute strain energy.
+- Compute internal forces.
+- Compute stiffness contributions.
+- Write contributions into SolverData.
+
+FEMModel does not directly move nodes.
+
+---
+
+# RigidBodyModel
+
+RigidBodyModel is the physics model responsible for rigid-body dynamics.
+
+class RigidBodyModel : public PhysicsModel
+{
+public:
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override;
+};
+
+RigidBodyModel does not directly move rigid bodies.
+
+---
+
+# CosseratRodModel
+
+CosseratRodModel is the physics model responsible for rods, sutures, cables, catheters, and beams.
+
+class CosseratRodModel : public PhysicsModel
+{
+public:
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override;
+};
+
+CosseratRodModel does not directly move nodes.
+
+---
+
+# ClothModel
+
+ClothModel is the physics model responsible for cloth, shells, and thin surface simulation.
+
+class ClothModel : public PhysicsModel
+{
+public:
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override;
+};
+
+ClothModel does not directly move nodes.
 
 ---
 
@@ -753,6 +1020,7 @@ Examples:
 - TLED
 - Euler
 - Semi-Implicit Euler
+- Projective Dynamics
 
 Different physics models may use different solvers.
 
@@ -774,7 +1042,7 @@ Collision engine
 Contacts
     = information
 
-Connections
+PhysicsConnections
     = transient solver energies
 
 Solvers
@@ -792,6 +1060,8 @@ Collision systems do not deform.
 Gameplay systems do not deform.
 
 Components do not deform.
+
+Physics connections do not deform directly.
 
 Only the solver modifies simulation state.
 
@@ -822,9 +1092,107 @@ extern "C"
 
     PHYSIK_API ComponentHandle PHYSIK_CreateCollisionSphereComponent(...);
 
-    PHYSIK_API void PHYSIK_AddPointConnection(...);
+    PHYSIK_API void PHYSIK_AddPointConnection(
+        WorldHandle world,
+        int node0,
+        int node1,
+        int node2,
+        int node3,
+        float baryX,
+        float baryY,
+        float baryZ,
+        float baryW,
+        float targetX,
+        float targetY,
+        float targetZ,
+        float stiffness,
+        float damping);
 
-    PHYSIK_API void PHYSIK_SetSubstepCount(...);
+    PHYSIK_API void PHYSIK_SetSubstepCount(
+        WorldHandle world,
+        int substepCount);
+}
+
+---
+
+# Example World Step
+
+void World::Step(float frameDt)
+{
+    ExternalSyncFromHost();
+
+    for (GameplayComponent* gameplay : gameplayComponents)
+    {
+        if (gameplay && gameplay->active)
+        {
+            gameplay->Update(*this, frameDt);
+        }
+    }
+
+    UpdateAnimationTargets(frameDt);
+
+    float subDt = frameDt / static_cast<float>(substepCount);
+
+    for (int substep = 0; substep < substepCount; ++substep)
+    {
+        std::vector<Contact> contacts;
+
+        for (CollisionComponent* collision : collisionComponents)
+        {
+            if (collision && collision->active)
+            {
+                collision->QueryContacts(*this, contacts);
+            }
+        }
+
+        GenerateConnectionsFromContacts(contacts);
+
+        SolverData solverData;
+        solverData.Clear();
+
+        for (PhysicsModel* model : physicsModels)
+        {
+            if (model)
+            {
+                model->UpdateSystem(*this, solverData, subDt);
+            }
+        }
+
+        for (PointConnection& connection : pointConnections)
+        {
+            connection.UpdateSystem(*this, solverData, subDt);
+        }
+
+        for (SurfaceConnection& connection : surfaceConnections)
+        {
+            connection.UpdateSystem(*this, solverData, subDt);
+        }
+
+        for (LineConnection& connection : lineConnections)
+        {
+            connection.UpdateSystem(*this, solverData, subDt);
+        }
+
+        for (RigidBodyConnection& connection : rigidBodyConnections)
+        {
+            connection.UpdateSystem(*this, solverData, subDt);
+        }
+
+        for (RigidBodyOrientationConnection& connection : rigidBodyOrientationConnections)
+        {
+            connection.UpdateSystem(*this, solverData, subDt);
+        }
+
+        solver.Solve(solverData, subDt);
+
+        Integrate(subDt);
+
+        ClearTransientConnections();
+    }
+
+    PostFrameUpdate();
+
+    ExportDataToHost();
 }
 
 ---
@@ -834,7 +1202,12 @@ extern "C"
 First vertical slice:
 
 - World
+- SolverData
+- PhysicsModel base class
+- FEMModel placeholder
 - TetMeshComponent
+- PhysicsConnections folder
+- PhysicsConnection base class
 - PointConnection
 - simple solver
 - substepping
@@ -852,7 +1225,7 @@ This validates the architecture.
 
 Do not implement yet:
 
-- FEM
+- full FEM
 - collision detection
 - rigid bodies
 - rods
@@ -860,3 +1233,62 @@ Do not implement yet:
 - CG
 - Unreal integration
 - Unity integration
+- tearing
+- fracture
+- topology changes
+
+---
+
+# Agent Instructions
+
+When modifying this codebase:
+
+1. Respect the separation between persistent simulation objects and transient solver inputs.
+
+2. Do not turn PointConnection, SurfaceConnection, or LineConnection into components.
+
+3. Do not make PointConnection, SurfaceConnection, or LineConnection persistent scene objects.
+
+4. Store connections under Core/PhysicsConnections.
+
+5. Connections must expose UpdateSystem.
+
+6. Physics models must expose UpdateSystem.
+
+7. Physics models and connections contribute to SolverData.
+
+8. Collision code must not directly modify node positions or velocities.
+
+9. Gameplay code must not directly modify node positions or velocities.
+
+10. Components must not directly solve physics.
+
+11. World orchestrates the simulation pipeline.
+
+12. The solver is the only system allowed to modify simulation state.
+
+13. Keep the first milestone minimal.
+
+14. Do not over-engineer future systems before the first vertical slice is working.
+
+---
+
+# Final Architecture Reminder
+
+A TetMeshComponent says:
+
+This object exists in the scene.
+
+A FEMModel says:
+
+This object behaves like deformable FEM material.
+
+A PointConnection says:
+
+For this substep, this material point should be pulled toward this target.
+
+A solver says:
+
+Given all model energies and connection energies, compute the next physical state.
+
+That is the core architecture of PhysiK.
