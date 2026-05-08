@@ -8,35 +8,6 @@
 
 namespace PhysiK
 {
-    namespace
-    {
-        Vec3 WeightedPoint(
-            const Node& node0,
-            const Node& node1,
-            const Node& node2,
-            const Node& node3,
-            const Vec4& weights)
-        {
-            return node0.position * weights.x +
-                node1.position * weights.y +
-                node2.position * weights.z +
-                node3.position * weights.w;
-        }
-
-        Vec3 WeightedVelocity(
-            const Node& node0,
-            const Node& node1,
-            const Node& node2,
-            const Node& node3,
-            const Vec4& weights)
-        {
-            return node0.velocity * weights.x +
-                node1.velocity * weights.y +
-                node2.velocity * weights.z +
-                node3.velocity * weights.w;
-        }
-    }
-
     World::World() = default;
 
     void World::Step(float frameDt)
