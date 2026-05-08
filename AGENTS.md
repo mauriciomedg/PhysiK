@@ -23,18 +23,21 @@ PhysiK separates:
 
 Persistent objects:
 
+- World
 - Components
 - Bodies
 - Collision primitives
 - Meshes
 - Materials
-- Physics models
+- Physics models owned by components
+- Component-local topology
 
 Transient objects:
 
 - Contacts
 - Connections
 - Solver energies
+- Temporary solver data
 
 Most important rule:
 
@@ -47,6 +50,89 @@ Connections are not components.
 Connections are not persistent simulation objects.
 
 Connections are transient penalty-energy terms generated for one frame or one physics substep.
+
+---
+
+# Ownership Philosophy
+
+World owns global simulation state and orchestration.
+
+Components own their private simulation structure and physics model.
+
+World owns:
+
+- global nodes
+- component storage
+- component handles
+- collision detection engine
+- solver systems
+- transient connections
+- simulation pipeline
+- substepping
+
+World does not own:
+
+- tetrahedra
+- triangles
+- rod elements
+- FEM element topology
+- cloth topology
+- rigid-body model internals
+- component-owned physics models
+
+Tetrahedra are an FEM abstraction.
+
+Therefore, tetrahedra belong to TetMeshComponent or the FEM model owned by TetMeshComponent.
+
+Triangles are a cloth/shell abstraction.
+
+Therefore, triangles belong to TriMeshComponent or the ClothModel owned by TriMeshComponent.
+
+Rod elements are a Cosserat rod abstraction.
+
+Therefore, rod elements belong to LineMeshComponent or the CosseratRodModel owned by LineMeshComponent.
+
+Rigid-body state belongs to RigidBodyComponent.
+
+The World only stores global nodes so different systems can assemble into one solver system.
+
+---
+
+# Component-Owned Models
+
+Components own the physics models that define their behavior.
+
+Examples:
+
+TetMeshComponent owns:
+
+- tetrahedral topology
+- material
+- FEMModel
+
+RigidBodyComponent owns:
+
+- rigid-body state
+- RigidBodyModel
+
+LineMeshComponent owns:
+
+- line or rod topology
+- CosseratRodModel
+
+TriMeshComponent owns:
+
+- triangle topology
+- ClothModel
+
+CollisionComponent owns:
+
+- collision shape data
+- collision parameters
+
+CollisionComponent talks to CollisionDetectionEngine.
+
+CollisionComponent may generate contacts or transient physics connections.
 
 ---
 
@@ -172,15 +258,25 @@ World is the main simulation container and orchestrator.
 
 Responsibilities:
 
-- Own simulation data.
+- Own global nodes.
 - Own all components.
-- Own all physics models.
 - Own collision engine.
 - Own solver systems.
 - Run simulation pipeline.
 - Manage substepping.
 - Store transient connections.
 - Clear transient connections after substeps.
+- Export simulation state to Unity/Unreal/host application.
+
+World does not own tetrahedra.
+
+World does not own triangle topology.
+
+World does not own rod topology.
+
+World does not own component-local physics models.
+
+World should not become a container for every possible physics topology.
 
 class World
 {
@@ -189,7 +285,6 @@ public:
 
 private:
     std::vector<Node> nodes;
-    std::vector<Tet> tets;
 
     std::vector<Component*> components;
 
@@ -200,8 +295,6 @@ private:
 
     std::vector<CollisionComponent*> collisionComponents;
     std::vector<GameplayComponent*> gameplayComponents;
-
-    std::vector<PhysicsModel*> physicsModels;
 
     std::vector<PointConnection> pointConnections;
     std::vector<SurfaceConnection> surfaceConnections;
@@ -214,6 +307,22 @@ private:
 
     int substepCount = 1;
 };
+
+Important:
+
+Do not add this to World:
+
+std::vector<Tet> tets;
+
+Tets are owned by TetMeshComponent.
+
+Do not add this to World:
+
+std::vector<PhysicsModel*> physicsModels;
+
+Physics models are owned by components.
+
+World calls Component::UpdateSystem, and each component delegates to its owned model.
 
 ---
 
@@ -245,7 +354,11 @@ For each physics substep:
         Contact generation
         Internal connection generation
         SolverData clear
-        PhysicsModel::UpdateSystem(...)
+        Component::UpdateSystem(...)
+            - TetMeshComponent calls FEMModel::UpdateSystem(...)
+            - RigidBodyComponent calls RigidBodyModel::UpdateSystem(...)
+            - LineMeshComponent calls CosseratRodModel::UpdateSystem(...)
+            - TriMeshComponent calls ClothModel::UpdateSystem(...)
         PhysicsConnection::UpdateSystem(...)
         Solver assembly
         Numerical solve
@@ -271,7 +384,7 @@ Gameplay does not run inside the substep loop.
 
 SolverData is the temporary structure used to assemble the current physics system.
 
-Physics models and physics connections write their contributions into SolverData.
+Components, component-owned physics models, and physics connections write their contributions into SolverData.
 
 class SolverData
 {
@@ -287,7 +400,8 @@ public:
 
 Important:
 
-- Physics models contribute internal material behavior.
+- Components do not solve physics.
+- Component-owned physics models contribute internal material behavior.
 - Physics connections contribute transient penalty energies.
 - The solver consumes SolverData.
 - Only the solver modifies the final simulation state.
@@ -324,6 +438,12 @@ Components are persistent simulation objects attached to scene objects.
 
 Components are exposed through the DLL.
 
+Components own their private simulation data.
+
+Components own their physics model when they have physical behavior.
+
+Components expose UpdateSystem so World can ask them to contribute to SolverData.
+
 ## Base Component
 
 class Component
@@ -332,6 +452,12 @@ public:
     bool active = true;
 
     virtual void Update(World& world, float dt) {}
+
+    virtual void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) {}
+
     virtual ~Component() = default;
 };
 
@@ -339,30 +465,74 @@ Components do not solve physics.
 
 Components do not directly modify simulation state.
 
+Components delegate mathematical assembly to their owned physics model.
+
 ---
 
 # TetMeshComponent
 
 Volumetric deformable body.
 
+TetMeshComponent owns the FEM topology.
+
+TetMeshComponent owns its FEMModel.
+
+TetMeshComponent owns the tetrahedra generated from a Unity/Unreal mesh.
+
+When a mesh is tetrahedralized from Unity or Unreal:
+
+- TetMeshComponent creates its local tetrahedral topology.
+- TetMeshComponent adds nodes to World.
+- TetMeshComponent stores global node indices.
+- TetMeshComponent keeps tetrahedra private.
+- World does not publish or own the tetrahedra.
+
 class TetMeshComponent : public Component
 {
 public:
     std::vector<int> nodeIndices;
-    std::vector<int> tetIndices;
+    std::vector<Tet> tets;
 
     Material material;
+
+    FEMModel femModel;
+
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override
+    {
+        femModel.UpdateSystem(
+            world,
+            *this,
+            solverData,
+            dt);
+    }
 };
 
 Uses:
 
 Core/Physics/FEM
 
+Important:
+
+Tets are not global World data.
+
+Tets are private FEM topology.
+
+Other systems should not depend on World owning tets.
+
+Other systems that need tet queries should go through TetMeshComponent or CollisionDetectionEngine.
+
 ---
 
 # RigidBodyComponent
 
 Persistent rigid-body simulation object.
+
+RigidBodyComponent owns its rigid-body state.
+
+RigidBodyComponent owns its RigidBodyModel.
 
 class RigidBodyComponent : public Component
 {
@@ -375,6 +545,20 @@ public:
 
     float mass;
     Mat3 inertiaTensor;
+
+    RigidBodyModel rigidBodyModel;
+
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override
+    {
+        rigidBodyModel.UpdateSystem(
+            world,
+            *this,
+            solverData,
+            dt);
+    }
 };
 
 Uses:
@@ -397,10 +581,30 @@ Represents:
 - cables
 - catheters
 
+LineMeshComponent owns its line/rod topology.
+
+LineMeshComponent owns its CosseratRodModel.
+
 class LineMeshComponent : public Component
 {
 public:
     std::vector<int> nodeIndices;
+
+    std::vector<RodElement> rodElements;
+
+    CosseratRodModel cosseratRodModel;
+
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override
+    {
+        cosseratRodModel.UpdateSystem(
+            world,
+            *this,
+            solverData,
+            dt);
+    }
 };
 
 Uses:
@@ -417,11 +621,29 @@ Represents:
 - shell simulation
 - thin surface simulation
 
+TriMeshComponent owns its triangle topology.
+
+TriMeshComponent owns its ClothModel.
+
 class TriMeshComponent : public Component
 {
 public:
     std::vector<int> nodeIndices;
-    std::vector<int> triangleIndices;
+    std::vector<TriangleElement> triangles;
+
+    ClothModel clothModel;
+
+    void UpdateSystem(
+        World& world,
+        SolverData& solverData,
+        float dt) override
+    {
+        clothModel.UpdateSystem(
+            world,
+            *this,
+            solverData,
+            dt);
+    }
 };
 
 Uses:
@@ -436,6 +658,8 @@ Persistent collision component.
 
 Collision components:
 
+- own collision shape data
+- talk to the CollisionDetectionEngine
 - query collision engine
 - generate contacts
 - optionally generate transient connections
@@ -456,8 +680,15 @@ public:
 
     virtual void QueryContacts(
         World& world,
+        CollisionDetectionEngine& collisionDetectionEngine,
         std::vector<Contact>& outContacts) = 0;
 };
+
+CollisionComponent reads/talks to CollisionDetectionEngine.
+
+CollisionDetectionEngine performs the broad phase and narrow phase work.
+
+CollisionComponent decides whether detected contacts become events or transient physics connections.
 
 ---
 
@@ -523,6 +754,10 @@ The collision engine only detects contacts.
 
 It does not create solver responses automatically.
 
+It does not directly deform simulation objects.
+
+It can query component-owned topology through components.
+
 class CollisionDetectionEngine
 {
 public:
@@ -554,6 +789,17 @@ Purpose:
 
 Avoid N² collision checks.
 
+The broad phase may index:
+
+- component bounds
+- tetrahedra from TetMeshComponent
+- surface triangles from TriMeshComponent
+- collision primitives
+
+But the broad phase does not own the topology.
+
+It only references or caches acceleration data.
+
 ---
 
 # Spatial Hash Map
@@ -568,11 +814,13 @@ private:
     std::unordered_map<HashKey, Cell> cells;
 };
 
-Can store:
+Can store references to:
 
-- tetrahedra
-- surface triangles
-- collision primitives
+- tetrahedra owned by TetMeshComponent
+- surface triangles owned by TriMeshComponent
+- collision primitives owned by CollisionComponent
+
+SpatialHashMap does not own simulation topology.
 
 ---
 
@@ -592,6 +840,10 @@ Outputs:
 
 Contact list
 
+The narrow phase can read TetMeshComponent private topology through controlled access/query methods.
+
+It should not require World to own tetrahedra.
+
 ---
 
 # Contacts
@@ -602,10 +854,13 @@ Contacts are not solver constraints automatically.
 
 struct Contact
 {
-    int tetNode0;
-    int tetNode1;
-    int tetNode2;
-    int tetNode3;
+    ComponentHandle sourceComponent;
+    ComponentHandle targetComponent;
+
+    int node0;
+    int node1;
+    int node2;
+    int node3;
 
     Vec4 barycentric;
 
@@ -618,6 +873,10 @@ struct Contact
 The querying component decides the response.
 
 A collision component can convert a contact into a transient connection.
+
+For soft-body FEM contacts, the four node indices refer to global World node indices.
+
+The tetrahedron that produced the contact is owned by TetMeshComponent, not World.
 
 ---
 
@@ -676,11 +935,15 @@ Soft-body connections apply to a material point inside a tetrahedron.
 
 The connection receives:
 
-- the 4 nodes of the tetrahedron
+- the 4 global node indices of the tetrahedron
 - barycentric coordinates defining the material point inside the tetrahedron
 - target data
 - stiffness
 - damping
+
+The connection does not need to own or access the Tet object.
+
+The Tet object remains private to TetMeshComponent.
 
 Material point:
 
@@ -909,9 +1172,11 @@ Examples:
 - Core/Physics/CosseratRod
 - Core/Physics/Cloth
 
-Physics models are persistent engine systems.
+Physics models are owned by components.
 
 Physics models are not components.
+
+Physics models are not globally owned by World.
 
 Each physics model contributes to SolverData through UpdateSystem.
 
@@ -920,13 +1185,26 @@ Each physics model contributes to SolverData through UpdateSystem.
 class PhysicsModel
 {
 public:
-    virtual void UpdateSystem(
-        World& world,
-        SolverData& solverData,
-        float dt) = 0;
-
     virtual ~PhysicsModel() = default;
 };
+
+The base class can remain minimal.
+
+Each concrete model can expose an UpdateSystem overload that receives the owning component type.
+
+Example:
+
+class FEMModel : public PhysicsModel
+{
+public:
+    void UpdateSystem(
+        World& world,
+        TetMeshComponent& owner,
+        SolverData& solverData,
+        float dt);
+};
+
+This allows FEMModel to access the TetMeshComponent that owns the tetrahedra.
 
 ---
 
@@ -934,18 +1212,26 @@ public:
 
 FEMModel is the physics model responsible for volumetric deformable simulation.
 
+FEMModel is owned by TetMeshComponent.
+
+FEMModel works on the tetrahedra owned by TetMeshComponent.
+
+FEMModel does not ask World for a global tet list.
+
 class FEMModel : public PhysicsModel
 {
 public:
     void UpdateSystem(
         World& world,
+        TetMeshComponent& owner,
         SolverData& solverData,
-        float dt) override;
+        float dt);
 };
 
 Responsibilities:
 
-- Iterate over tetrahedra.
+- Iterate over owner.tets.
+- Use owner.nodeIndices and global World nodes.
 - Compute deformation gradients.
 - Compute strain energy.
 - Compute internal forces.
@@ -954,22 +1240,31 @@ Responsibilities:
 
 FEMModel does not directly move nodes.
 
+FEMModel does not own World nodes.
+
+FEMModel does not require World to own tets.
+
 ---
 
 # RigidBodyModel
 
 RigidBodyModel is the physics model responsible for rigid-body dynamics.
 
+RigidBodyModel is owned by RigidBodyComponent.
+
 class RigidBodyModel : public PhysicsModel
 {
 public:
     void UpdateSystem(
         World& world,
+        RigidBodyComponent& owner,
         SolverData& solverData,
-        float dt) override;
+        float dt);
 };
 
 RigidBodyModel does not directly move rigid bodies.
+
+RigidBodyModel contributes rigid-body force, mass, inertia, and Jacobian terms into SolverData.
 
 ---
 
@@ -977,16 +1272,21 @@ RigidBodyModel does not directly move rigid bodies.
 
 CosseratRodModel is the physics model responsible for rods, sutures, cables, catheters, and beams.
 
+CosseratRodModel is owned by LineMeshComponent.
+
 class CosseratRodModel : public PhysicsModel
 {
 public:
     void UpdateSystem(
         World& world,
+        LineMeshComponent& owner,
         SolverData& solverData,
-        float dt) override;
+        float dt);
 };
 
 CosseratRodModel does not directly move nodes.
+
+CosseratRodModel reads rod topology from the owning LineMeshComponent.
 
 ---
 
@@ -994,16 +1294,21 @@ CosseratRodModel does not directly move nodes.
 
 ClothModel is the physics model responsible for cloth, shells, and thin surface simulation.
 
+ClothModel is owned by TriMeshComponent.
+
 class ClothModel : public PhysicsModel
 {
 public:
     void UpdateSystem(
         World& world,
+        TriMeshComponent& owner,
         SolverData& solverData,
-        float dt) override;
+        float dt);
 };
 
 ClothModel does not directly move nodes.
+
+ClothModel reads triangle topology from the owning TriMeshComponent.
 
 ---
 
@@ -1031,13 +1336,13 @@ Do not hard-code one solver per physics model.
 # Key Separation
 
 Components
-    = scene-facing persistent objects
+    = scene-facing persistent objects that own private topology and models
 
 Physics models
-    = mathematical behavior
+    = mathematical behavior owned by components
 
 Collision engine
-    = contact detection
+    = contact detection and spatial queries
 
 Contacts
     = information
@@ -1049,21 +1354,35 @@ Solvers
     = numerical algorithms
 
 World
-    = orchestration
+    = global node storage and orchestration
 
 ---
 
-# Most Important Rule
+# Most Important Rules
 
 Collision systems do not deform.
 
 Gameplay systems do not deform.
 
-Components do not deform.
+Components do not directly deform.
 
-Physics connections do not deform directly.
+Physics models do not directly deform.
+
+Physics connections do not directly deform.
 
 Only the solver modifies simulation state.
+
+World does not own tetrahedra.
+
+World does not own component-local topology.
+
+World does not globally own physics models.
+
+Components own their physics models.
+
+TetMeshComponent owns tetrahedra.
+
+FEMModel works on the TetMeshComponent that owns it.
 
 ---
 
@@ -1141,7 +1460,10 @@ void World::Step(float frameDt)
         {
             if (collision && collision->active)
             {
-                collision->QueryContacts(*this, contacts);
+                collision->QueryContacts(
+                    *this,
+                    collisionDetectionEngine,
+                    contacts);
             }
         }
 
@@ -1150,11 +1472,14 @@ void World::Step(float frameDt)
         SolverData solverData;
         solverData.Clear();
 
-        for (PhysicsModel* model : physicsModels)
+        for (Component* component : components)
         {
-            if (model)
+            if (component && component->active)
             {
-                model->UpdateSystem(*this, solverData, subDt);
+                component->UpdateSystem(
+                    *this,
+                    solverData,
+                    subDt);
             }
         }
 
@@ -1202,10 +1527,13 @@ void World::Step(float frameDt)
 First vertical slice:
 
 - World
+- global nodes
+- component storage
 - SolverData
-- PhysicsModel base class
-- FEMModel placeholder
+- Component::UpdateSystem
 - TetMeshComponent
+- TetMeshComponent-owned tetrahedra
+- TetMeshComponent-owned FEMModel placeholder
 - PhysicsConnections folder
 - PhysicsConnection base class
 - PointConnection
@@ -1216,12 +1544,15 @@ First vertical slice:
 
 Goal:
 
-- One tetrahedron
+- One TetMeshComponent
+- One tetrahedron owned by TetMeshComponent
+- Global nodes stored in World
+- No global World tet array
 - One transient PointConnection
 - One solver step
 - One substep clear
 
-This validates the architecture.
+This validates the ownership architecture.
 
 Do not implement yet:
 
@@ -1245,47 +1576,75 @@ When modifying this codebase:
 
 1. Respect the separation between persistent simulation objects and transient solver inputs.
 
-2. Do not turn PointConnection, SurfaceConnection, or LineConnection into components.
+2. Respect the ownership rule: World owns global nodes and orchestration, components own topology and physics models.
 
-3. Do not make PointConnection, SurfaceConnection, or LineConnection persistent scene objects.
+3. Do not make World own tetrahedra.
 
-4. Store connections under Core/PhysicsConnections.
+4. Do not make World own triangle topology.
 
-5. Connections must expose UpdateSystem.
+5. Do not make World own rod topology.
 
-6. Physics models must expose UpdateSystem.
+6. Do not make World globally own PhysicsModel instances.
 
-7. Physics models and connections contribute to SolverData.
+7. TetMeshComponent owns its tetrahedra.
 
-8. Collision code must not directly modify node positions or velocities.
+8. TetMeshComponent owns its FEMModel.
 
-9. Gameplay code must not directly modify node positions or velocities.
+9. RigidBodyComponent owns its RigidBodyModel.
 
-10. Components must not directly solve physics.
+10. LineMeshComponent owns its CosseratRodModel.
 
-11. World orchestrates the simulation pipeline.
+11. TriMeshComponent owns its ClothModel.
 
-12. The solver is the only system allowed to modify simulation state.
+12. World calls Component::UpdateSystem during solver assembly.
 
-13. Keep the first milestone minimal.
+13. Each component delegates UpdateSystem to its owned model.
 
-14. Do not over-engineer future systems before the first vertical slice is working.
+14. Do not turn PointConnection, SurfaceConnection, or LineConnection into components.
+
+15. Do not make PointConnection, SurfaceConnection, or LineConnection persistent scene objects.
+
+16. Store connections under Core/PhysicsConnections.
+
+17. Connections must expose UpdateSystem.
+
+18. Physics models must contribute to SolverData through their owning component.
+
+19. Physics connections contribute to SolverData.
+
+20. Collision code must not directly modify node positions or velocities.
+
+21. Gameplay code must not directly modify node positions or velocities.
+
+22. Components must not directly solve physics.
+
+23. World orchestrates the simulation pipeline.
+
+24. The solver is the only system allowed to modify simulation state.
+
+25. Keep the first milestone minimal.
+
+26. Do not over-engineer future systems before the first vertical slice is working.
 
 ---
 
 # Final Architecture Reminder
 
+World says:
+
+I own global nodes and orchestrate the simulation.
+
 A TetMeshComponent says:
 
-This object exists in the scene.
+This deformable object exists in the scene, and I own its tetrahedral topology.
 
 A FEMModel says:
 
-This object behaves like deformable FEM material.
+Given my owning TetMeshComponent, I know how to assemble deformable FEM equations.
 
 A PointConnection says:
 
-For this substep, this material point should be pulled toward this target.
+For this substep, this material point defined by four global nodes and barycentric coordinates should be pulled toward this target.
 
 A solver says:
 
