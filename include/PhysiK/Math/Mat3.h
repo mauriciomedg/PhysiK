@@ -18,6 +18,11 @@ namespace PhysiK
             return Mat3{};
         }
 
+        static Mat3 Zero()
+        {
+            return FromColumns(Vec3{}, Vec3{}, Vec3{});
+        }
+
         static Mat3 FromColumns(const Vec3& column0, const Vec3& column1, const Vec3& column2)
         {
             Mat3 matrix;

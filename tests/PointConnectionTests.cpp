@@ -1,7 +1,10 @@
 #include "PhysiK/API/PhysiKAPI.h"
+#include "PhysiK/Core/Physics/FEM/FEMModel.h"
+#include "PhysiK/Core/Solvers/SolverData.h"
 
 #include <cassert>
 #include <cmath>
+#include <vector>
 
 namespace
 {
@@ -41,6 +44,56 @@ namespace
         const float dy = a.y - b.y;
         const float dz = a.z - b.z;
         return dx * dx + dy * dy + dz * dz;
+    }
+
+    float LengthSquared(const PhysiK::Vec3& value)
+    {
+        return value.x * value.x + value.y * value.y + value.z * value.z;
+    }
+
+    float GetMat3Value(const PhysiK::Mat3& matrix, int row, int column)
+    {
+        const PhysiK::Vec3& sourceColumn = matrix.columns[column];
+        if (row == 0)
+        {
+            return sourceColumn.x;
+        }
+
+        if (row == 1)
+        {
+            return sourceColumn.y;
+        }
+
+        return sourceColumn.z;
+    }
+
+    PhysiK::Vec3 SumForcesForNode(const PhysiK::SolverData& solverData, int node)
+    {
+        PhysiK::Vec3 total;
+        for (const PhysiK::SolverData::NodeForce& force : solverData.GetNodeForces())
+        {
+            if (force.node == node)
+            {
+                total += force.force;
+            }
+        }
+        return total;
+    }
+
+    const PhysiK::SolverData::StiffnessBlock* FindBlock(
+        const PhysiK::SolverData& solverData,
+        int nodeA,
+        int nodeB)
+    {
+        for (const PhysiK::SolverData::StiffnessBlock& block : solverData.GetStiffnessBlocks())
+        {
+            if (block.nodeA == nodeA && block.nodeB == nodeB)
+            {
+                return &block;
+            }
+        }
+
+        return nullptr;
     }
 
     void CreateSingleTet(PhysiK::WorldHandle world, int (&outNodes)[4])
@@ -332,6 +385,65 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
     PHYSIK_DestroyWorld(world);
 }
 
+void LinearTetAssemblyProducesForcesAndSymmetricStiffness()
+{
+    std::vector<PhysiK::Node> nodes(4);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+    nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
+    nodes[2].position = PhysiK::Vec3{0.0f, 1.0f, 0.0f};
+    nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.0f};
+
+    PhysiK::Tet tet;
+    tet.node0 = 0;
+    tet.node1 = 1;
+    tet.node2 = 2;
+    tet.node3 = 3;
+    tet.youngModulus = 100.0f;
+    tet.poissonRatio = 0.25f;
+    tet.damping = 0.0f;
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+
+    std::vector<PhysiK::Tet> tets = {tet};
+    PhysiK::SolverData solverData;
+    PhysiK::FEMModel::AccumulateElasticForces(tets, nodes, solverData);
+
+    for (int node = 0; node < 4; ++node)
+    {
+        assert(LengthSquared(SumForcesForNode(solverData, node)) < 0.000001f);
+    }
+
+    assert(solverData.GetStiffnessBlocks().size() == 16);
+
+    for (int nodeA = 0; nodeA < 4; ++nodeA)
+    {
+        for (int nodeB = 0; nodeB < 4; ++nodeB)
+        {
+            const PhysiK::SolverData::StiffnessBlock* ab = FindBlock(solverData, nodeA, nodeB);
+            const PhysiK::SolverData::StiffnessBlock* ba = FindBlock(solverData, nodeB, nodeA);
+            assert(ab != nullptr);
+            assert(ba != nullptr);
+
+            for (int row = 0; row < 3; ++row)
+            {
+                for (int column = 0; column < 3; ++column)
+                {
+                    const float lhs = GetMat3Value(ab->block, row, column);
+                    const float rhs = GetMat3Value(ba->block, column, row);
+                    assert(std::abs(lhs - rhs) < 0.0001f);
+                }
+            }
+        }
+    }
+
+    solverData.Clear();
+    nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.1f};
+    PhysiK::FEMModel::AccumulateElasticForces(tets, nodes, solverData);
+
+    const PhysiK::Vec3 node3Force = SumForcesForNode(solverData, 3);
+    assert(LengthSquared(node3Force) > 0.000001f);
+    assert(node3Force.z < 0.0f);
+}
+
 void DestroyComponentInvalidatesHandle()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -366,6 +478,7 @@ int main()
     ExternalLogicHookRunsOnceBeforeSubsteps();
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();
+    LinearTetAssemblyProducesForcesAndSymmetricStiffness();
     DestroyComponentInvalidatesHandle();
     return 0;
 }

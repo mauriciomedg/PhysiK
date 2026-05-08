@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PhysiK/Math/Mat3.h"
+#include "PhysiK/Math/Vec3.h"
 
 namespace PhysiK
 {
@@ -13,7 +14,10 @@ namespace PhysiK
 
         float restVolume = 0.0f;
         Mat3 restDmInverse;
-        float stiffness = 25.0f;
+        Vec3 restPositions[4];
+        Vec3 shapeFunctionGradients[4];
+        float youngModulus = 25.0f;
+        float poissonRatio = 0.3f;
         float damping = 0.25f;
     };
 }
