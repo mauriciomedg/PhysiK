@@ -9,6 +9,6 @@ namespace PhysiK
         CollisionComponent& component,
         std::vector<Contact>& outContacts)
     {
-        component.QueryContacts(world, outContacts);
+        component.QueryContacts(world, *this, outContacts);
     }
 }

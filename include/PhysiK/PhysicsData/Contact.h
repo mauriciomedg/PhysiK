@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PhysiK/API/Handles.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/Math/Vec4.h"
 
@@ -7,10 +8,13 @@ namespace PhysiK
 {
     struct Contact
     {
-        int tetNode0 = -1;
-        int tetNode1 = -1;
-        int tetNode2 = -1;
-        int tetNode3 = -1;
+        ComponentHandle sourceComponent;
+        ComponentHandle targetComponent;
+
+        int node0 = -1;
+        int node1 = -1;
+        int node2 = -1;
+        int node3 = -1;
 
         Vec4 barycentric;
 

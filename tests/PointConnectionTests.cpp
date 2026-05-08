@@ -102,11 +102,10 @@ namespace
         outNodes[1] = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
         outNodes[2] = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 1.0f);
         outNodes[3] = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
-        PHYSIK_AddTet(world, outNodes[0], outNodes[1], outNodes[2], outNodes[3]);
 
-        const int tets[] = {0};
+        const int tetNodeIndices[] = {outNodes[0], outNodes[1], outNodes[2], outNodes[3]};
         const PhysiK::ComponentHandle tetMesh =
-            PHYSIK_CreateTetMeshComponent(world, outNodes, 4, tets, 1);
+            PHYSIK_CreateTetMeshComponent(world, outNodes, 4, tetNodeIndices, 1);
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
     }
 
@@ -362,12 +361,11 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
     const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 0.0f);
     const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 0.0f);
     const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
-    PHYSIK_AddTet(world, node0, node1, node2, node3);
 
     const int nodes[] = {node0, node1, node2, node3};
-    const int tets[] = {0};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(world, nodes, 4, tets, 1);
+        PHYSIK_CreateTetMeshComponent(world, nodes, 4, tetNodeIndices, 1);
     assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
 
     const Point restPosition = GetNodePosition(world, node3);
@@ -382,6 +380,29 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
     assert(DistanceSquared(after, restPosition) < DistanceSquared(distortedPosition, restPosition));
     assert(after.z < distortedPosition.z);
 
+    PHYSIK_DestroyWorld(world);
+}
+
+void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node0 = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
+    const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
+    const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 1.0f);
+    const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+
+    const int nodes[] = {node0, node1, node2, node3};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
+    const PhysiK::ComponentHandle handle =
+        PHYSIK_CreateTetMeshComponent(world, nodes, 4, tetNodeIndices, 1);
+
+    assert(PHYSIK_IsComponentHandleValid(world, handle) == 1);
+    assert(PHYSIK_GetTetMeshTetCount(world, handle) == 1);
+    assert(PHYSIK_AddTet(world, node0, node1, node2, node3) == -1);
+
+    PHYSIK_Step(world, 0.01f);
     PHYSIK_DestroyWorld(world);
 }
 
@@ -478,6 +499,7 @@ int main()
     ExternalLogicHookRunsOnceBeforeSubsteps();
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();
+    TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
     LinearTetAssemblyProducesForcesAndSymmetricStiffness();
     DestroyComponentInvalidatesHandle();
     return 0;

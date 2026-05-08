@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 
+#include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
 
@@ -226,10 +227,14 @@ namespace PhysiK
         }
     }
 
-    void FEMModel::UpdateSystem(World& world, SolverData& solverData, float dt)
+    void FEMModel::UpdateSystem(
+        World& world,
+        TetMeshComponent& owner,
+        SolverData& solverData,
+        float dt)
     {
         (void)dt;
-        AccumulateElasticForces(world.GetTets(), world.GetNodes(), solverData);
+        AccumulateElasticForces(owner.tets, world.GetNodes(), solverData);
     }
 
     void FEMModel::InitializeTetRestData(Tet& tet, const std::vector<Node>& nodes)

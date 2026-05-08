@@ -9,8 +9,6 @@
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Collision/CollisionDetectionEngine.h"
-#include "PhysiK/Core/Physics/FEM/FEMModel.h"
-#include "PhysiK/Core/Physics/PhysicsModel.h"
 #include "PhysiK/Core/PhysicsConnections/LineConnection.h"
 #include "PhysiK/Core/PhysicsConnections/PointConnection.h"
 #include "PhysiK/Core/PhysicsConnections/RigidBodyConnection.h"
@@ -20,7 +18,6 @@
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/PhysicsData/Contact.h"
 #include "PhysiK/PhysicsData/Node.h"
-#include "PhysiK/PhysicsData/Tet.h"
 
 namespace PhysiK
 {
@@ -37,7 +34,7 @@ namespace PhysiK
         ComponentHandle CreateTetMeshComponent(
             const int* nodeIndices,
             int nodeCount,
-            const int* tetIndices,
+            const int* tetNodeIndices,
             int tetCount);
         ComponentHandle CreateCollisionSphereComponent(
             const Vec3& position,
@@ -59,7 +56,7 @@ namespace PhysiK
         const Node& GetNode(int index) const;
         const std::vector<Node>& GetNodes() const;
         void SetNodePosition(int index, const Vec3& position);
-        const std::vector<Tet>& GetTets() const;
+        const std::vector<TetMeshComponent*>& GetTetMeshes() const;
 
         const std::vector<PointConnection>& GetPointConnections() const;
         bool HasValidNodeIndices(const PointConnection& connection) const;
@@ -88,13 +85,12 @@ namespace PhysiK
         void ClearTransientConnections();
 
         std::vector<Node> nodes;
-        std::vector<Tet> tets;
 
         std::vector<ComponentSlot> componentSlots;
         std::vector<std::uint32_t> freeComponentSlots;
+        std::vector<Component*> components;
         std::vector<TetMeshComponent*> tetMeshes;
         std::vector<CollisionComponent*> collisionComponents;
-        std::vector<PhysicsModel*> physicsModels;
 
         std::vector<PointConnection> pointConnections;
         std::vector<SurfaceConnection> surfaceConnections;
@@ -103,7 +99,6 @@ namespace PhysiK
         std::vector<RigidBodyOrientationConnection> rigidBodyOrientationConnections;
 
         CollisionDetectionEngine collisionDetectionEngine;
-        FEMModel femModel;
 
         ExternalLogicCallback externalLogicCallback = nullptr;
         void* externalLogicUserData = nullptr;
