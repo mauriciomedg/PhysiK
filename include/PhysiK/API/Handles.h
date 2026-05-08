@@ -17,5 +17,7 @@ namespace PhysiK
         }
     };
 
+    using RigidBodyHandle = ComponentHandle;
+
     using ExternalLogicCallback = void (*)(WorldHandle world, void* userData);
 }

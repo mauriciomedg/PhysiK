@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cmath>
 
+#include "PhysiK/Core/Solvers/SolverData.h"
+#include "PhysiK/Core/World/World.h"
+
 namespace PhysiK
 {
     namespace
@@ -26,6 +29,12 @@ namespace PhysiK
         }
     }
 
+    void FEMModel::UpdateSystem(World& world, SolverData& solverData, float dt)
+    {
+        (void)dt;
+        AccumulateElasticForces(world.GetTets(), world.GetNodes(), solverData);
+    }
+
     void FEMModel::InitializeTetRestData(Tet& tet, const std::vector<Node>& nodes)
     {
         if (!HasValidNodes(tet, nodes))
@@ -39,7 +48,10 @@ namespace PhysiK
         tet.restDmInverse = Inverse(restDm);
     }
 
-    void FEMModel::AccumulateElasticForces(const std::vector<Tet>& tets, std::vector<Node>& nodes)
+    void FEMModel::AccumulateElasticForces(
+        const std::vector<Tet>& tets,
+        const std::vector<Node>& nodes,
+        SolverData& solverData)
     {
         for (const Tet& tet : tets)
         {
@@ -58,15 +70,15 @@ namespace PhysiK
             const Vec3 force3 = forceMatrix.columns[2] * (-tet.stiffness * tet.restVolume);
             const Vec3 force0 = -(force1 + force2 + force3);
 
-            Node& node0 = nodes[static_cast<std::size_t>(tet.node0)];
-            Node& node1 = nodes[static_cast<std::size_t>(tet.node1)];
-            Node& node2 = nodes[static_cast<std::size_t>(tet.node2)];
-            Node& node3 = nodes[static_cast<std::size_t>(tet.node3)];
+            const Node& node0 = nodes[static_cast<std::size_t>(tet.node0)];
+            const Node& node1 = nodes[static_cast<std::size_t>(tet.node1)];
+            const Node& node2 = nodes[static_cast<std::size_t>(tet.node2)];
+            const Node& node3 = nodes[static_cast<std::size_t>(tet.node3)];
 
-            node0.force += force0 - node0.velocity * tet.damping;
-            node1.force += force1 - node1.velocity * tet.damping;
-            node2.force += force2 - node2.velocity * tet.damping;
-            node3.force += force3 - node3.velocity * tet.damping;
+            solverData.AddNodeForce(tet.node0, force0 - node0.velocity * tet.damping);
+            solverData.AddNodeForce(tet.node1, force1 - node1.velocity * tet.damping);
+            solverData.AddNodeForce(tet.node2, force2 - node2.velocity * tet.damping);
+            solverData.AddNodeForce(tet.node3, force3 - node3.velocity * tet.damping);
         }
     }
 }

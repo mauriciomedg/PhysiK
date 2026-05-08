@@ -34,6 +34,11 @@ namespace PhysiK
         }
     }
 
+    World::World()
+    {
+        physicsModels.push_back(&femModel);
+    }
+
     void World::Step(float frameDt)
     {
         if (frameDt <= 0.0f)
@@ -49,9 +54,9 @@ namespace PhysiK
 
         for (int i = 0; i < steps; ++i)
         {
-            AccumulateForces();
+            AccumulateForces(substepDt);
             Integrate(substepDt);
-            pointConnections.clear();
+            ClearTransientConnections();
         }
     }
 
@@ -210,6 +215,11 @@ namespace PhysiK
         return nodes[static_cast<std::size_t>(index)];
     }
 
+    const std::vector<Node>& World::GetNodes() const
+    {
+        return nodes;
+    }
+
     void World::SetNodePosition(int index, const Vec3& position)
     {
         assert(index >= 0 && index < static_cast<int>(nodes.size()));
@@ -309,37 +319,61 @@ namespace PhysiK
         }
     }
 
-    void World::AccumulateForces()
+    void World::AccumulateForces(float dt)
     {
         ClearForces();
-        AddGravityForces();
-        AddConnectionForces();
-        AddCollisionForces();
-        ApplyFEMForces();
+        SolverData solverData;
+        solverData.Clear();
+        AddGravityForces(solverData);
+        AddConnectionForces(solverData, dt);
+        AddCollisionForces(solverData, dt);
+        AddPhysicsModelForces(solverData, dt);
+        Solve(solverData, dt);
     }
 
-    void World::AddGravityForces()
+    void World::AddGravityForces(SolverData& solverData)
     {
-        for (Node& node : nodes)
+        for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
+            const Node& node = nodes[static_cast<std::size_t>(i)];
             if (node.inverseMass <= 0.0f)
             {
                 continue;
             }
 
-            node.force += gravity / node.inverseMass;
+            solverData.AddNodeForce(i, gravity / node.inverseMass);
         }
     }
 
-    void World::AddConnectionForces()
+    void World::AddConnectionForces(SolverData& solverData, float dt)
     {
-        for (const PointConnection& connection : pointConnections)
+        for (PointConnection& connection : pointConnections)
         {
-            AddPointConnectionForce(connection);
+            connection.UpdateSystem(*this, solverData, dt);
+        }
+
+        for (SurfaceConnection& connection : surfaceConnections)
+        {
+            connection.UpdateSystem(*this, solverData, dt);
+        }
+
+        for (LineConnection& connection : lineConnections)
+        {
+            connection.UpdateSystem(*this, solverData, dt);
+        }
+
+        for (RigidBodyConnection& connection : rigidBodyConnections)
+        {
+            connection.UpdateSystem(*this, solverData, dt);
+        }
+
+        for (RigidBodyOrientationConnection& connection : rigidBodyOrientationConnections)
+        {
+            connection.UpdateSystem(*this, solverData, dt);
         }
     }
 
-    void World::AddCollisionForces()
+    void World::AddCollisionForces(SolverData& solverData, float dt)
     {
         std::vector<Contact> contacts;
 
@@ -355,17 +389,26 @@ namespace PhysiK
 
             for (const Contact& contact : contacts)
             {
-                AddPointConnectionFromContact(contact);
+                AddPointConnectionFromContact(contact, solverData, dt);
             }
         }
     }
 
-    void World::ApplyFEMForces()
+    void World::AddPhysicsModelForces(SolverData& solverData, float dt)
     {
-        FEMModel::AccumulateElasticForces(tets, nodes);
+        for (PhysicsModel* model : physicsModels)
+        {
+            if (model != nullptr)
+            {
+                model->UpdateSystem(*this, solverData, dt);
+            }
+        }
     }
 
-    void World::AddPointConnectionFromContact(const Contact& contact)
+    void World::AddPointConnectionFromContact(
+        const Contact& contact,
+        SolverData& solverData,
+        float dt)
     {
         if (contact.penetrationDepth <= 0.0f)
         {
@@ -382,31 +425,20 @@ namespace PhysiK
         connection.stiffness = contact.stiffness;
         connection.damping = contact.damping;
         AddPointConnection(connection);
-        AddPointConnectionForce(connection);
+        connection.UpdateSystem(*this, solverData, dt);
     }
 
-    void World::AddPointConnectionForce(const PointConnection& connection)
+    void World::Solve(SolverData& solverData, float dt)
     {
-        if (!HasValidNodeIndices(connection))
+        (void)dt;
+
+        for (const SolverData::NodeForce& nodeForce : solverData.GetNodeForces())
         {
-            return;
+            if (nodeForce.node >= 0 && nodeForce.node < static_cast<int>(nodes.size()))
+            {
+                nodes[static_cast<std::size_t>(nodeForce.node)].force += nodeForce.force;
+            }
         }
-
-        Node& node0 = nodes[static_cast<std::size_t>(connection.node0)];
-        Node& node1 = nodes[static_cast<std::size_t>(connection.node1)];
-        Node& node2 = nodes[static_cast<std::size_t>(connection.node2)];
-        Node& node3 = nodes[static_cast<std::size_t>(connection.node3)];
-
-        const Vec3 point = WeightedPoint(node0, node1, node2, node3, connection.barycentric);
-        const Vec3 velocity = WeightedVelocity(node0, node1, node2, node3, connection.barycentric);
-        const Vec3 springForce = (connection.targetPosition - point) * connection.stiffness;
-        const Vec3 dampingForce = velocity * (-connection.damping);
-        const Vec3 pointForce = springForce + dampingForce;
-
-        node0.force += pointForce * connection.barycentric.x;
-        node1.force += pointForce * connection.barycentric.y;
-        node2.force += pointForce * connection.barycentric.z;
-        node3.force += pointForce * connection.barycentric.w;
     }
 
     void World::Integrate(float dt)
@@ -430,6 +462,15 @@ namespace PhysiK
         {
             node.force = Vec3{};
         }
+    }
+
+    void World::ClearTransientConnections()
+    {
+        pointConnections.clear();
+        surfaceConnections.clear();
+        lineConnections.clear();
+        rigidBodyConnections.clear();
+        rigidBodyOrientationConnections.clear();
     }
 
     bool World::HasValidNodeIndices(const PointConnection& connection) const

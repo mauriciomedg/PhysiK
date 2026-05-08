@@ -1,11 +1,12 @@
 #pragma once
 
+#include "PhysiK/Core/PhysicsConnections/PhysicsConnection.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/Math/Vec4.h"
 
 namespace PhysiK
 {
-    struct PointConnection
+    struct LineConnection : public PhysicsConnection
     {
         int node0 = -1;
         int node1 = -1;
@@ -13,9 +14,12 @@ namespace PhysiK
         int node3 = -1;
 
         Vec4 barycentric;
-        Vec3 targetPosition;
+        Vec3 linePoint;
+        Vec3 lineDirection;
 
         float stiffness = 0.0f;
         float damping = 0.0f;
+
+        void UpdateSystem(World& world, SolverData& solverData, float dt) override;
     };
 }
