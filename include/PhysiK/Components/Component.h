@@ -1,7 +1,11 @@
 #pragma once
 
+#include <vector>
+
 namespace PhysiK
 {
+    class CollisionDetectionEngine;
+    struct Contact;
     class SolverData;
     class World;
 
@@ -10,10 +14,20 @@ namespace PhysiK
     public:
         bool active = true;
 
-        virtual void Update(World& world, float dt)
+        virtual void UpdateFrame(World& world, float dt)
         {
             (void)world;
             (void)dt;
+        }
+
+        virtual void QueryContacts(
+            World& world,
+            CollisionDetectionEngine& collisionDetectionEngine,
+            std::vector<Contact>& outContacts)
+        {
+            (void)world;
+            (void)collisionDetectionEngine;
+            (void)outContacts;
         }
 
         virtual void UpdateSystem(World& world, SolverData& solverData, float dt)

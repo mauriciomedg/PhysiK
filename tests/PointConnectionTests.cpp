@@ -190,6 +190,7 @@ void ManualPointConnectionMovesBarycentricPoint()
         target.z,
         100.0f,
         0.0f);
+    assert(PHYSIK_GetPointConnectionCount(world) == 1);
 
     PHYSIK_Step(world, 0.1f);
 
@@ -400,7 +401,6 @@ void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
 
     assert(PHYSIK_IsComponentHandleValid(world, handle) == 1);
     assert(PHYSIK_GetTetMeshTetCount(world, handle) == 1);
-    assert(PHYSIK_AddTet(world, node0, node1, node2, node3) == -1);
 
     PHYSIK_Step(world, 0.01f);
     PHYSIK_DestroyWorld(world);

@@ -37,13 +37,6 @@ extern "C"
         float z,
         float inverseMass);
 
-    PHYSIK_API int PHYSIK_AddTet(
-        PhysiK::WorldHandle world,
-        int node0,
-        int node1,
-        int node2,
-        int node3);
-
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,
         const int* nodeIndices,
