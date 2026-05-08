@@ -44,6 +44,8 @@ namespace PhysiK
 
         void SetSubstepCount(int count);
         int GetSubstepCount() const;
+        void SetGravity(const Vec3& value);
+        const Vec3& GetGravity() const;
 
         Node& GetNode(int index);
         const Node& GetNode(int index) const;
@@ -64,10 +66,13 @@ namespace PhysiK
         void RemoveTypedComponentReferences(Component* component);
         void RunExternalLogic();
         void UpdateKinematicTargets();
+        void AccumulateForces();
+        void AddGravityForces();
+        void AddConnectionForces();
+        void AddCollisionForces();
         void ApplyFEMForces();
-        void GenerateCollisionConnections();
         void AddPointConnectionFromContact(const Contact& contact);
-        void ApplyPointConnectionForces();
+        void AddPointConnectionForce(const PointConnection& connection);
         void Integrate(float dt);
         void ClearForces();
         bool HasValidNodeIndices(const PointConnection& connection) const;
@@ -87,6 +92,7 @@ namespace PhysiK
         ExternalLogicCallback externalLogicCallback = nullptr;
         void* externalLogicUserData = nullptr;
 
+        Vec3 gravity;
         int substepCount = 1;
     };
 }
