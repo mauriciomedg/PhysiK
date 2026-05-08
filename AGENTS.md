@@ -79,6 +79,7 @@ World does not own:
 - cloth topology
 - rigid-body model internals
 - component-owned physics models
+- concrete component construction
 
 Tetrahedra are an FEM abstraction.
 
@@ -101,6 +102,12 @@ The World only stores global nodes so different systems can assemble into one so
 # Component-Owned Models
 
 Components own the physics models that define their behavior.
+
+Component creation logic belongs to component factories or the C API layer.
+
+World registers already-created components.
+
+World does not construct component internals.
 
 Examples:
 
@@ -282,6 +289,8 @@ class World
 {
 public:
     void Step(float frameDt);
+    ComponentHandle AddComponent(
+        std::unique_ptr<Component> component);
 
 private:
     std::vector<Node> nodes;
@@ -311,6 +320,18 @@ Physics models are owned by components.
 World calls Component::UpdateSystem, and each component delegates to its owned model.
 
 World should orchestrate through Component and PhysicsConnection abstractions.
+
+World should expose generic registration:
+
+ComponentHandle AddComponent(std::unique_ptr<Component> component);
+
+Do not add component-specific creation methods to World, such as:
+
+World::CreateTetMeshComponent(...);
+
+World::CreateCollisionSphereComponent(...);
+
+Concrete component construction belongs to component factories/static Create methods or the C API layer.
 
 Do not add typed component registries for orchestration, such as:
 
@@ -495,6 +516,23 @@ When a mesh is tetrahedralized from Unity or Unreal:
 class TetMeshComponent : public Component
 {
 public:
+    static std::unique_ptr<TetMeshComponent> CreateFromGlobalNodes(
+        World& world,
+        const int* globalNodeIndices,
+        int nodeCount,
+        const int* tetGlobalNodeIndices,
+        int tetCount,
+        const Material& material);
+
+    static std::unique_ptr<TetMeshComponent> CreateFromPositions(
+        World& world,
+        const Vec3* positions,
+        const float* inverseMasses,
+        int nodeCount,
+        const int* tetLocalNodeIndices,
+        int tetCount,
+        const Material& material);
+
     std::vector<int> nodeIndices;
     std::vector<Tet> tets;
 
@@ -524,6 +562,12 @@ Important:
 Tets are not global World data.
 
 Tets are private FEM topology.
+
+TetMeshComponent factories create and initialize tetrahedra.
+
+TetMeshComponent or FEMModel initializes FEM rest data.
+
+World does not initialize tetrahedra or FEM rest data.
 
 Other systems should not depend on World owning tets.
 
@@ -702,6 +746,10 @@ CollisionComponent decides whether detected contacts become events or transient 
 class CollisionSphereComponent : public CollisionComponent
 {
 public:
+    static std::unique_ptr<CollisionSphereComponent> Create(
+        const Vec3& position,
+        float radius);
+
     float radius;
 };
 
@@ -1437,11 +1485,17 @@ extern "C"
 }
 
 PHYSIK_CreateTetMeshComponent receives global node indices and tetrahedron node-index tuples.
+The C API calls TetMeshComponent::CreateFromGlobalNodes and registers the result with World::AddComponent.
+
 The created TetMeshComponent owns the tetrahedra.
 
 Do not route new code through a global PHYSIK_AddTet-style World tet store.
 
 Do not add a World::AddTet function.
+
+Do not add World::CreateTetMeshComponent or World::CreateCollisionSphereComponent.
+
+The C API can know which concrete component to create; World should not.
 
 ---
 

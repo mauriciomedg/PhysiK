@@ -1,6 +1,8 @@
 #include "PhysiK/Components/CollisionSphereComponent.h"
 
+#include <algorithm>
 #include <cmath>
+#include <memory>
 
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Collision/CollisionDetectionEngine.h"
@@ -20,6 +22,16 @@ namespace PhysiK
 
             return Vec3{0.0f, 0.0f, 1.0f};
         }
+    }
+
+    std::unique_ptr<CollisionSphereComponent> CollisionSphereComponent::Create(
+        const Vec3& position,
+        float radius)
+    {
+        auto component = std::make_unique<CollisionSphereComponent>();
+        component->transform.position = position;
+        component->radius = std::max(0.0f, radius);
+        return component;
     }
 
     void CollisionSphereComponent::QueryContacts(

@@ -4,6 +4,8 @@
 #include <cassert>
 #include <memory>
 
+#include "PhysiK/Components/CollisionComponent.h"
+
 namespace PhysiK
 {
     namespace
@@ -65,51 +67,6 @@ namespace PhysiK
         node.inverseMass = std::max(0.0f, inverseMass);
         nodes.push_back(node);
         return static_cast<int>(nodes.size()) - 1;
-    }
-
-    ComponentHandle World::CreateTetMeshComponent(
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
-        int tetCount)
-    {
-        auto component = std::make_unique<TetMeshComponent>();
-
-        if (nodeIndices != nullptr && nodeCount > 0)
-        {
-            component->nodeIndices.assign(nodeIndices, nodeIndices + nodeCount);
-        }
-
-        if (tetNodeIndices != nullptr && tetCount > 0)
-        {
-            component->tets.reserve(static_cast<std::size_t>(tetCount));
-            for (int i = 0; i < tetCount; ++i)
-            {
-                Tet tet;
-                tet.node0 = tetNodeIndices[i * 4 + 0];
-                tet.node1 = tetNodeIndices[i * 4 + 1];
-                tet.node2 = tetNodeIndices[i * 4 + 2];
-                tet.node3 = tetNodeIndices[i * 4 + 3];
-                tet.youngModulus = component->material.youngModulus;
-                tet.poissonRatio = component->material.poissonRatio;
-                tet.damping = component->material.damping;
-                FEMModel::InitializeTetRestData(tet, nodes);
-                component->tets.push_back(tet);
-            }
-        }
-
-        return StoreComponent(std::move(component));
-    }
-
-    ComponentHandle World::CreateCollisionSphereComponent(
-        const Vec3& position,
-        float radius)
-    {
-        auto component = std::make_unique<CollisionSphereComponent>();
-        component->transform.position = position;
-        component->radius = std::max(0.0f, radius);
-
-        return StoreComponent(std::move(component));
     }
 
     Component* World::GetComponent(ComponentHandle handle)
@@ -233,8 +190,13 @@ namespace PhysiK
         return static_cast<int>(transientConnections.size());
     }
 
-    ComponentHandle World::StoreComponent(std::unique_ptr<Component> component)
+    ComponentHandle World::AddComponent(std::unique_ptr<Component> component)
     {
+        if (component == nullptr)
+        {
+            return ComponentHandle{};
+        }
+
         if (!freeComponentSlots.empty())
         {
             const std::uint32_t slotIndex = freeComponentSlots.back();
