@@ -24,6 +24,7 @@ namespace PhysiK
 
         void SetKinematicTarget(const Transform& target);
         bool ConsumeKinematicTarget(Transform& outTarget);
+        void UpdateKinematicTarget(World& world) override;
 
         void QueryContacts(
             World& world,

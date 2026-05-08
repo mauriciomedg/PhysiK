@@ -4,8 +4,6 @@
 #include <cassert>
 #include <memory>
 
-#include "PhysiK/Components/CollisionComponent.h"
-
 namespace PhysiK
 {
     World::World() = default;
@@ -17,7 +15,8 @@ namespace PhysiK
             return;
         }
 
-        RunExternalLogic(frameDt);
+        RunExternalLogic();
+        UpdateFrameComponents(frameDt);
         UpdateKinematicTargets();
 
         const int steps = std::max(1, substepCount);
@@ -195,13 +194,16 @@ namespace PhysiK
             components[handle.index] != nullptr;
     }
 
-    void World::RunExternalLogic(float frameDt)
+    void World::RunExternalLogic()
     {
         if (externalLogicCallback != nullptr)
         {
             externalLogicCallback(static_cast<WorldHandle>(this), externalLogicUserData);
         }
+    }
 
+    void World::UpdateFrameComponents(float frameDt)
+    {
         for (const std::unique_ptr<Component>& component : components)
         {
             if (component != nullptr && component->active)
@@ -215,18 +217,9 @@ namespace PhysiK
     {
         for (const std::unique_ptr<Component>& component : components)
         {
-            if (component == nullptr)
+            if (component != nullptr && component->active)
             {
-                continue;
-            }
-
-            if (auto* collision = dynamic_cast<CollisionComponent*>(component.get()))
-            {
-                Transform target;
-                if (collision->ConsumeKinematicTarget(target))
-                {
-                    collision->transform = target;
-                }
+                component->UpdateKinematicTarget(*this);
             }
         }
     }
@@ -234,10 +227,11 @@ namespace PhysiK
     void World::AccumulateForces(float dt)
     {
         ClearForces();
+        GenerateCollisionConnections();
+
         SolverData solverData;
         solverData.Clear();
         AddGravityForces(solverData);
-        AddCollisionForces(solverData, dt);
         AddPhysicsModelForces(solverData, dt);
         AddConnectionForces(solverData, dt);
         Solve(solverData, dt);
@@ -268,7 +262,7 @@ namespace PhysiK
         }
     }
 
-    void World::AddCollisionForces(SolverData& solverData, float dt)
+    void World::GenerateCollisionConnections()
     {
         std::vector<Contact> contacts;
 
@@ -284,7 +278,7 @@ namespace PhysiK
 
             for (const Contact& contact : contacts)
             {
-                AddPointConnectionFromContact(contact, solverData, dt);
+                GeneratePointConnectionFromContact(contact);
             }
         }
     }
@@ -300,10 +294,7 @@ namespace PhysiK
         }
     }
 
-    void World::AddPointConnectionFromContact(
-        const Contact& contact,
-        SolverData& solverData,
-        float dt)
+    void World::GeneratePointConnectionFromContact(const Contact& contact)
     {
         if (contact.penetrationDepth <= 0.0f)
         {
@@ -320,10 +311,11 @@ namespace PhysiK
         connection.stiffness = contact.stiffness;
         connection.damping = contact.damping;
         AddPointConnection(connection);
-        (void)solverData;
-        (void)dt;
     }
 
+    // Temporary explicit-force solve path.
+    // For now, SolverData accumulates nodal forces and Solve transfers them into Node::force.
+    // Later implicit FEM will replace this with a real linear/nonlinear solver.
     void World::Solve(SolverData& solverData, float dt)
     {
         (void)dt;

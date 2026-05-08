@@ -20,6 +20,11 @@ namespace PhysiK
             (void)dt;
         }
 
+        virtual void UpdateKinematicTarget(World& world)
+        {
+            (void)world;
+        }
+
         virtual void QueryContacts(
             World& world,
             CollisionDetectionEngine& collisionDetectionEngine,

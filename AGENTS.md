@@ -365,16 +365,20 @@ GameplayComponent update
     - manual connection requests
     - simulation decisions
     ↓
+Component::UpdateFrame(...)
+    ↓
 Animation / kinematic target update
     - driven by gameplay state
     - updates animated targets
     - updates kinematic components
+Component::UpdateKinematicTarget(...)
     ↓
 For each physics substep:
         Collision detection
         Contact generation
-        Internal connection generation
+        Convert collision contacts into transient PhysicsConnections
         SolverData clear
+        Component::QueryContacts(...)
         Component::UpdateSystem(...)
             - TetMeshComponent calls FEMModel::UpdateSystem(...)
             - RigidBodyComponent calls RigidBodyModel::UpdateSystem(...)
@@ -474,6 +478,8 @@ public:
 
     virtual void UpdateFrame(World& world, float dt) {}
 
+    virtual void UpdateKinematicTarget(World& world) {}
+
     virtual void QueryContacts(
         World& world,
         CollisionDetectionEngine& collisionDetectionEngine,
@@ -492,6 +498,10 @@ Components do not solve physics.
 Components do not directly modify simulation state.
 
 Components delegate mathematical assembly to their owned physics model.
+
+World should not use dynamic_cast to orchestrate component behavior.
+
+Component behavior must be exposed through virtual hooks.
 
 ---
 
@@ -727,6 +737,8 @@ public:
     float contactStiffness = 1000.0f;
     float contactDamping = 10.0f;
 
+    void UpdateKinematicTarget(World& world) override;
+
     void QueryContacts(
         World& world,
         CollisionDetectionEngine& collisionDetectionEngine,
@@ -738,6 +750,8 @@ CollisionComponent reads/talks to CollisionDetectionEngine.
 CollisionDetectionEngine performs the broad phase and narrow phase work.
 
 CollisionComponent decides whether detected contacts become events or transient physics connections.
+
+Collision kinematic target application is handled through Component::UpdateKinematicTarget.
 
 ---
 
@@ -1532,7 +1546,7 @@ void World::Step(float frameDt)
             }
         }
 
-        GenerateConnectionsFromContacts(contacts);
+        GenerateCollisionConnections();
 
         SolverData solverData;
         solverData.Clear();
@@ -1577,6 +1591,7 @@ First vertical slice:
 - SolverData
 - Component::UpdateSystem
 - Component::UpdateFrame
+- Component::UpdateKinematicTarget
 - Component::QueryContacts
 - TetMeshComponent
 - TetMeshComponent-owned tetrahedra
@@ -1670,9 +1685,15 @@ When modifying this codebase:
 
 24. The solver is the only system allowed to modify simulation state.
 
-25. Keep the first milestone minimal.
+25. World must use Component hooks instead of dynamic_cast-based orchestration.
 
-26. Do not over-engineer future systems before the first vertical slice is working.
+26. Collision-generated contacts are converted into transient PhysicsConnections before connection assembly.
+
+27. World::Solve is currently a temporary explicit-force solve path that transfers SolverData nodal forces into Node::force.
+
+28. Keep the first milestone minimal.
+
+29. Do not over-engineer future systems before the first vertical slice is working.
 
 ---
 
