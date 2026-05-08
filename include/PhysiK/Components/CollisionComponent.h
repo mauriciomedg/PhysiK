@@ -20,6 +20,13 @@ namespace PhysiK
         float contactStiffness = 1000.0f;
         float contactDamping = 10.0f;
 
+        void SetKinematicTarget(const Transform& target);
+        bool ConsumeKinematicTarget(Transform& outTarget);
+
         virtual void QueryContacts(World& world, std::vector<Contact>& outContacts) = 0;
+
+    private:
+        bool hasKinematicTarget = false;
+        Transform kinematicTarget;
     };
 }

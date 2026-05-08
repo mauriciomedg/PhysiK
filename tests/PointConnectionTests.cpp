@@ -202,10 +202,52 @@ void ExternalLogicHookRunsOnceBeforeSubsteps()
     PHYSIK_DestroyWorld(world);
 }
 
+
+
+void KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTet(world, nodes);
+
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 2.0f, 2.0f, 2.0f, 0.75f);
+    assert(sphere != nullptr);
+
+    struct State
+    {
+        PhysiK::ComponentHandle sphere = nullptr;
+        int callbackCount = 0;
+    } state{sphere, 0};
+
+    auto moveSphereInExternalLogic = [](PhysiK::WorldHandle worldHandle, void* userData)
+    {
+        auto* callbackState = static_cast<State*>(userData);
+        ++callbackState->callbackCount;
+        PHYSIK_SetCollisionComponentKinematicTarget(worldHandle, callbackState->sphere, 0.25f, 0.25f, 0.25f);
+    };
+
+    PHYSIK_SetExternalLogicCallback(world, moveSphereInExternalLogic, &state);
+    PHYSIK_SetSubstepCount(world, 3);
+
+    const Point before = GetTetCentroid(world, nodes);
+    PHYSIK_Step(world, 0.1f);
+    const Point after = GetTetCentroid(world, nodes);
+
+    assert(state.callbackCount == 1);
+    assert(after.z > before.z);
+
+    PHYSIK_ClearExternalLogicCallback(world);
+    PHYSIK_DestroyWorld(world);
+}
+
 int main()
 {
     ManualPointConnectionMovesBarycentricPoint();
     SphereContactCreatesTransientConnectionAndMovesTet();
     ExternalLogicHookRunsOnceBeforeSubsteps();
+    KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
     return 0;
 }

@@ -53,6 +53,13 @@ extern "C"
         float z,
         float radius);
 
+    PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        float x,
+        float y,
+        float z);
+
     PHYSIK_API int PHYSIK_GetPointConnectionCount(PhysiK::WorldHandle world);
 
     PHYSIK_API void PHYSIK_AddPointConnection(
