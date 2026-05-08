@@ -19,6 +19,11 @@ extern "C"
 
     PHYSIK_API void PHYSIK_Step(PhysiK::WorldHandle world, float dt);
     PHYSIK_API void PHYSIK_SetSubstepCount(PhysiK::WorldHandle world, int substepCount);
+    PHYSIK_API void PHYSIK_SetGravity(
+        PhysiK::WorldHandle world,
+        float x,
+        float y,
+        float z);
     PHYSIK_API void PHYSIK_SetExternalLogicCallback(
         PhysiK::WorldHandle world,
         PhysiK::ExternalLogicCallback callback,

@@ -49,10 +49,7 @@ namespace PhysiK
 
         for (int i = 0; i < steps; ++i)
         {
-            ClearForces();
-            ApplyFEMForces();
-            GenerateCollisionConnections();
-            ApplyPointConnectionForces();
+            AccumulateForces();
             Integrate(substepDt);
             pointConnections.clear();
         }
@@ -191,6 +188,16 @@ namespace PhysiK
         return substepCount;
     }
 
+    void World::SetGravity(const Vec3& value)
+    {
+        gravity = value;
+    }
+
+    const Vec3& World::GetGravity() const
+    {
+        return gravity;
+    }
+
     Node& World::GetNode(int index)
     {
         assert(index >= 0 && index < static_cast<int>(nodes.size()));
@@ -302,12 +309,37 @@ namespace PhysiK
         }
     }
 
-    void World::ApplyFEMForces()
+    void World::AccumulateForces()
     {
-        FEMModel::AccumulateElasticForces(tets, nodes);
+        ClearForces();
+        AddGravityForces();
+        AddConnectionForces();
+        AddCollisionForces();
+        ApplyFEMForces();
     }
 
-    void World::GenerateCollisionConnections()
+    void World::AddGravityForces()
+    {
+        for (Node& node : nodes)
+        {
+            if (node.inverseMass <= 0.0f)
+            {
+                continue;
+            }
+
+            node.force += gravity / node.inverseMass;
+        }
+    }
+
+    void World::AddConnectionForces()
+    {
+        for (const PointConnection& connection : pointConnections)
+        {
+            AddPointConnectionForce(connection);
+        }
+    }
+
+    void World::AddCollisionForces()
     {
         std::vector<Contact> contacts;
 
@@ -328,6 +360,11 @@ namespace PhysiK
         }
     }
 
+    void World::ApplyFEMForces()
+    {
+        FEMModel::AccumulateElasticForces(tets, nodes);
+    }
+
     void World::AddPointConnectionFromContact(const Contact& contact)
     {
         if (contact.penetrationDepth <= 0.0f)
@@ -345,28 +382,31 @@ namespace PhysiK
         connection.stiffness = contact.stiffness;
         connection.damping = contact.damping;
         AddPointConnection(connection);
+        AddPointConnectionForce(connection);
     }
 
-    void World::ApplyPointConnectionForces()
+    void World::AddPointConnectionForce(const PointConnection& connection)
     {
-        for (const PointConnection& connection : pointConnections)
+        if (!HasValidNodeIndices(connection))
         {
-            Node& node0 = nodes[static_cast<std::size_t>(connection.node0)];
-            Node& node1 = nodes[static_cast<std::size_t>(connection.node1)];
-            Node& node2 = nodes[static_cast<std::size_t>(connection.node2)];
-            Node& node3 = nodes[static_cast<std::size_t>(connection.node3)];
-
-            const Vec3 point = WeightedPoint(node0, node1, node2, node3, connection.barycentric);
-            const Vec3 velocity = WeightedVelocity(node0, node1, node2, node3, connection.barycentric);
-            const Vec3 springForce = (connection.targetPosition - point) * connection.stiffness;
-            const Vec3 dampingForce = velocity * (-connection.damping);
-            const Vec3 pointForce = springForce + dampingForce;
-
-            node0.force += pointForce * connection.barycentric.x;
-            node1.force += pointForce * connection.barycentric.y;
-            node2.force += pointForce * connection.barycentric.z;
-            node3.force += pointForce * connection.barycentric.w;
+            return;
         }
+
+        Node& node0 = nodes[static_cast<std::size_t>(connection.node0)];
+        Node& node1 = nodes[static_cast<std::size_t>(connection.node1)];
+        Node& node2 = nodes[static_cast<std::size_t>(connection.node2)];
+        Node& node3 = nodes[static_cast<std::size_t>(connection.node3)];
+
+        const Vec3 point = WeightedPoint(node0, node1, node2, node3, connection.barycentric);
+        const Vec3 velocity = WeightedVelocity(node0, node1, node2, node3, connection.barycentric);
+        const Vec3 springForce = (connection.targetPosition - point) * connection.stiffness;
+        const Vec3 dampingForce = velocity * (-connection.damping);
+        const Vec3 pointForce = springForce + dampingForce;
+
+        node0.force += pointForce * connection.barycentric.x;
+        node1.force += pointForce * connection.barycentric.y;
+        node2.force += pointForce * connection.barycentric.z;
+        node3.force += pointForce * connection.barycentric.w;
     }
 
     void World::Integrate(float dt)

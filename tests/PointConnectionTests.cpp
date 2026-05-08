@@ -157,6 +157,23 @@ void ManualPointConnectionMovesBarycentricPoint()
     PHYSIK_DestroyWorld(world);
 }
 
+void GravityMovesDynamicNode()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
+    PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
+
+    PHYSIK_Step(world, 0.1f);
+
+    const Point after = GetNodePosition(world, node);
+    assert(after.y < -0.09f);
+    assert(after.y > -0.11f);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void SphereContactCreatesTransientConnectionAndMovesTet()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -177,6 +194,42 @@ void SphereContactCreatesTransientConnectionAndMovesTet()
     const Point after = GetTetCentroid(world, nodes);
 
     assert(after.z > before.z);
+    assert(PHYSIK_GetPointConnectionCount(world) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void MultipleForceSourcesCoexist()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTet(world, nodes);
+
+    PHYSIK_SetGravity(world, 0.0f, 0.0f, -1.0f);
+    PHYSIK_AddPointConnection(
+        world,
+        nodes[0],
+        nodes[1],
+        nodes[2],
+        nodes[3],
+        0.25f,
+        0.25f,
+        0.25f,
+        0.25f,
+        0.25f,
+        0.25f,
+        1.25f,
+        100.0f,
+        0.0f);
+
+    const Point before = GetTetCentroid(world, nodes);
+    PHYSIK_Step(world, 0.1f);
+    const Point after = GetTetCentroid(world, nodes);
+
+    assert(after.z > before.z);
+    assert(after.z < 1.25f);
     assert(PHYSIK_GetPointConnectionCount(world) == 0);
 
     PHYSIK_DestroyWorld(world);
@@ -307,7 +360,9 @@ void DestroyComponentInvalidatesHandle()
 int main()
 {
     ManualPointConnectionMovesBarycentricPoint();
+    GravityMovesDynamicNode();
     SphereContactCreatesTransientConnectionAndMovesTet();
+    MultipleForceSourcesCoexist();
     ExternalLogicHookRunsOnceBeforeSubsteps();
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();

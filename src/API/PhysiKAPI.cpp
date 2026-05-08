@@ -39,6 +39,18 @@ extern "C"
         }
     }
 
+    PHYSIK_API void PHYSIK_SetGravity(
+        PhysiK::WorldHandle world,
+        float x,
+        float y,
+        float z)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetGravity(PhysiK::Vec3{x, y, z});
+        }
+    }
+
     PHYSIK_API void PHYSIK_SetExternalLogicCallback(
         PhysiK::WorldHandle world,
         PhysiK::ExternalLogicCallback callback,
