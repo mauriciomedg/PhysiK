@@ -1,8 +1,11 @@
 #include "PhysiK/API/PhysiKAPI.h"
 
 #include "PhysiK/Components/CollisionComponent.h"
+#include "PhysiK/Components/CollisionSphereComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
+
+#include <utility>
 
 namespace
 {
@@ -95,7 +98,15 @@ extern "C"
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            return worldPtr->CreateTetMeshComponent(nodeIndices, nodeCount, tetNodeIndices, tetCount);
+            PhysiK::Material material;
+            auto component = PhysiK::TetMeshComponent::CreateFromGlobalNodes(
+                *worldPtr,
+                nodeIndices,
+                nodeCount,
+                tetNodeIndices,
+                tetCount,
+                material);
+            return worldPtr->AddComponent(std::move(component));
         }
 
         return PhysiK::ComponentHandle{};
@@ -110,7 +121,10 @@ extern "C"
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            return worldPtr->CreateCollisionSphereComponent(PhysiK::Vec3{x, y, z}, radius);
+            auto component = PhysiK::CollisionSphereComponent::Create(
+                PhysiK::Vec3{x, y, z},
+                radius);
+            return worldPtr->AddComponent(std::move(component));
         }
 
         return PhysiK::ComponentHandle{};

@@ -4,10 +4,7 @@
 #include <vector>
 
 #include "PhysiK/API/Handles.h"
-#include "PhysiK/Components/CollisionComponent.h"
-#include "PhysiK/Components/CollisionSphereComponent.h"
 #include "PhysiK/Components/Component.h"
-#include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Collision/CollisionDetectionEngine.h"
 #include "PhysiK/Core/PhysicsConnections/PhysicsConnection.h"
 #include "PhysiK/Core/PhysicsConnections/PointConnection.h"
@@ -26,15 +23,7 @@ namespace PhysiK
         void Step(float frameDt);
 
         int AddNode(const Vec3& position, float inverseMass = 1.0f);
-
-        ComponentHandle CreateTetMeshComponent(
-            const int* nodeIndices,
-            int nodeCount,
-            const int* tetNodeIndices,
-            int tetCount);
-        ComponentHandle CreateCollisionSphereComponent(
-            const Vec3& position,
-            float radius);
+        ComponentHandle AddComponent(std::unique_ptr<Component> component);
         Component* GetComponent(ComponentHandle handle);
         const Component* GetComponent(ComponentHandle handle) const;
         void DestroyComponent(ComponentHandle handle);
@@ -59,7 +48,6 @@ namespace PhysiK
         bool HasValidNodeIndices(const PointConnection& connection) const;
 
     private:
-        ComponentHandle StoreComponent(std::unique_ptr<Component> component);
         bool IsComponentHandleValid(ComponentHandle handle) const;
         void RunExternalLogic(float frameDt);
         void UpdateKinematicTargets();
