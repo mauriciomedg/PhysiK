@@ -2,13 +2,14 @@
 
 #include <vector>
 
+#include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Core/Physics/PhysicsModel.h"
 #include "PhysiK/PhysicsData/Node.h"
 #include "PhysiK/PhysicsData/Tet.h"
 
 namespace PhysiK
 {
-    class FEMModel : public PhysicsModel
+    class PHYSIK_API FEMModel : public PhysicsModel
     {
     public:
         void UpdateSystem(World& world, SolverData& solverData, float dt) override;

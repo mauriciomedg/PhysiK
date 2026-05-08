@@ -1,6 +1,7 @@
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 #include "PhysiK/Core/Solvers/SolverData.h"
@@ -10,6 +11,12 @@ namespace PhysiK
 {
     namespace
     {
+        using Matrix6 = std::array<std::array<float, 6>, 6>;
+        using Matrix6x12 = std::array<std::array<float, 12>, 6>;
+        using Matrix12 = std::array<std::array<float, 12>, 12>;
+        using Vector6 = std::array<float, 6>;
+        using Vector12 = std::array<float, 12>;
+
         Mat3 BuildDm(const Tet& tet, const std::vector<Node>& nodes)
         {
             const Vec3& x0 = nodes[static_cast<std::size_t>(tet.node0)].position;
@@ -19,6 +26,38 @@ namespace PhysiK
             return Mat3::FromColumns(x1 - x0, x2 - x0, x3 - x0);
         }
 
+        Vec3 GetRow(const Mat3& matrix, int row)
+        {
+            if (row == 0)
+            {
+                return Vec3{matrix.columns[0].x, matrix.columns[1].x, matrix.columns[2].x};
+            }
+
+            if (row == 1)
+            {
+                return Vec3{matrix.columns[0].y, matrix.columns[1].y, matrix.columns[2].y};
+            }
+
+            return Vec3{matrix.columns[0].z, matrix.columns[1].z, matrix.columns[2].z};
+        }
+
+        void SetBlockValue(Mat3& matrix, int row, int column, float value)
+        {
+            Vec3& targetColumn = matrix.columns[column];
+            if (row == 0)
+            {
+                targetColumn.x = value;
+            }
+            else if (row == 1)
+            {
+                targetColumn.y = value;
+            }
+            else
+            {
+                targetColumn.z = value;
+            }
+        }
+
         bool HasValidNodes(const Tet& tet, const std::vector<Node>& nodes)
         {
             const int nodeCount = static_cast<int>(nodes.size());
@@ -26,6 +65,164 @@ namespace PhysiK
                 tet.node1 >= 0 && tet.node1 < nodeCount &&
                 tet.node2 >= 0 && tet.node2 < nodeCount &&
                 tet.node3 >= 0 && tet.node3 < nodeCount;
+        }
+
+        Matrix6 BuildElasticityMatrix(float youngModulus, float poissonRatio)
+        {
+            Matrix6 d{};
+            const float nu = std::max(-0.99f, std::min(0.49f, poissonRatio));
+            const float lambda = youngModulus * nu / ((1.0f + nu) * (1.0f - 2.0f * nu));
+            const float mu = youngModulus / (2.0f * (1.0f + nu));
+
+            d[0][0] = lambda + 2.0f * mu;
+            d[0][1] = lambda;
+            d[0][2] = lambda;
+            d[1][0] = lambda;
+            d[1][1] = lambda + 2.0f * mu;
+            d[1][2] = lambda;
+            d[2][0] = lambda;
+            d[2][1] = lambda;
+            d[2][2] = lambda + 2.0f * mu;
+            d[3][3] = mu;
+            d[4][4] = mu;
+            d[5][5] = mu;
+            return d;
+        }
+
+        Matrix6x12 BuildStrainDisplacementMatrix(const Tet& tet)
+        {
+            Matrix6x12 b{};
+
+            for (int node = 0; node < 4; ++node)
+            {
+                const Vec3& grad = tet.shapeFunctionGradients[node];
+                const int column = node * 3;
+
+                // B maps nodal displacement to engineering small strain:
+                // [exx, eyy, ezz, gamma_xy, gamma_yz, gamma_xz]^T = B * u_e.
+                b[0][column + 0] = grad.x;
+                b[1][column + 1] = grad.y;
+                b[2][column + 2] = grad.z;
+                b[3][column + 0] = grad.y;
+                b[3][column + 1] = grad.x;
+                b[4][column + 1] = grad.z;
+                b[4][column + 2] = grad.y;
+                b[5][column + 0] = grad.z;
+                b[5][column + 2] = grad.x;
+            }
+
+            return b;
+        }
+
+        Vector12 BuildDisplacementVector(const Tet& tet, const std::vector<Node>& nodes)
+        {
+            const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            Vector12 displacement{};
+
+            for (int node = 0; node < 4; ++node)
+            {
+                const Vec3 u =
+                    nodes[static_cast<std::size_t>(nodeIndices[node])].position -
+                    tet.restPositions[node];
+                displacement[node * 3 + 0] = u.x;
+                displacement[node * 3 + 1] = u.y;
+                displacement[node * 3 + 2] = u.z;
+            }
+
+            return displacement;
+        }
+
+        Vector6 Multiply(const Matrix6x12& matrix, const Vector12& vector)
+        {
+            Vector6 result{};
+            for (int row = 0; row < 6; ++row)
+            {
+                for (int column = 0; column < 12; ++column)
+                {
+                    result[row] += matrix[row][column] * vector[column];
+                }
+            }
+            return result;
+        }
+
+        Vector6 Multiply(const Matrix6& matrix, const Vector6& vector)
+        {
+            Vector6 result{};
+            for (int row = 0; row < 6; ++row)
+            {
+                for (int column = 0; column < 6; ++column)
+                {
+                    result[row] += matrix[row][column] * vector[column];
+                }
+            }
+            return result;
+        }
+
+        Vector12 MultiplyTranspose(const Matrix6x12& matrix, const Vector6& vector)
+        {
+            Vector12 result{};
+            for (int column = 0; column < 12; ++column)
+            {
+                for (int row = 0; row < 6; ++row)
+                {
+                    result[column] += matrix[row][column] * vector[row];
+                }
+            }
+            return result;
+        }
+
+        Matrix12 BuildElementStiffness(const Matrix6x12& b, const Matrix6& d, float volume)
+        {
+            Matrix12 stiffness{};
+
+            // K_e = V * B^T * D * B.
+            for (int row = 0; row < 12; ++row)
+            {
+                for (int column = 0; column < 12; ++column)
+                {
+                    float value = 0.0f;
+                    for (int i = 0; i < 6; ++i)
+                    {
+                        for (int j = 0; j < 6; ++j)
+                        {
+                            value += b[i][row] * d[i][j] * b[j][column];
+                        }
+                    }
+                    stiffness[row][column] = volume * value;
+                }
+            }
+
+            return stiffness;
+        }
+
+        void AssembleStiffness(const Tet& tet, const Matrix12& stiffness, SolverData& solverData)
+        {
+            const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+
+            for (int rowNode = 0; rowNode < 4; ++rowNode)
+            {
+                for (int columnNode = 0; columnNode < 4; ++columnNode)
+                {
+                    Mat3 block = Mat3::Zero();
+
+                    for (int rowAxis = 0; rowAxis < 3; ++rowAxis)
+                    {
+                        for (int columnAxis = 0; columnAxis < 3; ++columnAxis)
+                        {
+                            SetBlockValue(
+                                block,
+                                rowAxis,
+                                columnAxis,
+                                stiffness[rowNode * 3 + rowAxis][columnNode * 3 + columnAxis]);
+                        }
+                    }
+
+                    solverData.AddStiffnessBlock(
+                        nodeIndices[rowNode],
+                        nodeIndices[columnNode],
+                        block);
+                }
+            }
         }
     }
 
@@ -46,6 +243,21 @@ namespace PhysiK
         const float determinant = Determinant(restDm);
         tet.restVolume = std::abs(determinant) / 6.0f;
         tet.restDmInverse = Inverse(restDm);
+
+        tet.restPositions[0] = nodes[static_cast<std::size_t>(tet.node0)].position;
+        tet.restPositions[1] = nodes[static_cast<std::size_t>(tet.node1)].position;
+        tet.restPositions[2] = nodes[static_cast<std::size_t>(tet.node2)].position;
+        tet.restPositions[3] = nodes[static_cast<std::size_t>(tet.node3)].position;
+
+        // For linear tetrahedra, gradients of shape functions are constant in rest space.
+        // DmInv maps world-space differential position to barycentric coordinates N1..N3.
+        tet.shapeFunctionGradients[1] = GetRow(tet.restDmInverse, 0);
+        tet.shapeFunctionGradients[2] = GetRow(tet.restDmInverse, 1);
+        tet.shapeFunctionGradients[3] = GetRow(tet.restDmInverse, 2);
+        tet.shapeFunctionGradients[0] =
+            -(tet.shapeFunctionGradients[1] +
+              tet.shapeFunctionGradients[2] +
+              tet.shapeFunctionGradients[3]);
     }
 
     void FEMModel::AccumulateElasticForces(
@@ -60,25 +272,38 @@ namespace PhysiK
                 continue;
             }
 
-            const Mat3 deformationGradient = BuildDm(tet, nodes) * tet.restDmInverse;
-            const Mat3 strain = deformationGradient - Mat3::Identity();
-            const Mat3 forceMatrix =
-                strain * Transpose(tet.restDmInverse);
+            const Matrix6x12 b = BuildStrainDisplacementMatrix(tet);
+            const Matrix6 d = BuildElasticityMatrix(tet.youngModulus, tet.poissonRatio);
+            const Vector12 displacement = BuildDisplacementVector(tet, nodes);
 
-            const Vec3 force1 = forceMatrix.columns[0] * (-tet.stiffness * tet.restVolume);
-            const Vec3 force2 = forceMatrix.columns[1] * (-tet.stiffness * tet.restVolume);
-            const Vec3 force3 = forceMatrix.columns[2] * (-tet.stiffness * tet.restVolume);
-            const Vec3 force0 = -(force1 + force2 + force3);
+            // epsilon = B * u_e.
+            const Vector6 strain = Multiply(b, displacement);
 
-            const Node& node0 = nodes[static_cast<std::size_t>(tet.node0)];
-            const Node& node1 = nodes[static_cast<std::size_t>(tet.node1)];
-            const Node& node2 = nodes[static_cast<std::size_t>(tet.node2)];
-            const Node& node3 = nodes[static_cast<std::size_t>(tet.node3)];
+            // sigma = D * epsilon.
+            const Vector6 stress = Multiply(d, strain);
 
-            solverData.AddNodeForce(tet.node0, force0 - node0.velocity * tet.damping);
-            solverData.AddNodeForce(tet.node1, force1 - node1.velocity * tet.damping);
-            solverData.AddNodeForce(tet.node2, force2 - node2.velocity * tet.damping);
-            solverData.AddNodeForce(tet.node3, force3 - node3.velocity * tet.damping);
+            // f_int = V * B^T * sigma. SolverData stores total force, so assemble -f_int.
+            Vector12 internalForce = MultiplyTranspose(b, stress);
+            for (float& value : internalForce)
+            {
+                value *= tet.restVolume;
+            }
+
+            const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            for (int node = 0; node < 4; ++node)
+            {
+                const int nodeIndex = nodeIndices[node];
+                const Vec3 elasticForce{
+                    -internalForce[node * 3 + 0],
+                    -internalForce[node * 3 + 1],
+                    -internalForce[node * 3 + 2]};
+                const Vec3 dampingForce =
+                    nodes[static_cast<std::size_t>(nodeIndex)].velocity * (-tet.damping);
+                solverData.AddForce(nodeIndex, elasticForce + dampingForce);
+            }
+
+            const Matrix12 stiffness = BuildElementStiffness(b, d, tet.restVolume);
+            AssembleStiffness(tet, stiffness, solverData);
         }
     }
 }

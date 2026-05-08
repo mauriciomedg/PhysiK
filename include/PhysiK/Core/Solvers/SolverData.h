@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "PhysiK/Math/Mat3.h"
 #include "PhysiK/Math/Vec3.h"
 
 namespace PhysiK
@@ -15,9 +16,22 @@ namespace PhysiK
             Vec3 force;
         };
 
+        struct StiffnessBlock
+        {
+            int nodeA = -1;
+            int nodeB = -1;
+            Mat3 block;
+        };
+
         void Clear()
         {
             nodeForces.clear();
+            stiffnessBlocks.clear();
+        }
+
+        void AddForce(int node, const Vec3& force)
+        {
+            AddNodeForce(node, force);
         }
 
         void AddNodeForce(int node, const Vec3& force)
@@ -25,12 +39,23 @@ namespace PhysiK
             nodeForces.push_back(NodeForce{node, force});
         }
 
+        void AddStiffnessBlock(int nodeA, int nodeB, const Mat3& block)
+        {
+            stiffnessBlocks.push_back(StiffnessBlock{nodeA, nodeB, block});
+        }
+
         const std::vector<NodeForce>& GetNodeForces() const
         {
             return nodeForces;
         }
 
+        const std::vector<StiffnessBlock>& GetStiffnessBlocks() const
+        {
+            return stiffnessBlocks;
+        }
+
     private:
         std::vector<NodeForce> nodeForces;
+        std::vector<StiffnessBlock> stiffnessBlocks;
     };
 }

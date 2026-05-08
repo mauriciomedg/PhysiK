@@ -98,7 +98,8 @@ namespace PhysiK
                 if (tetIndex >= 0 && tetIndex < static_cast<int>(tets.size()))
                 {
                     Tet& tet = tets[static_cast<std::size_t>(tetIndex)];
-                    tet.stiffness = component->material.stiffness;
+                    tet.youngModulus = component->material.youngModulus;
+                    tet.poissonRatio = component->material.poissonRatio;
                     tet.damping = component->material.damping;
                     FEMModel::InitializeTetRestData(tet, nodes);
                 }
