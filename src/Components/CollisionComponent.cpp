@@ -2,6 +2,16 @@
 
 namespace PhysiK
 {
+    void CollisionComponent::QueryContacts(
+        World& world,
+        CollisionDetectionEngine& collisionDetectionEngine,
+        std::vector<Contact>& outContacts)
+    {
+        (void)world;
+        (void)collisionDetectionEngine;
+        (void)outContacts;
+    }
+
     void CollisionComponent::SetKinematicTarget(const Transform& target)
     {
         kinematicTarget = target;

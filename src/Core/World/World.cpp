@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <memory>
 
 namespace PhysiK
 {
@@ -43,7 +44,7 @@ namespace PhysiK
             return;
         }
 
-        RunExternalLogic();
+        RunExternalLogic(frameDt);
         UpdateKinematicTargets();
 
         const int steps = std::max(1, substepCount);
@@ -64,15 +65,6 @@ namespace PhysiK
         node.inverseMass = std::max(0.0f, inverseMass);
         nodes.push_back(node);
         return static_cast<int>(nodes.size()) - 1;
-    }
-
-    int World::AddTet(int node0, int node1, int node2, int node3)
-    {
-        (void)node0;
-        (void)node1;
-        (void)node2;
-        (void)node3;
-        return -1;
     }
 
     ComponentHandle World::CreateTetMeshComponent(
@@ -106,8 +98,6 @@ namespace PhysiK
             }
         }
 
-        TetMeshComponent& componentRef = *component;
-        tetMeshes.push_back(&componentRef);
         return StoreComponent(std::move(component));
     }
 
@@ -119,8 +109,6 @@ namespace PhysiK
         component->transform.position = position;
         component->radius = std::max(0.0f, radius);
 
-        CollisionSphereComponent& componentRef = *component;
-        collisionComponents.push_back(&componentRef);
         return StoreComponent(std::move(component));
     }
 
@@ -131,7 +119,7 @@ namespace PhysiK
             return nullptr;
         }
 
-        return componentSlots[handle.index].component.get();
+        return components[handle.index].get();
     }
 
     const Component* World::GetComponent(ComponentHandle handle) const
@@ -141,7 +129,7 @@ namespace PhysiK
             return nullptr;
         }
 
-        return componentSlots[handle.index].component.get();
+        return components[handle.index].get();
     }
 
     void World::DestroyComponent(ComponentHandle handle)
@@ -151,14 +139,12 @@ namespace PhysiK
             return;
         }
 
-        ComponentSlot& slot = componentSlots[handle.index];
-        RemoveTypedComponentReferences(slot.component.get());
-        slot.component.reset();
-        ++slot.generation;
+        components[handle.index].reset();
+        ++componentGenerations[handle.index];
 
-        if (slot.generation == 0u)
+        if (componentGenerations[handle.index] == 0u)
         {
-            slot.generation = 1u;
+            componentGenerations[handle.index] = 1u;
         }
 
         freeComponentSlots.push_back(handle.index);
@@ -168,7 +154,15 @@ namespace PhysiK
     {
         if (HasValidNodeIndices(connection))
         {
-            pointConnections.push_back(connection);
+            transientConnections.push_back(std::make_unique<PointConnection>(connection));
+        }
+    }
+
+    void World::AddTransientConnection(std::unique_ptr<PhysicsConnection> connection)
+    {
+        if (connection != nullptr)
+        {
+            transientConnections.push_back(std::move(connection));
         }
     }
 
@@ -229,101 +223,77 @@ namespace PhysiK
         node.velocity = Vec3{};
     }
 
-    const std::vector<TetMeshComponent*>& World::GetTetMeshes() const
+    const std::vector<std::unique_ptr<Component>>& World::GetComponents() const
     {
-        return tetMeshes;
+        return components;
     }
 
-    const std::vector<PointConnection>& World::GetPointConnections() const
+    int World::GetTransientConnectionCount() const
     {
-        return pointConnections;
+        return static_cast<int>(transientConnections.size());
     }
 
     ComponentHandle World::StoreComponent(std::unique_ptr<Component> component)
     {
-        Component* rawComponent = component.get();
-
         if (!freeComponentSlots.empty())
         {
             const std::uint32_t slotIndex = freeComponentSlots.back();
             freeComponentSlots.pop_back();
-            ComponentSlot& slot = componentSlots[slotIndex];
-            slot.component = std::move(component);
-            components.push_back(rawComponent);
-            return ComponentHandle{slotIndex, slot.generation};
+            components[slotIndex] = std::move(component);
+            return ComponentHandle{slotIndex, componentGenerations[slotIndex]};
         }
 
-        ComponentSlot slot;
-        slot.component = std::move(component);
-        componentSlots.push_back(std::move(slot));
-        components.push_back(rawComponent);
+        components.push_back(std::move(component));
+        componentGenerations.push_back(1u);
 
         return ComponentHandle{
-            static_cast<std::uint32_t>(componentSlots.size() - 1u),
-            componentSlots.back().generation};
+            static_cast<std::uint32_t>(components.size() - 1u),
+            componentGenerations.back()};
     }
 
     bool World::IsComponentHandleValid(ComponentHandle handle) const
     {
-        if (!handle.IsValid() || handle.index >= componentSlots.size())
+        if (!handle.IsValid() || handle.index >= components.size())
         {
             return false;
         }
 
-        const ComponentSlot& slot = componentSlots[handle.index];
-        return slot.generation == handle.generation && slot.component != nullptr;
+        return componentGenerations[handle.index] == handle.generation &&
+            components[handle.index] != nullptr;
     }
 
-    void World::RemoveTypedComponentReferences(Component* component)
-    {
-        if (component == nullptr)
-        {
-            return;
-        }
-
-        tetMeshes.erase(
-            std::remove_if(
-                tetMeshes.begin(),
-                tetMeshes.end(),
-                [component](const TetMeshComponent* tetMesh)
-                {
-                    return tetMesh == component;
-                }),
-            tetMeshes.end());
-
-        components.erase(
-            std::remove(components.begin(), components.end(), component),
-            components.end());
-
-        if (auto* collision = dynamic_cast<CollisionComponent*>(component))
-        {
-            collisionComponents.erase(
-                std::remove(collisionComponents.begin(), collisionComponents.end(), collision),
-                collisionComponents.end());
-        }
-    }
-
-    void World::RunExternalLogic()
+    void World::RunExternalLogic(float frameDt)
     {
         if (externalLogicCallback != nullptr)
         {
             externalLogicCallback(static_cast<WorldHandle>(this), externalLogicUserData);
         }
+
+        for (const std::unique_ptr<Component>& component : components)
+        {
+            if (component != nullptr && component->active)
+            {
+                component->UpdateFrame(*this, frameDt);
+            }
+        }
     }
 
     void World::UpdateKinematicTargets()
     {
-        for (CollisionComponent* component : collisionComponents)
+        for (const std::unique_ptr<Component>& component : components)
         {
             if (component == nullptr)
             {
                 continue;
             }
 
-            Transform target;
-            if (component->ConsumeKinematicTarget(target))
+            if (auto* collision = dynamic_cast<CollisionComponent*>(component.get()))
             {
-                component->transform = target;
+                Transform target;
+                if (collision->ConsumeKinematicTarget(target))
+                {
+                    collision->transform = target;
+                }
             }
         }
     }
@@ -334,9 +304,9 @@ namespace PhysiK
         SolverData solverData;
         solverData.Clear();
         AddGravityForces(solverData);
-        AddConnectionForces(solverData, dt);
         AddCollisionForces(solverData, dt);
         AddPhysicsModelForces(solverData, dt);
+        AddConnectionForces(solverData, dt);
         Solve(solverData, dt);
     }
 
@@ -356,29 +326,12 @@ namespace PhysiK
 
     void World::AddConnectionForces(SolverData& solverData, float dt)
     {
-        for (PointConnection& connection : pointConnections)
+        for (const std::unique_ptr<PhysicsConnection>& connection : transientConnections)
         {
-            connection.UpdateSystem(*this, solverData, dt);
-        }
-
-        for (SurfaceConnection& connection : surfaceConnections)
-        {
-            connection.UpdateSystem(*this, solverData, dt);
-        }
-
-        for (LineConnection& connection : lineConnections)
-        {
-            connection.UpdateSystem(*this, solverData, dt);
-        }
-
-        for (RigidBodyConnection& connection : rigidBodyConnections)
-        {
-            connection.UpdateSystem(*this, solverData, dt);
-        }
-
-        for (RigidBodyOrientationConnection& connection : rigidBodyOrientationConnections)
-        {
-            connection.UpdateSystem(*this, solverData, dt);
+            if (connection != nullptr)
+            {
+                connection->UpdateSystem(*this, solverData, dt);
+            }
         }
     }
 
@@ -386,15 +339,15 @@ namespace PhysiK
     {
         std::vector<Contact> contacts;
 
-        for (CollisionComponent* component : collisionComponents)
+        for (const std::unique_ptr<Component>& component : components)
         {
-            if (component == nullptr || component->isSensor || !component->generateConnections)
+            if (component == nullptr || !component->active)
             {
                 continue;
             }
 
             contacts.clear();
-            collisionDetectionEngine.QueryContacts(*this, *component, contacts);
+            component->QueryContacts(*this, collisionDetectionEngine, contacts);
 
             for (const Contact& contact : contacts)
             {
@@ -405,7 +358,7 @@ namespace PhysiK
 
     void World::AddPhysicsModelForces(SolverData& solverData, float dt)
     {
-        for (Component* component : components)
+        for (const std::unique_ptr<Component>& component : components)
         {
             if (component != nullptr && component->active)
             {
@@ -434,7 +387,8 @@ namespace PhysiK
         connection.stiffness = contact.stiffness;
         connection.damping = contact.damping;
         AddPointConnection(connection);
-        connection.UpdateSystem(*this, solverData, dt);
+        (void)solverData;
+        (void)dt;
     }
 
     void World::Solve(SolverData& solverData, float dt)
@@ -475,11 +429,7 @@ namespace PhysiK
 
     void World::ClearTransientConnections()
     {
-        pointConnections.clear();
-        surfaceConnections.clear();
-        lineConnections.clear();
-        rigidBodyConnections.clear();
-        rigidBodyOrientationConnections.clear();
+        transientConnections.clear();
     }
 
     bool World::HasValidNodeIndices(const PointConnection& connection) const

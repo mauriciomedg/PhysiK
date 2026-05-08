@@ -286,22 +286,8 @@ public:
 private:
     std::vector<Node> nodes;
 
-    std::vector<Component*> components;
-
-    std::vector<TetMeshComponent*> tetMeshes;
-    std::vector<RigidBodyComponent*> rigidBodies;
-    std::vector<LineMeshComponent*> lineMeshes;
-    std::vector<TriMeshComponent*> triMeshes;
-
-    std::vector<CollisionComponent*> collisionComponents;
-    std::vector<GameplayComponent*> gameplayComponents;
-
-    std::vector<PointConnection> pointConnections;
-    std::vector<SurfaceConnection> surfaceConnections;
-    std::vector<LineConnection> lineConnections;
-
-    std::vector<RigidBodyConnection> rigidBodyConnections;
-    std::vector<RigidBodyOrientationConnection> rigidBodyOrientationConnections;
+    std::vector<std::unique_ptr<Component>> components;
+    std::vector<std::unique_ptr<PhysicsConnection>> transientConnections;
 
     CollisionDetectionEngine collisionDetectionEngine;
 
@@ -323,6 +309,20 @@ std::vector<PhysicsModel*> physicsModels;
 Physics models are owned by components.
 
 World calls Component::UpdateSystem, and each component delegates to its owned model.
+
+World should orchestrate through Component and PhysicsConnection abstractions.
+
+Do not add typed component registries for orchestration, such as:
+
+std::vector<TetMeshComponent*> tetMeshes;
+
+std::vector<CollisionComponent*> collisionComponents;
+
+Do not add typed transient connection arrays for orchestration, such as:
+
+std::vector<PointConnection> pointConnections;
+
+Transient connections are stored through PhysicsConnection pointers.
 
 ---
 
@@ -451,7 +451,12 @@ class Component
 public:
     bool active = true;
 
-    virtual void Update(World& world, float dt) {}
+    virtual void UpdateFrame(World& world, float dt) {}
+
+    virtual void QueryContacts(
+        World& world,
+        CollisionDetectionEngine& collisionDetectionEngine,
+        std::vector<Contact>& outContacts) {}
 
     virtual void UpdateSystem(
         World& world,
@@ -678,10 +683,10 @@ public:
     float contactStiffness = 1000.0f;
     float contactDamping = 10.0f;
 
-    virtual void QueryContacts(
+    void QueryContacts(
         World& world,
         CollisionDetectionEngine& collisionDetectionEngine,
-        std::vector<Contact>& outContacts) = 0;
+        std::vector<Contact>& outContacts) override;
 };
 
 CollisionComponent reads/talks to CollisionDetectionEngine.
@@ -737,7 +742,7 @@ Responsibilities:
 class GameplayComponent : public Component
 {
 public:
-    virtual void Update(World& world, float dt) = 0;
+    void UpdateFrame(World& world, float dt) override;
 };
 
 Examples:
@@ -761,10 +766,7 @@ It can query component-owned topology through components.
 class CollisionDetectionEngine
 {
 public:
-    void QueryContacts(
-        World& world,
-        const CollisionComponent& component,
-        std::vector<Contact>& outContacts);
+    CollisionDetectionEngine() = default;
 
 private:
     BroadPhase broadPhase;
@@ -1439,6 +1441,8 @@ The created TetMeshComponent owns the tetrahedra.
 
 Do not route new code through a global PHYSIK_AddTet-style World tet store.
 
+Do not add a World::AddTet function.
+
 ---
 
 # Example World Step
@@ -1447,11 +1451,11 @@ void World::Step(float frameDt)
 {
     ExternalSyncFromHost();
 
-    for (GameplayComponent* gameplay : gameplayComponents)
+    for (std::unique_ptr<Component>& component : components)
     {
-        if (gameplay && gameplay->active)
+        if (component && component->active)
         {
-            gameplay->Update(*this, frameDt);
+            component->UpdateFrame(*this, frameDt);
         }
     }
 
@@ -1463,11 +1467,11 @@ void World::Step(float frameDt)
     {
         std::vector<Contact> contacts;
 
-        for (CollisionComponent* collision : collisionComponents)
+        for (std::unique_ptr<Component>& component : components)
         {
-            if (collision && collision->active)
+            if (component && component->active)
             {
-                collision->QueryContacts(
+                component->QueryContacts(
                     *this,
                     collisionDetectionEngine,
                     contacts);
@@ -1479,7 +1483,7 @@ void World::Step(float frameDt)
         SolverData solverData;
         solverData.Clear();
 
-        for (Component* component : components)
+        for (std::unique_ptr<Component>& component : components)
         {
             if (component && component->active)
             {
@@ -1490,29 +1494,9 @@ void World::Step(float frameDt)
             }
         }
 
-        for (PointConnection& connection : pointConnections)
+        for (std::unique_ptr<PhysicsConnection>& connection : transientConnections)
         {
-            connection.UpdateSystem(*this, solverData, subDt);
-        }
-
-        for (SurfaceConnection& connection : surfaceConnections)
-        {
-            connection.UpdateSystem(*this, solverData, subDt);
-        }
-
-        for (LineConnection& connection : lineConnections)
-        {
-            connection.UpdateSystem(*this, solverData, subDt);
-        }
-
-        for (RigidBodyConnection& connection : rigidBodyConnections)
-        {
-            connection.UpdateSystem(*this, solverData, subDt);
-        }
-
-        for (RigidBodyOrientationConnection& connection : rigidBodyOrientationConnections)
-        {
-            connection.UpdateSystem(*this, solverData, subDt);
+            connection->UpdateSystem(*this, solverData, subDt);
         }
 
         solver.Solve(solverData, subDt);
@@ -1538,12 +1522,15 @@ First vertical slice:
 - component storage
 - SolverData
 - Component::UpdateSystem
+- Component::UpdateFrame
+- Component::QueryContacts
 - TetMeshComponent
 - TetMeshComponent-owned tetrahedra
 - TetMeshComponent-owned FEMModel placeholder
 - PhysicsConnections folder
 - PhysicsConnection base class
 - PointConnection
+- transientConnections stored as PhysicsConnection pointers
 - simple solver
 - substepping
 - transient connection clearing

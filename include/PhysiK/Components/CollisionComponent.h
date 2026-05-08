@@ -25,10 +25,10 @@ namespace PhysiK
         void SetKinematicTarget(const Transform& target);
         bool ConsumeKinematicTarget(Transform& outTarget);
 
-        virtual void QueryContacts(
+        void QueryContacts(
             World& world,
             CollisionDetectionEngine& collisionDetectionEngine,
-            std::vector<Contact>& outContacts) = 0;
+            std::vector<Contact>& outContacts) override;
 
     private:
         bool hasKinematicTarget = false;

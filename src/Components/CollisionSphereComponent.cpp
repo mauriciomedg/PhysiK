@@ -36,8 +36,14 @@ namespace PhysiK
 
         const Vec4 centroidWeights{0.25f, 0.25f, 0.25f, 0.25f};
 
-        for (const TetMeshComponent* tetMesh : world.GetTetMeshes())
+        if (isSensor || !generateConnections)
         {
+            return;
+        }
+
+        for (const std::unique_ptr<Component>& component : world.GetComponents())
+        {
+            const auto* tetMesh = dynamic_cast<const TetMeshComponent*>(component.get());
             if (tetMesh == nullptr || !tetMesh->active)
             {
                 continue;

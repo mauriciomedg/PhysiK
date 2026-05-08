@@ -86,21 +86,6 @@ extern "C"
         return -1;
     }
 
-    PHYSIK_API int PHYSIK_AddTet(
-        PhysiK::WorldHandle world,
-        int node0,
-        int node1,
-        int node2,
-        int node3)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            return worldPtr->AddTet(node0, node1, node2, node3);
-        }
-
-        return -1;
-    }
-
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,
         const int* nodeIndices,
@@ -201,7 +186,7 @@ extern "C"
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            return static_cast<int>(worldPtr->GetPointConnections().size());
+            return worldPtr->GetTransientConnectionCount();
         }
 
         return 0;
