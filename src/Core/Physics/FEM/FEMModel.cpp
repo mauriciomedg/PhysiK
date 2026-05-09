@@ -18,6 +18,8 @@ namespace PhysiK
         using Vector6 = std::array<float, 6>;
         using Vector12 = std::array<float, 12>;
 
+        constexpr float MinTetVolume = 1.0e-8f;
+
         Mat3 BuildDm(const Tet& tet, const std::vector<Node>& nodes)
         {
             const Vec3& x0 = nodes[static_cast<std::size_t>(tet.node0)].position;
@@ -71,9 +73,15 @@ namespace PhysiK
         Matrix6 BuildElasticityMatrix(float youngModulus, float poissonRatio)
         {
             Matrix6 d{};
+            const float e = std::max(0.0f, youngModulus);
+            if (e <= 0.0f)
+            {
+                return d;
+            }
+
             const float nu = std::max(-0.99f, std::min(0.49f, poissonRatio));
-            const float lambda = youngModulus * nu / ((1.0f + nu) * (1.0f - 2.0f * nu));
-            const float mu = youngModulus / (2.0f * (1.0f + nu));
+            const float lambda = e * nu / ((1.0f + nu) * (1.0f - 2.0f * nu));
+            const float mu = e / (2.0f * (1.0f + nu));
 
             d[0][0] = lambda + 2.0f * mu;
             d[0][1] = lambda;
@@ -246,13 +254,25 @@ namespace PhysiK
 
         const Mat3 restDm = BuildDm(tet, nodes);
         const float determinant = Determinant(restDm);
-        tet.restVolume = std::abs(determinant) / 6.0f;
-        tet.restDmInverse = Inverse(restDm);
-
         tet.restPositions[0] = nodes[static_cast<std::size_t>(tet.node0)].position;
         tet.restPositions[1] = nodes[static_cast<std::size_t>(tet.node1)].position;
         tet.restPositions[2] = nodes[static_cast<std::size_t>(tet.node2)].position;
         tet.restPositions[3] = nodes[static_cast<std::size_t>(tet.node3)].position;
+
+        const float volume = std::abs(determinant) / 6.0f;
+        if (volume <= MinTetVolume)
+        {
+            tet.restVolume = 0.0f;
+            tet.restDmInverse = Mat3::Zero();
+            tet.shapeFunctionGradients[0] = Vec3{};
+            tet.shapeFunctionGradients[1] = Vec3{};
+            tet.shapeFunctionGradients[2] = Vec3{};
+            tet.shapeFunctionGradients[3] = Vec3{};
+            return;
+        }
+
+        tet.restVolume = volume;
+        tet.restDmInverse = Inverse(restDm);
 
         // For linear tetrahedra, gradients of shape functions are constant in rest space.
         // DmInv maps world-space differential position to barycentric coordinates N1..N3.
@@ -304,10 +324,15 @@ namespace PhysiK
                     -internalForce[node * 3 + 2]};
                 const Vec3 dampingForce =
                     nodes[static_cast<std::size_t>(nodeIndex)].velocity * (-tet.damping);
-                solverData.AddForce(nodeIndex, elasticForce + dampingForce);
+                // Temporary per-node damping for stability.
+                // This is not Rayleigh damping or element-level damping.
+                // A future milestone should replace this with a proper damping model.
+                solverData.AddNodeForce(nodeIndex, elasticForce + dampingForce);
             }
 
             const Matrix12 stiffness = BuildElementStiffness(b, d, tet.restVolume);
+            // Store positive element stiffness K_e.
+            // The future implicit solver will decide how to combine it into the global system.
             AssembleStiffness(tet, stiffness, solverData);
         }
     }
