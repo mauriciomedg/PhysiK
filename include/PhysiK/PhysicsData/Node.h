@@ -10,5 +10,6 @@ namespace PhysiK
         Vec3 velocity;
         Vec3 force;
         float inverseMass = 1.0f;
+        float femMass = 0.0f;
     };
 }

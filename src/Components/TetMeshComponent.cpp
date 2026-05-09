@@ -1,5 +1,8 @@
 #include "PhysiK/Components/TetMeshComponent.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
 
@@ -25,6 +28,49 @@ namespace PhysiK
             tet.damping = component.material.damping;
             FEMModel::InitializeTetRestData(tet, world.GetNodes());
             component.tets.push_back(tet);
+        }
+
+        void AddLumpedMassToNode(World& world, int nodeIndex, float mass)
+        {
+            if (nodeIndex < 0 || !std::isfinite(mass) || mass <= 0.0f)
+            {
+                return;
+            }
+
+            Node& node = world.GetNode(nodeIndex);
+            if (node.inverseMass <= 0.0f)
+            {
+                return;
+            }
+
+            node.femMass += mass;
+            if (node.femMass > 0.0f && std::isfinite(node.femMass))
+            {
+                node.inverseMass = 1.0f / node.femMass;
+            }
+        }
+
+        void ApplyLumpedMass(TetMeshComponent& component, World& world)
+        {
+            const float density = std::max(0.0f, component.material.density);
+            if (!std::isfinite(density) || density <= 0.0f)
+            {
+                return;
+            }
+
+            for (const Tet& tet : component.tets)
+            {
+                if (!std::isfinite(tet.restVolume) || tet.restVolume <= 0.0f)
+                {
+                    continue;
+                }
+
+                const float nodalMass = density * tet.restVolume * 0.25f;
+                AddLumpedMassToNode(world, tet.node0, nodalMass);
+                AddLumpedMassToNode(world, tet.node1, nodalMass);
+                AddLumpedMassToNode(world, tet.node2, nodalMass);
+                AddLumpedMassToNode(world, tet.node3, nodalMass);
+            }
         }
     }
 
@@ -58,6 +104,8 @@ namespace PhysiK
                     tetGlobalNodeIndices[i * 4 + 3]);
             }
         }
+
+        ApplyLumpedMass(*component, world);
 
         return component;
     }
@@ -112,6 +160,8 @@ namespace PhysiK
                     component->nodeIndices[static_cast<std::size_t>(local3)]);
             }
         }
+
+        ApplyLumpedMass(*component, world);
 
         return component;
     }
