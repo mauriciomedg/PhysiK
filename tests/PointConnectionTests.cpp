@@ -51,6 +51,38 @@ namespace
         return value.x * value.x + value.y * value.y + value.z * value.z;
     }
 
+    bool IsFinite(float value)
+    {
+        return std::isfinite(value);
+    }
+
+    bool IsFinite(const PhysiK::Vec3& value)
+    {
+        return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
+    }
+
+    bool IsFinite(const PhysiK::Mat3& matrix)
+    {
+        return IsFinite(matrix.columns[0]) &&
+            IsFinite(matrix.columns[1]) &&
+            IsFinite(matrix.columns[2]);
+    }
+
+    bool NearlyEqual(float a, float b, float tolerance = 0.00001f)
+    {
+        return std::abs(a - b) <= tolerance;
+    }
+
+    bool NearlyEqual(
+        const PhysiK::Vec3& a,
+        const PhysiK::Vec3& b,
+        float tolerance = 0.00001f)
+    {
+        return NearlyEqual(a.x, b.x, tolerance) &&
+            NearlyEqual(a.y, b.y, tolerance) &&
+            NearlyEqual(a.z, b.z, tolerance);
+    }
+
     float GetMat3Value(const PhysiK::Mat3& matrix, int row, int column)
     {
         const PhysiK::Vec3& sourceColumn = matrix.columns[column];
@@ -94,6 +126,29 @@ namespace
         }
 
         return nullptr;
+    }
+
+    std::vector<PhysiK::Node> CreateUnitTetNodes()
+    {
+        std::vector<PhysiK::Node> nodes(4);
+        nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+        nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
+        nodes[2].position = PhysiK::Vec3{0.0f, 1.0f, 0.0f};
+        nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.0f};
+        return nodes;
+    }
+
+    PhysiK::Tet CreateUnitTet(float youngModulus = 100.0f, float poissonRatio = 0.25f)
+    {
+        PhysiK::Tet tet;
+        tet.node0 = 0;
+        tet.node1 = 1;
+        tet.node2 = 2;
+        tet.node3 = 3;
+        tet.youngModulus = youngModulus;
+        tet.poissonRatio = poissonRatio;
+        tet.damping = 0.0f;
+        return tet;
     }
 
     void CreateSingleTet(PhysiK::WorldHandle world, int (&outNodes)[4])
@@ -408,20 +463,8 @@ void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
 
 void LinearTetAssemblyProducesForcesAndSymmetricStiffness()
 {
-    std::vector<PhysiK::Node> nodes(4);
-    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
-    nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
-    nodes[2].position = PhysiK::Vec3{0.0f, 1.0f, 0.0f};
-    nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.0f};
-
-    PhysiK::Tet tet;
-    tet.node0 = 0;
-    tet.node1 = 1;
-    tet.node2 = 2;
-    tet.node3 = 3;
-    tet.youngModulus = 100.0f;
-    tet.poissonRatio = 0.25f;
-    tet.damping = 0.0f;
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet();
     PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
 
     std::vector<PhysiK::Tet> tets = {tet};
@@ -434,6 +477,10 @@ void LinearTetAssemblyProducesForcesAndSymmetricStiffness()
     }
 
     assert(solverData.GetStiffnessBlocks().size() == 16);
+    for (const PhysiK::SolverData::StiffnessBlock& block : solverData.GetStiffnessBlocks())
+    {
+        assert(IsFinite(block.block));
+    }
 
     for (int nodeA = 0; nodeA < 4; ++nodeA)
     {
@@ -463,6 +510,94 @@ void LinearTetAssemblyProducesForcesAndSymmetricStiffness()
     const PhysiK::Vec3 node3Force = SumForcesForNode(solverData, 3);
     assert(LengthSquared(node3Force) > 0.000001f);
     assert(node3Force.z < 0.0f);
+}
+
+void UnitTetShapeFunctionGradientsMatchExpectedConvention()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet();
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+
+    assert(NearlyEqual(tet.restVolume, 1.0f / 6.0f));
+    assert(NearlyEqual(tet.shapeFunctionGradients[0], PhysiK::Vec3{-1.0f, -1.0f, -1.0f}));
+    assert(NearlyEqual(tet.shapeFunctionGradients[1], PhysiK::Vec3{1.0f, 0.0f, 0.0f}));
+    assert(NearlyEqual(tet.shapeFunctionGradients[2], PhysiK::Vec3{0.0f, 1.0f, 0.0f}));
+    assert(NearlyEqual(tet.shapeFunctionGradients[3], PhysiK::Vec3{0.0f, 0.0f, 1.0f}));
+}
+
+void DegenerateTetIsSkippedWithoutInvalidAssembly()
+{
+    std::vector<PhysiK::Node> nodes(4);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+    nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
+    nodes[2].position = PhysiK::Vec3{0.0f, 1.0f, 0.0f};
+    nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+
+    PhysiK::Tet tet = CreateUnitTet();
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+
+    assert(tet.restVolume == 0.0f);
+    for (const PhysiK::Vec3& gradient : tet.shapeFunctionGradients)
+    {
+        assert(NearlyEqual(gradient, PhysiK::Vec3{}));
+    }
+
+    std::vector<PhysiK::Tet> tets = {tet};
+    PhysiK::SolverData solverData;
+    PhysiK::FEMModel::AccumulateElasticForces(tets, nodes, solverData);
+
+    assert(solverData.GetNodeForces().empty());
+    assert(solverData.GetStiffnessBlocks().empty());
+}
+
+void LinearTetMaterialSanitizationAvoidsInvalidForces()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet noElasticity = CreateUnitTet(-10.0f, 0.25f);
+    PhysiK::FEMModel::InitializeTetRestData(noElasticity, nodes);
+    nodes[1].position.x += 0.1f;
+
+    PhysiK::SolverData solverData;
+    PhysiK::FEMModel::AccumulateElasticForces({noElasticity}, nodes, solverData);
+
+    for (const PhysiK::SolverData::NodeForce& force : solverData.GetNodeForces())
+    {
+        assert(IsFinite(force.force));
+        assert(LengthSquared(force.force) < 0.000001f);
+    }
+
+    nodes = CreateUnitTetNodes();
+    PhysiK::Tet clampedPoisson = CreateUnitTet(100.0f, 0.99f);
+    PhysiK::FEMModel::InitializeTetRestData(clampedPoisson, nodes);
+    nodes[1].position.x += 0.1f;
+    solverData.Clear();
+    PhysiK::FEMModel::AccumulateElasticForces({clampedPoisson}, nodes, solverData);
+
+    for (const PhysiK::SolverData::NodeForce& force : solverData.GetNodeForces())
+    {
+        assert(IsFinite(force.force));
+    }
+
+    for (const PhysiK::SolverData::StiffnessBlock& block : solverData.GetStiffnessBlocks())
+    {
+        assert(IsFinite(block.block));
+    }
+}
+
+void LinearTetDisplacedNodeReceivesRestoringForce()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet();
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    nodes[1].position.x += 0.1f;
+
+    PhysiK::SolverData solverData;
+    PhysiK::FEMModel::AccumulateElasticForces({tet}, nodes, solverData);
+
+    const PhysiK::Vec3 node1Force = SumForcesForNode(solverData, 1);
+    assert(LengthSquared(node1Force) > 0.000001f);
+    assert(node1Force.x < 0.0f);
+    assert(IsFinite(node1Force));
 }
 
 void DestroyComponentInvalidatesHandle()
@@ -500,6 +635,10 @@ int main()
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();
     TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
+    UnitTetShapeFunctionGradientsMatchExpectedConvention();
+    DegenerateTetIsSkippedWithoutInvalidAssembly();
+    LinearTetMaterialSanitizationAvoidsInvalidForces();
+    LinearTetDisplacedNodeReceivesRestoringForce();
     LinearTetAssemblyProducesForcesAndSymmetricStiffness();
     DestroyComponentInvalidatesHandle();
     return 0;

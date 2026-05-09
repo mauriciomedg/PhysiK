@@ -29,11 +29,6 @@ namespace PhysiK
             stiffnessBlocks.clear();
         }
 
-        void AddForce(int node, const Vec3& force)
-        {
-            AddNodeForce(node, force);
-        }
-
         void AddNodeForce(int node, const Vec3& force)
         {
             nodeForces.push_back(NodeForce{node, force});

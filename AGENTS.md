@@ -1310,6 +1310,36 @@ FEMModel does not require World to own tets.
 
 ---
 
+# Linear Tetrahedral FEM Assembly Status
+
+The engine currently supports small-strain linear tetrahedral FEM assembly:
+
+- epsilon = B u_e
+- sigma = D epsilon
+- f_int = V B^T sigma
+- K_e = V B^T D B
+
+Current limitations:
+
+- Linear small-strain model only.
+- Temporary per-node damping only.
+- Explicit force integration path currently.
+- Stiffness blocks are assembled for a future implicit solve.
+- No corotational model yet.
+- No Neo-Hookean model yet.
+- No implicit Euler yet.
+- No fracture or tearing yet.
+
+Safety requirements:
+
+- Degenerate tetrahedra must be skipped safely.
+- Material parameters must not produce NaN forces or stiffness blocks.
+- FEMModel must not move nodes directly.
+- FEMModel must assemble through SolverData.
+- Tets remain owned by TetMeshComponent.
+
+---
+
 # RigidBodyModel
 
 RigidBodyModel is the physics model responsible for rigid-body dynamics.
