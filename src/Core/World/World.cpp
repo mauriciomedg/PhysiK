@@ -475,8 +475,7 @@ namespace PhysiK
             }
 
             const int rowBase = nodeToDof[static_cast<std::size_t>(block.nodeA)];
-            const int columnBase = nodeToDof[static_cast<std::size_t>(block.nodeB)];
-            if (rowBase < 0 || columnBase < 0)
+            if (rowBase < 0)
             {
                 continue;
             }
@@ -484,6 +483,28 @@ namespace PhysiK
             if (!IsFinite(block.block))
             {
                 return;
+            }
+
+            const Vec3& columnVelocity = nodes[static_cast<std::size_t>(block.nodeB)].velocity;
+            if (!IsFinite(columnVelocity))
+            {
+                return;
+            }
+
+            const Vec3 stiffnessVelocity = block.block * columnVelocity;
+            if (!IsFinite(stiffnessVelocity))
+            {
+                return;
+            }
+
+            rhs[static_cast<std::size_t>(rowBase + 0)] -= stiffnessScale * stiffnessVelocity.x;
+            rhs[static_cast<std::size_t>(rowBase + 1)] -= stiffnessScale * stiffnessVelocity.y;
+            rhs[static_cast<std::size_t>(rowBase + 2)] -= stiffnessScale * stiffnessVelocity.z;
+
+            const int columnBase = nodeToDof[static_cast<std::size_t>(block.nodeB)];
+            if (columnBase < 0)
+            {
+                continue;
             }
 
             for (int row = 0; row < 3; ++row)

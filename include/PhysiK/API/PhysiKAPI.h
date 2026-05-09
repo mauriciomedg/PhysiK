@@ -45,6 +45,17 @@ extern "C"
         const int* tetNodeIndices,
         int tetCount);
 
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterial(
+        PhysiK::WorldHandle world,
+        const int* nodeIndices,
+        int nodeCount,
+        const int* tetNodeIndices,
+        int tetCount,
+        float density,
+        float youngModulus,
+        float poissonRatio,
+        float damping);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateCollisionSphereComponent(
         PhysiK::WorldHandle world,
         float x,
@@ -104,6 +115,13 @@ extern "C"
         float* outZ);
 
     PHYSIK_API void PHYSIK_SetNodePosition(
+        PhysiK::WorldHandle world,
+        int nodeIndex,
+        float x,
+        float y,
+        float z);
+
+    PHYSIK_API void PHYSIK_SetNodeVelocity(
         PhysiK::WorldHandle world,
         int nodeIndex,
         float x,
