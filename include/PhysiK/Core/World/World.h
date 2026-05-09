@@ -49,14 +49,15 @@ namespace PhysiK
 
     private:
         bool IsComponentHandleValid(ComponentHandle handle) const;
-        void RunExternalLogic(float frameDt);
+        void RunExternalLogic();
+        void UpdateFrameComponents(float frameDt);
         void UpdateKinematicTargets();
         void AccumulateForces(float dt);
         void AddGravityForces(SolverData& solverData);
         void AddConnectionForces(SolverData& solverData, float dt);
-        void AddCollisionForces(SolverData& solverData, float dt);
+        void GenerateCollisionConnections();
         void AddPhysicsModelForces(SolverData& solverData, float dt);
-        void AddPointConnectionFromContact(const Contact& contact, SolverData& solverData, float dt);
+        void GeneratePointConnectionFromContact(const Contact& contact);
         void Solve(SolverData& solverData, float dt);
         void Integrate(float dt);
         void ClearForces();
