@@ -22,6 +22,13 @@ namespace
         return point;
     }
 
+    Point GetNodeVelocity(PhysiK::WorldHandle world, int nodeIndex)
+    {
+        Point point;
+        PHYSIK_GetNodeVelocity(world, nodeIndex, &point.x, &point.y, &point.z);
+        return point;
+    }
+
     Point BarycentricPoint(
         const Point& p0,
         const Point& p1,
@@ -282,6 +289,46 @@ void GravityMovesDynamicNode()
     PHYSIK_DestroyWorld(world);
 }
 
+void ImplicitEulerGravityMatchesSemiImplicitEulerForFreeNode()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
+    PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
+    PHYSIK_SetSolverMode(world, 1);
+
+    PHYSIK_Step(world, 0.1f);
+
+    const Point after = GetNodePosition(world, node);
+    assert(after.y < -0.09f);
+    assert(after.y > -0.11f);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void ImplicitEulerFixedNodeDoesNotMove()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 0.0f);
+    PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
+    PHYSIK_SetSolverMode(world, 1);
+
+    const Point beforePosition = GetNodePosition(world, node);
+    const Point beforeVelocity = GetNodeVelocity(world, node);
+
+    PHYSIK_Step(world, 0.1f);
+
+    const Point afterPosition = GetNodePosition(world, node);
+    const Point afterVelocity = GetNodeVelocity(world, node);
+    assert(DistanceSquared(afterPosition, beforePosition) < 0.000001f);
+    assert(DistanceSquared(afterVelocity, beforeVelocity) < 0.000001f);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void SphereContactCreatesTransientConnectionAndMovesTet()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -437,6 +484,103 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
     assert(after.z < distortedPosition.z);
 
     PHYSIK_DestroyWorld(world);
+}
+
+void ImplicitEulerFEMTetMovesDistortedNodeTowardRestShape()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node0 = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 0.0f);
+    const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 0.0f);
+    const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 0.0f);
+    const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+
+    const int nodes[] = {node0, node1, node2, node3};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(world, nodes, 4, tetNodeIndices, 1);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+
+    const Point restPosition = GetNodePosition(world, node3);
+    PHYSIK_SetNodePosition(world, node3, 0.0f, 0.0f, 1.25f);
+    const Point distortedPosition = GetNodePosition(world, node3);
+
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_Step(world, 0.25f);
+
+    const Point after = GetNodePosition(world, node3);
+
+    assert(IsFinite(after.x));
+    assert(IsFinite(after.y));
+    assert(IsFinite(after.z));
+    assert(DistanceSquared(after, restPosition) < DistanceSquared(distortedPosition, restPosition));
+    assert(after.z < distortedPosition.z);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void ImplicitEulerUsesStiffnessBlocks()
+{
+    PhysiK::WorldHandle noStiffnessWorld = PHYSIK_CreateWorld();
+    assert(noStiffnessWorld != nullptr);
+    PHYSIK_SetSolverMode(noStiffnessWorld, 1);
+    const int freeNode = PHYSIK_AddNode(noStiffnessWorld, 0.0f, 0.0f, 1.0f, 1.0f);
+
+    PHYSIK_AddPointConnection(
+        noStiffnessWorld,
+        freeNode,
+        freeNode,
+        freeNode,
+        freeNode,
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        2.0f,
+        10.0f,
+        0.0f);
+    PHYSIK_Step(noStiffnessWorld, 0.5f);
+    const float velocityWithoutStiffness = GetNodeVelocity(noStiffnessWorld, freeNode).z;
+    PHYSIK_DestroyWorld(noStiffnessWorld);
+
+    PhysiK::WorldHandle stiffnessWorld = PHYSIK_CreateWorld();
+    assert(stiffnessWorld != nullptr);
+    PHYSIK_SetSolverMode(stiffnessWorld, 1);
+    const int node0 = PHYSIK_AddNode(stiffnessWorld, 0.0f, 0.0f, 0.0f, 0.0f);
+    const int node1 = PHYSIK_AddNode(stiffnessWorld, 1.0f, 0.0f, 0.0f, 0.0f);
+    const int node2 = PHYSIK_AddNode(stiffnessWorld, 0.0f, 1.0f, 0.0f, 0.0f);
+    const int node3 = PHYSIK_AddNode(stiffnessWorld, 0.0f, 0.0f, 1.0f, 1.0f);
+    const int componentNodes[] = {node0, node1, node2, node3};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(stiffnessWorld, componentNodes, 4, tetNodeIndices, 1);
+    assert(PHYSIK_IsComponentHandleValid(stiffnessWorld, tetMesh) == 1);
+
+    PHYSIK_AddPointConnection(
+        stiffnessWorld,
+        node3,
+        node3,
+        node3,
+        node3,
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        2.0f,
+        10.0f,
+        0.0f);
+    PHYSIK_Step(stiffnessWorld, 0.5f);
+    const float velocityWithStiffness = GetNodeVelocity(stiffnessWorld, node3).z;
+
+    assert(velocityWithStiffness > 0.0f);
+    assert(velocityWithStiffness < velocityWithoutStiffness);
+
+    PHYSIK_DestroyWorld(stiffnessWorld);
 }
 
 void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
@@ -629,11 +773,15 @@ int main()
 {
     ManualPointConnectionMovesBarycentricPoint();
     GravityMovesDynamicNode();
+    ImplicitEulerGravityMatchesSemiImplicitEulerForFreeNode();
+    ImplicitEulerFixedNodeDoesNotMove();
     SphereContactCreatesTransientConnectionAndMovesTet();
     MultipleForceSourcesCoexist();
     ExternalLogicHookRunsOnceBeforeSubsteps();
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();
+    ImplicitEulerFEMTetMovesDistortedNodeTowardRestShape();
+    ImplicitEulerUsesStiffnessBlocks();
     TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
     UnitTetShapeFunctionGradientsMatchExpectedConvention();
     DegenerateTetIsSkippedWithoutInvalidAssembly();

@@ -2,10 +2,49 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <memory>
+
+#include "PhysiK/Core/Solvers/Linear/DenseLinearSolver.h"
 
 namespace PhysiK
 {
+    namespace
+    {
+        bool IsFinite(float value)
+        {
+            return std::isfinite(value);
+        }
+
+        bool IsFinite(const Vec3& value)
+        {
+            return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
+        }
+
+        bool IsFinite(const Mat3& matrix)
+        {
+            return IsFinite(matrix.columns[0]) &&
+                IsFinite(matrix.columns[1]) &&
+                IsFinite(matrix.columns[2]);
+        }
+
+        float GetBlockValue(const Mat3& matrix, int row, int column)
+        {
+            const Vec3& sourceColumn = matrix.columns[column];
+            if (row == 0)
+            {
+                return sourceColumn.x;
+            }
+
+            if (row == 1)
+            {
+                return sourceColumn.y;
+            }
+
+            return sourceColumn.z;
+        }
+    }
+
     World::World() = default;
 
     void World::Step(float frameDt)
@@ -24,8 +63,19 @@ namespace PhysiK
 
         for (int i = 0; i < steps; ++i)
         {
-            AccumulateForces(substepDt);
-            Integrate(substepDt);
+            SolverData solverData;
+            BuildSolverData(solverData, substepDt);
+
+            if (solverMode == SolverMode::ImplicitEuler)
+            {
+                SolveImplicitEuler(solverData, substepDt);
+            }
+            else
+            {
+                ApplyExplicitForces(solverData, substepDt);
+                Integrate(substepDt);
+            }
+
             ClearTransientConnections();
         }
     }
@@ -113,6 +163,16 @@ namespace PhysiK
     int World::GetSubstepCount() const
     {
         return substepCount;
+    }
+
+    void World::SetSolverMode(SolverMode mode)
+    {
+        solverMode = mode;
+    }
+
+    SolverMode World::GetSolverMode() const
+    {
+        return solverMode;
     }
 
     void World::SetGravity(const Vec3& value)
@@ -224,17 +284,15 @@ namespace PhysiK
         }
     }
 
-    void World::AccumulateForces(float dt)
+    void World::BuildSolverData(SolverData& solverData, float dt)
     {
         ClearForces();
         GenerateCollisionConnections();
 
-        SolverData solverData;
         solverData.Clear();
         AddGravityForces(solverData);
-        AddPhysicsModelForces(solverData, dt);
-        AddConnectionForces(solverData, dt);
-        Solve(solverData, dt);
+        AssembleComponentSystems(solverData, dt);
+        AssembleConnectionSystems(solverData, dt);
     }
 
     void World::AddGravityForces(SolverData& solverData)
@@ -251,7 +309,7 @@ namespace PhysiK
         }
     }
 
-    void World::AddConnectionForces(SolverData& solverData, float dt)
+    void World::AssembleConnectionSystems(SolverData& solverData, float dt)
     {
         for (const std::unique_ptr<PhysicsConnection>& connection : transientConnections)
         {
@@ -283,7 +341,7 @@ namespace PhysiK
         }
     }
 
-    void World::AddPhysicsModelForces(SolverData& solverData, float dt)
+    void World::AssembleComponentSystems(SolverData& solverData, float dt)
     {
         for (const std::unique_ptr<Component>& component : components)
         {
@@ -313,10 +371,7 @@ namespace PhysiK
         AddPointConnection(connection);
     }
 
-    // Temporary explicit-force solve path.
-    // For now, SolverData accumulates nodal forces and Solve transfers them into Node::force.
-    // Later implicit FEM will replace this with a real linear/nonlinear solver.
-    void World::Solve(SolverData& solverData, float dt)
+    void World::ApplyExplicitForces(SolverData& solverData, float dt)
     {
         (void)dt;
 
@@ -349,6 +404,168 @@ namespace PhysiK
         for (Node& node : nodes)
         {
             node.force = Vec3{};
+        }
+    }
+
+    void World::SolveImplicitEuler(SolverData& solverData, float dt)
+    {
+        if (dt <= 0.0f)
+        {
+            return;
+        }
+
+        std::vector<int> nodeToDof(nodes.size(), -1);
+        int dofCount = 0;
+        for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
+        {
+            const Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
+            if (node.inverseMass > 0.0f)
+            {
+                nodeToDof[static_cast<std::size_t>(nodeIndex)] = dofCount;
+                dofCount += 3;
+            }
+        }
+
+        if (dofCount == 0)
+        {
+            return;
+        }
+
+        const std::size_t dimension = static_cast<std::size_t>(dofCount);
+        std::vector<float> matrix(dimension * dimension, 0.0f);
+        std::vector<float> rhs(dimension, 0.0f);
+
+        std::vector<Vec3> updatedVelocities(nodes.size());
+        std::vector<Vec3> updatedPositions(nodes.size());
+
+        for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
+        {
+            const int baseDof = nodeToDof[static_cast<std::size_t>(nodeIndex)];
+            if (baseDof < 0)
+            {
+                continue;
+            }
+
+            const Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
+            if (!IsFinite(node.inverseMass) || node.inverseMass <= 0.0f)
+            {
+                return;
+            }
+
+            const float mass = 1.0f / node.inverseMass;
+            if (!IsFinite(mass))
+            {
+                return;
+            }
+
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                const int dof = baseDof + axis;
+                matrix[static_cast<std::size_t>(dof) * dimension + dof] += mass;
+            }
+        }
+
+        const float stiffnessScale = dt * dt;
+        for (const SolverData::StiffnessBlock& block : solverData.GetStiffnessBlocks())
+        {
+            if (block.nodeA < 0 || block.nodeA >= static_cast<int>(nodes.size()) ||
+                block.nodeB < 0 || block.nodeB >= static_cast<int>(nodes.size()))
+            {
+                continue;
+            }
+
+            const int rowBase = nodeToDof[static_cast<std::size_t>(block.nodeA)];
+            const int columnBase = nodeToDof[static_cast<std::size_t>(block.nodeB)];
+            if (rowBase < 0 || columnBase < 0)
+            {
+                continue;
+            }
+
+            if (!IsFinite(block.block))
+            {
+                return;
+            }
+
+            for (int row = 0; row < 3; ++row)
+            {
+                for (int column = 0; column < 3; ++column)
+                {
+                    const int matrixRow = rowBase + row;
+                    const int matrixColumn = columnBase + column;
+                    matrix[static_cast<std::size_t>(matrixRow) * dimension + matrixColumn] +=
+                        stiffnessScale * GetBlockValue(block.block, row, column);
+                }
+            }
+        }
+
+        for (const SolverData::NodeForce& nodeForce : solverData.GetNodeForces())
+        {
+            if (nodeForce.node < 0 || nodeForce.node >= static_cast<int>(nodes.size()))
+            {
+                continue;
+            }
+
+            if (!IsFinite(nodeForce.force))
+            {
+                return;
+            }
+
+            const int baseDof = nodeToDof[static_cast<std::size_t>(nodeForce.node)];
+            if (baseDof < 0)
+            {
+                continue;
+            }
+
+            rhs[static_cast<std::size_t>(baseDof + 0)] += dt * nodeForce.force.x;
+            rhs[static_cast<std::size_t>(baseDof + 1)] += dt * nodeForce.force.y;
+            rhs[static_cast<std::size_t>(baseDof + 2)] += dt * nodeForce.force.z;
+        }
+
+        std::vector<float> deltaVelocity;
+        if (!DenseLinearSolver::Solve(matrix, rhs, deltaVelocity, dofCount))
+        {
+            return;
+        }
+
+        for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
+        {
+            const int baseDof = nodeToDof[static_cast<std::size_t>(nodeIndex)];
+            if (baseDof < 0)
+            {
+                continue;
+            }
+
+            const Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
+            const Vec3 velocityChange{
+                deltaVelocity[static_cast<std::size_t>(baseDof + 0)],
+                deltaVelocity[static_cast<std::size_t>(baseDof + 1)],
+                deltaVelocity[static_cast<std::size_t>(baseDof + 2)]};
+            if (!IsFinite(node.position) || !IsFinite(node.velocity) || !IsFinite(velocityChange))
+            {
+                return;
+            }
+
+            const Vec3 updatedVelocity = node.velocity + velocityChange;
+            const Vec3 updatedPosition = node.position + updatedVelocity * dt;
+            if (!IsFinite(updatedVelocity) || !IsFinite(updatedPosition))
+            {
+                return;
+            }
+
+            updatedVelocities[static_cast<std::size_t>(nodeIndex)] = updatedVelocity;
+            updatedPositions[static_cast<std::size_t>(nodeIndex)] = updatedPosition;
+        }
+
+        for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
+        {
+            if (nodeToDof[static_cast<std::size_t>(nodeIndex)] < 0)
+            {
+                continue;
+            }
+
+            Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
+            node.velocity = updatedVelocities[static_cast<std::size_t>(nodeIndex)];
+            node.position = updatedPositions[static_cast<std::size_t>(nodeIndex)];
         }
     }
 

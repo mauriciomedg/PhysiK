@@ -1340,6 +1340,47 @@ Safety requirements:
 
 ---
 
+# Implicit Euler FEM Solve
+
+The engine has a first implicit Euler solve path for node-based FEM dynamics.
+
+Target system:
+
+A Δv = b
+
+A = M + dt² K
+
+b = dt f_total
+
+After solving:
+
+v_new = v_old + Δv
+
+x_new = x_old + dt v_new
+
+Current limitations:
+
+- First implicit milestone uses a dense linear solve.
+- No Newton iterations yet.
+- No nonlinear FEM yet.
+- No corotational FEM yet.
+- No Neo-Hookean FEM yet.
+- Damping matrix C is not fully implemented yet.
+- Dynamic-fixed stiffness coupling is not moved to the right-hand side yet.
+- Dense solver is acceptable for small tests.
+- A future milestone should replace the dense solve with sparse CG or LDLT.
+
+Architecture:
+
+- FEMModel assembles forces and positive stiffness blocks.
+- PhysicsConnections may assemble forces and stiffness blocks.
+- SolverData stores force contributions and stiffness blocks.
+- World/Solver builds the global node system.
+- Only solver/integration code updates node positions and velocities.
+- Components and physics models do not move nodes directly.
+
+---
+
 # RigidBodyModel
 
 RigidBodyModel is the physics model responsible for rigid-body dynamics.

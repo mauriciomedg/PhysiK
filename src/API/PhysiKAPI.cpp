@@ -43,6 +43,15 @@ extern "C"
         }
     }
 
+    PHYSIK_API void PHYSIK_SetSolverMode(PhysiK::WorldHandle world, int mode)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetSolverMode(
+                mode == 1 ? PhysiK::SolverMode::ImplicitEuler : PhysiK::SolverMode::Explicit);
+        }
+    }
+
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,
@@ -266,6 +275,34 @@ extern "C"
             if (outZ != nullptr)
             {
                 *outZ = node.position.z;
+            }
+        }
+    }
+
+    PHYSIK_API void PHYSIK_GetNodeVelocity(
+        PhysiK::WorldHandle world,
+        int nodeIndex,
+        float* outX,
+        float* outY,
+        float* outZ)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            const PhysiK::Node& node = worldPtr->GetNode(nodeIndex);
+
+            if (outX != nullptr)
+            {
+                *outX = node.velocity.x;
+            }
+
+            if (outY != nullptr)
+            {
+                *outY = node.velocity.y;
+            }
+
+            if (outZ != nullptr)
+            {
+                *outZ = node.velocity.z;
             }
         }
     }
