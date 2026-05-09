@@ -339,6 +339,18 @@ extern "C"
         }
     }
 
+    PHYSIK_API float PHYSIK_GetNodeInverseMass(
+        PhysiK::WorldHandle world,
+        int nodeIndex)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetNode(nodeIndex).inverseMass;
+        }
+
+        return 0.0f;
+    }
+
     PHYSIK_API void PHYSIK_SetNodePosition(
         PhysiK::WorldHandle world,
         int nodeIndex,

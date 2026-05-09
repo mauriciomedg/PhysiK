@@ -1340,6 +1340,32 @@ Safety requirements:
 
 ---
 
+# FEM Lumped Mass
+
+TetMeshComponent computes simple lumped nodal mass after tet rest data is initialized.
+
+For each tetrahedron:
+
+tetMass = material.density * tet.restVolume
+
+Each tet node receives:
+
+nodeMass += tetMass / 4
+
+Then:
+
+node.inverseMass = 1 / nodeMass
+
+For shared nodes, mass contributions accumulate from connected tetrahedra.
+
+Nodes created with inverseMass = 0 are fixed and must remain fixed.
+
+For FEM tet mesh nodes, density-derived mass is the default physical mass.
+
+Positive manually supplied inverseMass values are useful for particles and initial dynamic/fixed classification, not FEM mass tuning.
+
+---
+
 # Implicit Euler FEM Solve
 
 The engine has a first implicit Euler solve path for node-based FEM dynamics.

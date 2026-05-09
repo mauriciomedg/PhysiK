@@ -114,6 +114,10 @@ extern "C"
         float* outY,
         float* outZ);
 
+    PHYSIK_API float PHYSIK_GetNodeInverseMass(
+        PhysiK::WorldHandle world,
+        int nodeIndex);
+
     PHYSIK_API void PHYSIK_SetNodePosition(
         PhysiK::WorldHandle world,
         int nodeIndex,

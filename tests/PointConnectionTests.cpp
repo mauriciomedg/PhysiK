@@ -29,6 +29,11 @@ namespace
         return point;
     }
 
+    float GetNodeInverseMass(PhysiK::WorldHandle world, int nodeIndex)
+    {
+        return PHYSIK_GetNodeInverseMass(world, nodeIndex);
+    }
+
     void SetNodeVelocity(PhysiK::WorldHandle world, int nodeIndex, const Point& velocity)
     {
         PHYSIK_SetNodeVelocity(world, nodeIndex, velocity.x, velocity.y, velocity.z);
@@ -178,7 +183,7 @@ namespace
                 4,
                 tetNodeIndices,
                 1,
-                1.0f,
+                24.0f,
                 25.0f,
                 0.3f,
                 0.25f);
@@ -189,7 +194,8 @@ namespace
         PhysiK::WorldHandle world,
         int (&outNodes)[4],
         float youngModulus,
-        float damping = 0.0f)
+        float damping = 0.0f,
+        float density = 24.0f)
     {
         outNodes[0] = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
         outNodes[1] = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
@@ -204,7 +210,7 @@ namespace
                 4,
                 tetNodeIndices,
                 1,
-                1.0f,
+                density,
                 youngModulus,
                 0.3f,
                 damping);
@@ -514,7 +520,7 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
             4,
             tetNodeIndices,
             1,
-            1.0f,
+            24.0f,
             25.0f,
             0.3f,
             0.25f);
@@ -554,7 +560,7 @@ void ImplicitEulerFEMTetMovesDistortedNodeTowardRestShape()
             4,
             tetNodeIndices,
             1,
-            1.0f,
+            24.0f,
             25.0f,
             0.3f,
             0.25f);
@@ -689,6 +695,122 @@ void ImplicitEulerFEMRecoveryBeatsGravityOnlyMotion()
     PHYSIK_DestroyWorld(femWorld);
 }
 
+void FEMLumpedMassUsesDensityAndRestVolume()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetWithMaterial(world, nodes, 0.0f, 0.0f, 1.0f);
+
+    const float expectedInverseMass = 24.0f;
+    for (int node : nodes)
+    {
+        assert(NearlyEqual(GetNodeInverseMass(world, node), expectedInverseMass));
+    }
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void FEMLumpedMassDensityReducesAccelerationFromSameForce()
+{
+    auto stepWithDensity = [](float density)
+    {
+        PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+        assert(world != nullptr);
+
+        int nodes[4] = {};
+        CreateSingleTetWithMaterial(world, nodes, 0.0f, 0.0f, density);
+
+        PHYSIK_AddPointConnection(
+            world,
+            nodes[3],
+            nodes[3],
+            nodes[3],
+            nodes[3],
+            1.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            2.0f,
+            1.0f,
+            0.0f);
+        PHYSIK_Step(world, 0.1f);
+
+        const float velocity = GetNodeVelocity(world, nodes[3]).z;
+        PHYSIK_DestroyWorld(world);
+        return velocity;
+    };
+
+    const float lowDensityVelocity = stepWithDensity(1.0f);
+    const float highDensityVelocity = stepWithDensity(4.0f);
+
+    assert(lowDensityVelocity > highDensityVelocity);
+    assert(highDensityVelocity > 0.0f);
+}
+
+void FEMLumpedMassPreservesFixedNodes()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node0 = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 0.0f);
+    const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
+    const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 1.0f);
+    const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+    const int nodes[] = {node0, node1, node2, node3};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
+
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponentWithMaterial(
+            world,
+            nodes,
+            4,
+            tetNodeIndices,
+            1,
+            1.0f,
+            0.0f,
+            0.3f,
+            0.0f);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+
+    assert(GetNodeInverseMass(world, node0) == 0.0f);
+    assert(NearlyEqual(GetNodeInverseMass(world, node1), 24.0f));
+    assert(NearlyEqual(GetNodeInverseMass(world, node2), 24.0f));
+    assert(NearlyEqual(GetNodeInverseMass(world, node3), 24.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void FEMGravityAccelerationIsIndependentOfDensity()
+{
+    auto stepWithDensity = [](float density)
+    {
+        PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+        assert(world != nullptr);
+
+        int nodes[4] = {};
+        CreateSingleTetWithMaterial(world, nodes, 0.0f, 0.0f, density);
+        PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
+        PHYSIK_Step(world, 0.1f);
+
+        const Point position = GetNodePosition(world, nodes[3]);
+        const Point velocity = GetNodeVelocity(world, nodes[3]);
+        PHYSIK_DestroyWorld(world);
+        return std::vector<float>{position.y, velocity.y};
+    };
+
+    const std::vector<float> lowDensityState = stepWithDensity(1.0f);
+    const std::vector<float> highDensityState = stepWithDensity(4.0f);
+
+    assert(NearlyEqual(lowDensityState[0], highDensityState[0], 0.0001f));
+    assert(NearlyEqual(lowDensityState[1], highDensityState[1], 0.0001f));
+    assert(lowDensityState[0] < 0.0f);
+    assert(lowDensityState[1] < 0.0f);
+}
+
 void ImplicitEulerUsesStiffnessBlocks()
 {
     PhysiK::WorldHandle noStiffnessWorld = PHYSIK_CreateWorld();
@@ -731,7 +853,7 @@ void ImplicitEulerUsesStiffnessBlocks()
             4,
             tetNodeIndices,
             1,
-            1.0f,
+            24.0f,
             100.0f,
             0.3f,
             0.0f);
@@ -962,6 +1084,10 @@ int main()
     ImplicitEulerAllDynamicTetResistsRestShapeVelocity();
     ImplicitEulerPointAnchoredTetRecoversFreeNodes();
     ImplicitEulerFEMRecoveryBeatsGravityOnlyMotion();
+    FEMLumpedMassUsesDensityAndRestVolume();
+    FEMLumpedMassDensityReducesAccelerationFromSameForce();
+    FEMLumpedMassPreservesFixedNodes();
+    FEMGravityAccelerationIsIndependentOfDensity();
     ImplicitEulerUsesStiffnessBlocks();
     TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
     UnitTetShapeFunctionGradientsMatchExpectedConvention();
