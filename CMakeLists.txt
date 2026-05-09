@@ -47,6 +47,7 @@ target_sources(
         include/PhysiK/Core/PhysicsConnections/LineConnection.h
         include/PhysiK/Core/PhysicsConnections/RigidBodyConnection.h
         include/PhysiK/Core/PhysicsConnections/RigidBodyOrientationConnection.h
+        include/PhysiK/Core/Solvers/Linear/DenseLinearSolver.h
         include/PhysiK/Core/Solvers/SolverData.h
         include/PhysiK/Core/World/World.h
     PRIVATE
@@ -61,6 +62,7 @@ target_sources(
         src/Core/PhysicsConnections/LineConnection.cpp
         src/Core/PhysicsConnections/RigidBodyConnection.cpp
         src/Core/PhysicsConnections/RigidBodyOrientationConnection.cpp
+        src/Core/Solvers/Linear/DenseLinearSolver.cpp
         src/Core/World/World.cpp
 )
 
@@ -90,6 +92,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Core/PhysicsConnections/LineConnection.h
     include/PhysiK/Core/PhysicsConnections/RigidBodyConnection.h
     include/PhysiK/Core/PhysicsConnections/RigidBodyOrientationConnection.h
+    include/PhysiK/Core/Solvers/Linear/DenseLinearSolver.h
     include/PhysiK/Core/Solvers/SolverData.h
     include/PhysiK/Core/World/World.h
 )

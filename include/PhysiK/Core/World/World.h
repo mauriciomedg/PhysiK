@@ -15,6 +15,12 @@
 
 namespace PhysiK
 {
+    enum class SolverMode
+    {
+        Explicit,
+        ImplicitEuler
+    };
+
     class World
     {
     public:
@@ -35,6 +41,8 @@ namespace PhysiK
 
         void SetSubstepCount(int count);
         int GetSubstepCount() const;
+        void SetSolverMode(SolverMode mode);
+        SolverMode GetSolverMode() const;
         void SetGravity(const Vec3& value);
         const Vec3& GetGravity() const;
 
@@ -52,13 +60,14 @@ namespace PhysiK
         void RunExternalLogic();
         void UpdateFrameComponents(float frameDt);
         void UpdateKinematicTargets();
-        void AccumulateForces(float dt);
+        void BuildSolverData(SolverData& solverData, float dt);
         void AddGravityForces(SolverData& solverData);
-        void AddConnectionForces(SolverData& solverData, float dt);
+        void AssembleConnectionSystems(SolverData& solverData, float dt);
         void GenerateCollisionConnections();
-        void AddPhysicsModelForces(SolverData& solverData, float dt);
+        void AssembleComponentSystems(SolverData& solverData, float dt);
         void GeneratePointConnectionFromContact(const Contact& contact);
-        void Solve(SolverData& solverData, float dt);
+        void ApplyExplicitForces(SolverData& solverData, float dt);
+        void SolveImplicitEuler(SolverData& solverData, float dt);
         void Integrate(float dt);
         void ClearForces();
         void ClearTransientConnections();
@@ -77,5 +86,6 @@ namespace PhysiK
 
         Vec3 gravity;
         int substepCount = 1;
+        SolverMode solverMode = SolverMode::Explicit;
     };
 }
