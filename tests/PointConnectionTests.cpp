@@ -29,9 +29,30 @@ namespace
         return point;
     }
 
-    float GetNodeInverseMass(PhysiK::WorldHandle world, int nodeIndex)
+    bool IsNodeFixed(PhysiK::WorldHandle world, int nodeIndex)
     {
-        return PHYSIK_GetNodeInverseMass(world, nodeIndex);
+        return PHYSIK_IsNodeFixed(world, nodeIndex) != 0;
+    }
+
+    int AddNode(PhysiK::WorldHandle world, float x, float y, float z)
+    {
+        return PHYSIK_AddNode(world, x, y, z);
+    }
+
+    int AddFixedNode(PhysiK::WorldHandle world, float x, float y, float z)
+    {
+        const int node = PHYSIK_AddNode(world, x, y, z);
+        PHYSIK_SetNodeFixed(world, node, 1);
+        return node;
+    }
+
+    PhysikMaterialDesc MakeMaterialDesc(
+        float density,
+        float youngModulus,
+        float poissonRatio = 0.3f,
+        float damping = 0.0f)
+    {
+        return PhysikMaterialDesc{density, youngModulus, poissonRatio, damping};
     }
 
     void SetNodeVelocity(PhysiK::WorldHandle world, int nodeIndex, const Point& velocity)
@@ -170,23 +191,21 @@ namespace
 
     void CreateSingleTet(PhysiK::WorldHandle world, int (&outNodes)[4])
     {
-        outNodes[0] = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
-        outNodes[1] = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
-        outNodes[2] = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 1.0f);
-        outNodes[3] = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+        outNodes[0] = AddNode(world, 0.0f, 0.0f, 0.0f);
+        outNodes[1] = AddNode(world, 1.0f, 0.0f, 0.0f);
+        outNodes[2] = AddNode(world, 0.0f, 1.0f, 0.0f);
+        outNodes[3] = AddNode(world, 0.0f, 0.0f, 1.0f);
 
         const int tetNodeIndices[] = {outNodes[0], outNodes[1], outNodes[2], outNodes[3]};
+        PhysikMaterialDesc material = MakeMaterialDesc(24.0f, 25.0f, 0.3f, 0.25f);
         const PhysiK::ComponentHandle tetMesh =
-            PHYSIK_CreateTetMeshComponentWithMaterial(
+            PHYSIK_CreateTetMeshComponentWithMaterialDesc(
                 world,
                 outNodes,
                 4,
                 tetNodeIndices,
                 1,
-                24.0f,
-                25.0f,
-                0.3f,
-                0.25f);
+                &material);
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
     }
 
@@ -197,23 +216,21 @@ namespace
         float damping = 0.0f,
         float density = 24.0f)
     {
-        outNodes[0] = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
-        outNodes[1] = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
-        outNodes[2] = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 1.0f);
-        outNodes[3] = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+        outNodes[0] = AddNode(world, 0.0f, 0.0f, 0.0f);
+        outNodes[1] = AddNode(world, 1.0f, 0.0f, 0.0f);
+        outNodes[2] = AddNode(world, 0.0f, 1.0f, 0.0f);
+        outNodes[3] = AddNode(world, 0.0f, 0.0f, 1.0f);
 
         const int tetNodeIndices[] = {outNodes[0], outNodes[1], outNodes[2], outNodes[3]};
+        PhysikMaterialDesc material = MakeMaterialDesc(density, youngModulus, 0.3f, damping);
         const PhysiK::ComponentHandle tetMesh =
-            PHYSIK_CreateTetMeshComponentWithMaterial(
+            PHYSIK_CreateTetMeshComponentWithMaterialDesc(
                 world,
                 outNodes,
                 4,
                 tetNodeIndices,
                 1,
-                density,
-                youngModulus,
-                0.3f,
-                damping);
+                &material);
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
     }
 
@@ -323,7 +340,7 @@ void GravityMovesDynamicNode()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    const int node = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
+    const int node = AddNode(world, 0.0f, 0.0f, 0.0f);
     PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
 
     PHYSIK_Step(world, 0.1f);
@@ -340,7 +357,7 @@ void ImplicitEulerGravityMatchesSemiImplicitEulerForFreeNode()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    const int node = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
+    const int node = AddNode(world, 0.0f, 0.0f, 0.0f);
     PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
     PHYSIK_SetSolverMode(world, 1);
 
@@ -358,7 +375,7 @@ void ImplicitEulerFixedNodeDoesNotMove()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    const int node = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 0.0f);
+    const int node = AddFixedNode(world, 0.0f, 1.0f, 0.0f);
     PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
     PHYSIK_SetSolverMode(world, 1);
 
@@ -371,6 +388,34 @@ void ImplicitEulerFixedNodeDoesNotMove()
     const Point afterVelocity = GetNodeVelocity(world, node);
     assert(DistanceSquared(afterPosition, beforePosition) < 0.000001f);
     assert(DistanceSquared(afterVelocity, beforeVelocity) < 0.000001f);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void AddNodeCreatesDynamicGeometryNode()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f);
+
+    assert(!IsNodeFixed(world, node));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void SetNodeFixedControlsDynamicState()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f);
+
+    PHYSIK_SetNodeFixed(world, node, 1);
+    assert(IsNodeFixed(world, node));
+
+    PHYSIK_SetNodeFixed(world, node, 0);
+    assert(!IsNodeFixed(world, node));
 
     PHYSIK_DestroyWorld(world);
 }
@@ -506,10 +551,10 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    const int node0 = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 0.0f);
-    const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 0.0f);
-    const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 0.0f);
-    const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+    const int node0 = AddFixedNode(world, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddFixedNode(world, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddFixedNode(world, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(world, 0.0f, 0.0f, 1.0f);
 
     const int nodes[] = {node0, node1, node2, node3};
     const int tetNodeIndices[] = {node0, node1, node2, node3};
@@ -546,10 +591,10 @@ void ImplicitEulerFEMTetMovesDistortedNodeTowardRestShape()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    const int node0 = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 0.0f);
-    const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 0.0f);
-    const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 0.0f);
-    const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+    const int node0 = AddFixedNode(world, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddFixedNode(world, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddFixedNode(world, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(world, 0.0f, 0.0f, 1.0f);
 
     const int nodes[] = {node0, node1, node2, node3};
     const int tetNodeIndices[] = {node0, node1, node2, node3};
@@ -668,7 +713,7 @@ void ImplicitEulerFEMRecoveryBeatsGravityOnlyMotion()
 {
     PhysiK::WorldHandle gravityOnlyWorld = PHYSIK_CreateWorld();
     assert(gravityOnlyWorld != nullptr);
-    const int gravityOnlyNode = PHYSIK_AddNode(gravityOnlyWorld, 0.0f, 0.0f, 1.0f, 1.0f);
+    const int gravityOnlyNode = AddNode(gravityOnlyWorld, 0.0f, 0.0f, 1.0f);
     PHYSIK_SetSolverMode(gravityOnlyWorld, 1);
     PHYSIK_SetGravity(gravityOnlyWorld, 0.0f, 0.0f, -1.0f);
     SetNodeVelocity(gravityOnlyWorld, gravityOnlyNode, Point{0.0f, 0.0f, 1.0f});
@@ -703,11 +748,131 @@ void FEMLumpedMassUsesDensityAndRestVolume()
     int nodes[4] = {};
     CreateSingleTetWithMaterial(world, nodes, 0.0f, 0.0f, 1.0f);
 
-    const float expectedInverseMass = 24.0f;
-    for (int node : nodes)
-    {
-        assert(NearlyEqual(GetNodeInverseMass(world, node), expectedInverseMass));
-    }
+    PHYSIK_AddPointConnection(
+        world,
+        nodes[3],
+        nodes[3],
+        nodes[3],
+        nodes[3],
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        2.0f,
+        1.0f,
+        0.0f);
+    PHYSIK_Step(world, 0.1f);
+
+    const Point velocity = GetNodeVelocity(world, nodes[3]);
+    assert(NearlyEqual(velocity.z, 2.4f, 0.0001f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void TetMeshMaterialDescCrossesNativeBoundary()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node0 = AddNode(world, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddNode(world, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddNode(world, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(world, 0.0f, 0.0f, 1.0f);
+    const int nodes[] = {node0, node1, node2, node3};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
+    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
+
+    const PhysiK::ComponentHandle invalidTetMesh =
+        PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+            world,
+            nodes,
+            4,
+            tetNodeIndices,
+            1,
+            nullptr);
+    assert(PHYSIK_IsComponentHandleValid(world, invalidTetMesh) == 0);
+
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+            world,
+            nodes,
+            4,
+            tetNodeIndices,
+            1,
+            &material);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+
+    PHYSIK_AddPointConnection(
+        world,
+        node3,
+        node3,
+        node3,
+        node3,
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        2.0f,
+        1.0f,
+        0.0f);
+    PHYSIK_Step(world, 0.1f);
+
+    const Point velocity = GetNodeVelocity(world, node3);
+    assert(NearlyEqual(velocity.z, 2.4f, 0.0001f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void TetMeshMaterialCanBeUpdatedThroughNativeDescriptor()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node0 = AddNode(world, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddNode(world, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddNode(world, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(world, 0.0f, 0.0f, 1.0f);
+    const int nodes[] = {node0, node1, node2, node3};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
+    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
+
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+            world,
+            nodes,
+            4,
+            tetNodeIndices,
+            1,
+            &material);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+
+    PhysikMaterialDesc heavierMaterial = MakeMaterialDesc(4.0f, 0.0f);
+    PHYSIK_SetTetMeshMaterial(world, tetMesh, nullptr);
+    PHYSIK_SetTetMeshMaterial(world, tetMesh, &heavierMaterial);
+
+    PHYSIK_AddPointConnection(
+        world,
+        node3,
+        node3,
+        node3,
+        node3,
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        2.0f,
+        1.0f,
+        0.0f);
+    PHYSIK_Step(world, 0.1f);
+
+    const Point velocity = GetNodeVelocity(world, node3);
+    assert(NearlyEqual(velocity.z, 0.6f, 0.0001f));
 
     PHYSIK_DestroyWorld(world);
 }
@@ -756,10 +921,10 @@ void FEMLumpedMassPreservesFixedNodes()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    const int node0 = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 0.0f);
-    const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
-    const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 1.0f);
-    const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+    const int node0 = AddFixedNode(world, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddNode(world, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddNode(world, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(world, 0.0f, 0.0f, 1.0f);
     const int nodes[] = {node0, node1, node2, node3};
     const int tetNodeIndices[] = {node0, node1, node2, node3};
 
@@ -776,10 +941,10 @@ void FEMLumpedMassPreservesFixedNodes()
             0.0f);
     assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
 
-    assert(GetNodeInverseMass(world, node0) == 0.0f);
-    assert(NearlyEqual(GetNodeInverseMass(world, node1), 24.0f));
-    assert(NearlyEqual(GetNodeInverseMass(world, node2), 24.0f));
-    assert(NearlyEqual(GetNodeInverseMass(world, node3), 24.0f));
+    assert(IsNodeFixed(world, node0));
+    assert(!IsNodeFixed(world, node1));
+    assert(!IsNodeFixed(world, node2));
+    assert(!IsNodeFixed(world, node3));
 
     PHYSIK_DestroyWorld(world);
 }
@@ -816,7 +981,7 @@ void ImplicitEulerUsesStiffnessBlocks()
     PhysiK::WorldHandle noStiffnessWorld = PHYSIK_CreateWorld();
     assert(noStiffnessWorld != nullptr);
     PHYSIK_SetSolverMode(noStiffnessWorld, 1);
-    const int freeNode = PHYSIK_AddNode(noStiffnessWorld, 0.0f, 0.0f, 1.0f, 1.0f);
+    const int freeNode = AddNode(noStiffnessWorld, 0.0f, 0.0f, 1.0f);
 
     PHYSIK_AddPointConnection(
         noStiffnessWorld,
@@ -840,10 +1005,10 @@ void ImplicitEulerUsesStiffnessBlocks()
     PhysiK::WorldHandle stiffnessWorld = PHYSIK_CreateWorld();
     assert(stiffnessWorld != nullptr);
     PHYSIK_SetSolverMode(stiffnessWorld, 1);
-    const int node0 = PHYSIK_AddNode(stiffnessWorld, 0.0f, 0.0f, 0.0f, 0.0f);
-    const int node1 = PHYSIK_AddNode(stiffnessWorld, 1.0f, 0.0f, 0.0f, 0.0f);
-    const int node2 = PHYSIK_AddNode(stiffnessWorld, 0.0f, 1.0f, 0.0f, 0.0f);
-    const int node3 = PHYSIK_AddNode(stiffnessWorld, 0.0f, 0.0f, 1.0f, 1.0f);
+    const int node0 = AddFixedNode(stiffnessWorld, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddFixedNode(stiffnessWorld, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddFixedNode(stiffnessWorld, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(stiffnessWorld, 0.0f, 0.0f, 1.0f);
     const int componentNodes[] = {node0, node1, node2, node3};
     const int tetNodeIndices[] = {node0, node1, node2, node3};
     const PhysiK::ComponentHandle tetMesh =
@@ -888,10 +1053,10 @@ void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    const int node0 = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f, 1.0f);
-    const int node1 = PHYSIK_AddNode(world, 1.0f, 0.0f, 0.0f, 1.0f);
-    const int node2 = PHYSIK_AddNode(world, 0.0f, 1.0f, 0.0f, 1.0f);
-    const int node3 = PHYSIK_AddNode(world, 0.0f, 0.0f, 1.0f, 1.0f);
+    const int node0 = AddNode(world, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddNode(world, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddNode(world, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(world, 0.0f, 0.0f, 1.0f);
 
     const int nodes[] = {node0, node1, node2, node3};
     const int tetNodeIndices[] = {node0, node1, node2, node3};
@@ -1075,6 +1240,8 @@ int main()
     GravityMovesDynamicNode();
     ImplicitEulerGravityMatchesSemiImplicitEulerForFreeNode();
     ImplicitEulerFixedNodeDoesNotMove();
+    AddNodeCreatesDynamicGeometryNode();
+    SetNodeFixedControlsDynamicState();
     SphereContactCreatesTransientConnectionAndMovesTet();
     MultipleForceSourcesCoexist();
     ExternalLogicHookRunsOnceBeforeSubsteps();
@@ -1085,6 +1252,8 @@ int main()
     ImplicitEulerPointAnchoredTetRecoversFreeNodes();
     ImplicitEulerFEMRecoveryBeatsGravityOnlyMotion();
     FEMLumpedMassUsesDensityAndRestVolume();
+    TetMeshMaterialDescCrossesNativeBoundary();
+    TetMeshMaterialCanBeUpdatedThroughNativeDescriptor();
     FEMLumpedMassDensityReducesAccelerationFromSameForce();
     FEMLumpedMassPreservesFixedNodes();
     FEMGravityAccelerationIsIndependentOfDensity();

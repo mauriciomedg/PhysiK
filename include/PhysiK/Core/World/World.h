@@ -28,7 +28,7 @@ namespace PhysiK
 
         void Step(float frameDt);
 
-        int AddNode(const Vec3& position, float inverseMass = 1.0f);
+        int AddNode(const Vec3& position);
         ComponentHandle AddComponent(std::unique_ptr<Component> component);
         Component* GetComponent(ComponentHandle handle);
         const Component* GetComponent(ComponentHandle handle) const;
@@ -50,6 +50,8 @@ namespace PhysiK
         const Node& GetNode(int index) const;
         const std::vector<Node>& GetNodes() const;
         void SetNodePosition(int index, const Vec3& position);
+        void SetNodeFixed(int nodeIndex, bool fixed);
+        bool IsNodeFixed(int nodeIndex) const;
         const std::vector<std::unique_ptr<Component>>& GetComponents() const;
 
         int GetTransientConnectionCount() const;
@@ -61,6 +63,7 @@ namespace PhysiK
         void UpdateFrameComponents(float frameDt);
         void UpdateKinematicTargets();
         void BuildSolverData(SolverData& solverData, float dt);
+        void AddDefaultNodeMasses(SolverData& solverData);
         void AddGravityForces(SolverData& solverData);
         void AssembleConnectionSystems(SolverData& solverData, float dt);
         void GenerateCollisionConnections();
@@ -68,8 +71,6 @@ namespace PhysiK
         void GeneratePointConnectionFromContact(const Contact& contact);
         void ApplyExplicitForces(SolverData& solverData, float dt);
         void SolveImplicitEuler(SolverData& solverData, float dt);
-        void Integrate(float dt);
-        void ClearForces();
         void ClearTransientConnections();
 
         std::vector<Node> nodes;

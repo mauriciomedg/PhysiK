@@ -25,7 +25,7 @@ namespace PhysiK
         static std::unique_ptr<TetMeshComponent> CreateFromPositions(
             World& world,
             const Vec3* positions,
-            const float* inverseMasses,
+            const int* fixedNodeFlags,
             int nodeCount,
             const int* tetLocalNodeIndices,
             int tetCount,
@@ -36,6 +36,8 @@ namespace PhysiK
 
         Material material;
         FEMModel femModel;
+
+        void SetMaterial(const Material& value);
 
         void UpdateSystem(
             World& world,

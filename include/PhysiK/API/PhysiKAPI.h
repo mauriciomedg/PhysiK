@@ -12,6 +12,14 @@
 #define PHYSIK_API
 #endif
 
+struct PhysikMaterialDesc
+{
+    float density;
+    float youngModulus;
+    float poissonRatio;
+    float damping;
+};
+
 extern "C"
 {
     PHYSIK_API PhysiK::WorldHandle PHYSIK_CreateWorld();
@@ -35,8 +43,16 @@ extern "C"
         PhysiK::WorldHandle world,
         float x,
         float y,
-        float z,
-        float inverseMass);
+        float z);
+
+    PHYSIK_API void PHYSIK_SetNodeFixed(
+        PhysiK::WorldHandle world,
+        int nodeIndex,
+        int fixed);
+
+    PHYSIK_API int PHYSIK_IsNodeFixed(
+        PhysiK::WorldHandle world,
+        int nodeIndex);
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,
@@ -55,6 +71,19 @@ extern "C"
         float youngModulus,
         float poissonRatio,
         float damping);
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+        PhysiK::WorldHandle world,
+        const int* nodeIndices,
+        int nodeCount,
+        const int* tetNodeIndices,
+        int tetCount,
+        const PhysikMaterialDesc* material);
+
+    PHYSIK_API void PHYSIK_SetTetMeshMaterial(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        const PhysikMaterialDesc* material);
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateCollisionSphereComponent(
         PhysiK::WorldHandle world,
@@ -113,10 +142,6 @@ extern "C"
         float* outX,
         float* outY,
         float* outZ);
-
-    PHYSIK_API float PHYSIK_GetNodeInverseMass(
-        PhysiK::WorldHandle world,
-        int nodeIndex);
 
     PHYSIK_API void PHYSIK_SetNodePosition(
         PhysiK::WorldHandle world,

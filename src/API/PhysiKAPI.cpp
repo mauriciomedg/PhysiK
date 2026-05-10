@@ -13,6 +13,16 @@ namespace
     {
         return static_cast<PhysiK::World*>(handle);
     }
+
+    PhysiK::Material ToMaterial(const PhysikMaterialDesc& desc)
+    {
+        PhysiK::Material material;
+        material.density = desc.density;
+        material.youngModulus = desc.youngModulus;
+        material.poissonRatio = desc.poissonRatio;
+        material.damping = desc.damping;
+        return material;
+    }
 }
 
 extern "C"
@@ -87,15 +97,37 @@ extern "C"
         PhysiK::WorldHandle world,
         float x,
         float y,
-        float z,
-        float inverseMass)
+        float z)
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            return worldPtr->AddNode(PhysiK::Vec3{x, y, z}, inverseMass);
+            return worldPtr->AddNode(PhysiK::Vec3{x, y, z});
         }
 
         return -1;
+    }
+
+    PHYSIK_API void PHYSIK_SetNodeFixed(
+        PhysiK::WorldHandle world,
+        int nodeIndex,
+        int fixed)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetNodeFixed(nodeIndex, fixed != 0);
+        }
+    }
+
+    PHYSIK_API int PHYSIK_IsNodeFixed(
+        PhysiK::WorldHandle world,
+        int nodeIndex)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->IsNodeFixed(nodeIndex) ? 1 : 0;
+        }
+
+        return 0;
     }
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
@@ -169,6 +201,50 @@ extern "C"
         }
 
         return PhysiK::ComponentHandle{};
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+        PhysiK::WorldHandle world,
+        const int* nodeIndices,
+        int nodeCount,
+        const int* tetNodeIndices,
+        int tetCount,
+        const PhysikMaterialDesc* material)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr || material == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component = PhysiK::TetMeshComponent::CreateFromGlobalNodes(
+            *worldPtr,
+            nodeIndices,
+            nodeCount,
+            tetNodeIndices,
+            tetCount,
+            ToMaterial(*material));
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API void PHYSIK_SetTetMeshMaterial(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        const PhysikMaterialDesc* material)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr || material == nullptr)
+        {
+            return;
+        }
+
+        auto* tetMesh = dynamic_cast<PhysiK::TetMeshComponent*>(worldPtr->GetComponent(component));
+        if (tetMesh == nullptr)
+        {
+            return;
+        }
+
+        tetMesh->SetMaterial(ToMaterial(*material));
     }
 
     PHYSIK_API void PHYSIK_DestroyComponent(
@@ -337,18 +413,6 @@ extern "C"
                 *outZ = node.velocity.z;
             }
         }
-    }
-
-    PHYSIK_API float PHYSIK_GetNodeInverseMass(
-        PhysiK::WorldHandle world,
-        int nodeIndex)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            return worldPtr->GetNode(nodeIndex).inverseMass;
-        }
-
-        return 0.0f;
     }
 
     PHYSIK_API void PHYSIK_SetNodePosition(
