@@ -1382,10 +1382,36 @@ Unity-facing FEM usage:
 - Create nodes using PHYSIK_AddNode(world, x, y, z).
 - Use PHYSIK_SetNodeFixed only for fixed nodes.
 - Use material density for FEM mass.
+- Author FEM material in Unity as a ScriptableObject.
+- Transfer material across the DLL boundary with PhysikMaterialDesc.
 
 World nodes do not own FEM lumped mass or inverse mass.
 
 SolverData owns the assembled mass values consumed by integration and implicit solves.
+
+---
+
+# Material Authoring Boundary
+
+Material is component-owned physical data.
+
+Unity-facing code should not expose C++ classes or namespaces directly.
+
+The DLL boundary uses a C-compatible descriptor:
+
+struct PhysikMaterialDesc
+{
+    float density;
+    float youngModulus;
+    float poissonRatio;
+    float damping;
+};
+
+The C API converts PhysikMaterialDesc into PhysiK::Material internally.
+
+TetMeshComponent stores the internal Material and updates its private tetrahedra when material coefficients change.
+
+World nodes must not store material, mass, inverse mass, or FEM tuning data.
 
 ---
 
@@ -1576,6 +1602,14 @@ Expose stable C ABI.
 
 extern "C"
 {
+    struct PhysikMaterialDesc
+    {
+        float density;
+        float youngModulus;
+        float poissonRatio;
+        float damping;
+    };
+
     PHYSIK_API WorldHandle PHYSIK_CreateWorld();
 
     PHYSIK_API void PHYSIK_DestroyWorld(
@@ -1601,6 +1635,19 @@ extern "C"
         int nodeIndex);
 
     PHYSIK_API ComponentHandle PHYSIK_CreateTetMeshComponent(...);
+
+    PHYSIK_API ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+        WorldHandle world,
+        const int* nodeIndices,
+        int nodeCount,
+        const int* tetNodeIndices,
+        int tetCount,
+        const PhysikMaterialDesc* material);
+
+    PHYSIK_API void PHYSIK_SetTetMeshMaterial(
+        WorldHandle world,
+        ComponentHandle component,
+        const PhysikMaterialDesc* material);
 
     PHYSIK_API ComponentHandle PHYSIK_CreateRigidBodyComponent(...);
 

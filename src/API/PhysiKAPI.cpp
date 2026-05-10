@@ -13,6 +13,16 @@ namespace
     {
         return static_cast<PhysiK::World*>(handle);
     }
+
+    PhysiK::Material ToMaterial(const PhysikMaterialDesc& desc)
+    {
+        PhysiK::Material material;
+        material.density = desc.density;
+        material.youngModulus = desc.youngModulus;
+        material.poissonRatio = desc.poissonRatio;
+        material.damping = desc.damping;
+        return material;
+    }
 }
 
 extern "C"
@@ -191,6 +201,50 @@ extern "C"
         }
 
         return PhysiK::ComponentHandle{};
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+        PhysiK::WorldHandle world,
+        const int* nodeIndices,
+        int nodeCount,
+        const int* tetNodeIndices,
+        int tetCount,
+        const PhysikMaterialDesc* material)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr || material == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component = PhysiK::TetMeshComponent::CreateFromGlobalNodes(
+            *worldPtr,
+            nodeIndices,
+            nodeCount,
+            tetNodeIndices,
+            tetCount,
+            ToMaterial(*material));
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API void PHYSIK_SetTetMeshMaterial(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        const PhysikMaterialDesc* material)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr || material == nullptr)
+        {
+            return;
+        }
+
+        auto* tetMesh = dynamic_cast<PhysiK::TetMeshComponent*>(worldPtr->GetComponent(component));
+        if (tetMesh == nullptr)
+        {
+            return;
+        }
+
+        tetMesh->SetMaterial(ToMaterial(*material));
     }
 
     PHYSIK_API void PHYSIK_DestroyComponent(

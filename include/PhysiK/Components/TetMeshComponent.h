@@ -37,6 +37,8 @@ namespace PhysiK
         Material material;
         FEMModel femModel;
 
+        void SetMaterial(const Material& value);
+
         void UpdateSystem(
             World& world,
             SolverData& solverData,

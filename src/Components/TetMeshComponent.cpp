@@ -168,6 +168,17 @@ namespace PhysiK
         return component;
     }
 
+    void TetMeshComponent::SetMaterial(const Material& value)
+    {
+        material = value;
+        for (Tet& tet : tets)
+        {
+            tet.youngModulus = material.youngModulus;
+            tet.poissonRatio = material.poissonRatio;
+            tet.damping = material.damping;
+        }
+    }
+
     void TetMeshComponent::UpdateSystem(
         World& world,
         SolverData& solverData,

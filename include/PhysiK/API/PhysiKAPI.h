@@ -12,6 +12,14 @@
 #define PHYSIK_API
 #endif
 
+struct PhysikMaterialDesc
+{
+    float density;
+    float youngModulus;
+    float poissonRatio;
+    float damping;
+};
+
 extern "C"
 {
     PHYSIK_API PhysiK::WorldHandle PHYSIK_CreateWorld();
@@ -63,6 +71,19 @@ extern "C"
         float youngModulus,
         float poissonRatio,
         float damping);
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+        PhysiK::WorldHandle world,
+        const int* nodeIndices,
+        int nodeCount,
+        const int* tetNodeIndices,
+        int tetCount,
+        const PhysikMaterialDesc* material);
+
+    PHYSIK_API void PHYSIK_SetTetMeshMaterial(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        const PhysikMaterialDesc* material);
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateCollisionSphereComponent(
         PhysiK::WorldHandle world,
