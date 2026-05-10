@@ -28,7 +28,8 @@ namespace PhysiK
 
         void Step(float frameDt);
 
-        int AddNode(const Vec3& position, float inverseMass = 1.0f);
+        int AddNode(const Vec3& position);
+        int AddNodeWithInverseMass(const Vec3& position, float inverseMass);
         ComponentHandle AddComponent(std::unique_ptr<Component> component);
         Component* GetComponent(ComponentHandle handle);
         const Component* GetComponent(ComponentHandle handle) const;
@@ -50,6 +51,8 @@ namespace PhysiK
         const Node& GetNode(int index) const;
         const std::vector<Node>& GetNodes() const;
         void SetNodePosition(int index, const Vec3& position);
+        void SetNodeFixed(int nodeIndex, bool fixed);
+        bool IsNodeFixed(int nodeIndex) const;
         const std::vector<std::unique_ptr<Component>>& GetComponents() const;
 
         int GetTransientConnectionCount() const;

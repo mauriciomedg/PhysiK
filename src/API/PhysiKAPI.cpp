@@ -87,15 +87,52 @@ extern "C"
         PhysiK::WorldHandle world,
         float x,
         float y,
+        float z)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->AddNode(PhysiK::Vec3{x, y, z});
+        }
+
+        return -1;
+    }
+
+    PHYSIK_API int PHYSIK_AddNodeWithInverseMass(
+        PhysiK::WorldHandle world,
+        float x,
+        float y,
         float z,
         float inverseMass)
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            return worldPtr->AddNode(PhysiK::Vec3{x, y, z}, inverseMass);
+            return worldPtr->AddNodeWithInverseMass(PhysiK::Vec3{x, y, z}, inverseMass);
         }
 
         return -1;
+    }
+
+    PHYSIK_API void PHYSIK_SetNodeFixed(
+        PhysiK::WorldHandle world,
+        int nodeIndex,
+        int fixed)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetNodeFixed(nodeIndex, fixed != 0);
+        }
+    }
+
+    PHYSIK_API int PHYSIK_IsNodeFixed(
+        PhysiK::WorldHandle world,
+        int nodeIndex)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->IsNodeFixed(nodeIndex) ? 1 : 0;
+        }
+
+        return 0;
     }
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(

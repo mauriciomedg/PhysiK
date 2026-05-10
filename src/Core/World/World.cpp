@@ -80,7 +80,12 @@ namespace PhysiK
         }
     }
 
-    int World::AddNode(const Vec3& position, float inverseMass)
+    int World::AddNode(const Vec3& position)
+    {
+        return AddNodeWithInverseMass(position, 1.0f);
+    }
+
+    int World::AddNodeWithInverseMass(const Vec3& position, float inverseMass)
     {
         Node node;
         node.position = position;
@@ -208,6 +213,27 @@ namespace PhysiK
         Node& node = nodes[static_cast<std::size_t>(index)];
         node.position = position;
         node.velocity = Vec3{};
+    }
+
+    void World::SetNodeFixed(int nodeIndex, bool fixed)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
+        if (fixed)
+        {
+            node.inverseMass = 0.0f;
+            node.velocity = Vec3{};
+            node.force = Vec3{};
+            return;
+        }
+
+        node.inverseMass = node.femMass > 0.0f ? 1.0f / node.femMass : 1.0f;
+    }
+
+    bool World::IsNodeFixed(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        return nodes[static_cast<std::size_t>(nodeIndex)].inverseMass <= 0.0f;
     }
 
     const std::vector<std::unique_ptr<Component>>& World::GetComponents() const

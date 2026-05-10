@@ -325,6 +325,19 @@ World should expose generic registration:
 
 ComponentHandle AddComponent(std::unique_ptr<Component> component);
 
+World node creation is geometric/topological:
+
+int AddNode(const Vec3& position);
+
+Use explicit fixed-state APIs for anchored nodes:
+
+void SetNodeFixed(int nodeIndex, bool fixed);
+bool IsNodeFixed(int nodeIndex) const;
+
+Node inverseMass is an internal solver/runtime representation.
+
+Public FEM workflows should not use inverseMass as a mass tuning API.
+
 Do not add component-specific creation methods to World, such as:
 
 World::CreateTetMeshComponent(...);
@@ -1352,17 +1365,23 @@ Each tet node receives:
 
 nodeMass += tetMass / 4
 
-Then:
+Then, for non-fixed nodes:
 
 node.inverseMass = 1 / nodeMass
 
 For shared nodes, mass contributions accumulate from connected tetrahedra.
 
-Nodes created with inverseMass = 0 are fixed and must remain fixed.
+Nodes marked fixed with SetNodeFixed remain fixed and must keep inverseMass = 0 internally.
 
 For FEM tet mesh nodes, density-derived mass is the default physical mass.
 
-Positive manually supplied inverseMass values are useful for particles and initial dynamic/fixed classification, not FEM mass tuning.
+Positive manually supplied inverseMass values are legacy/internal convenience only, not FEM mass tuning.
+
+Unity-facing FEM usage:
+
+- Create nodes using PHYSIK_AddNode(world, x, y, z).
+- Use PHYSIK_SetNodeFixed only for fixed nodes.
+- Use material density for FEM mass.
 
 ---
 
@@ -1561,6 +1580,21 @@ extern "C"
     PHYSIK_API void PHYSIK_Step(
         WorldHandle world,
         float dt);
+
+    PHYSIK_API int PHYSIK_AddNode(
+        WorldHandle world,
+        float x,
+        float y,
+        float z);
+
+    PHYSIK_API void PHYSIK_SetNodeFixed(
+        WorldHandle world,
+        int nodeIndex,
+        int fixed);
+
+    PHYSIK_API int PHYSIK_IsNodeFixed(
+        WorldHandle world,
+        int nodeIndex);
 
     PHYSIK_API ComponentHandle PHYSIK_CreateTetMeshComponent(...);
 

@@ -35,8 +35,23 @@ extern "C"
         PhysiK::WorldHandle world,
         float x,
         float y,
+        float z);
+
+    PHYSIK_API int PHYSIK_AddNodeWithInverseMass(
+        PhysiK::WorldHandle world,
+        float x,
+        float y,
         float z,
         float inverseMass);
+
+    PHYSIK_API void PHYSIK_SetNodeFixed(
+        PhysiK::WorldHandle world,
+        int nodeIndex,
+        int fixed);
+
+    PHYSIK_API int PHYSIK_IsNodeFixed(
+        PhysiK::WorldHandle world,
+        int nodeIndex);
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,

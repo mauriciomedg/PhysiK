@@ -127,8 +127,12 @@ namespace PhysiK
             component->nodeIndices.reserve(static_cast<std::size_t>(nodeCount));
             for (int i = 0; i < nodeCount; ++i)
             {
-                const float inverseMass = inverseMasses != nullptr ? inverseMasses[i] : 1.0f;
-                component->nodeIndices.push_back(world.AddNode(positions[i], inverseMass));
+                const int nodeIndex = world.AddNode(positions[i]);
+                if (inverseMasses != nullptr && inverseMasses[i] <= 0.0f)
+                {
+                    world.SetNodeFixed(nodeIndex, true);
+                }
+                component->nodeIndices.push_back(nodeIndex);
             }
         }
 
