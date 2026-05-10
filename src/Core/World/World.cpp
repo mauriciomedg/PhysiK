@@ -43,6 +43,56 @@ namespace PhysiK
 
             return sourceColumn.z;
         }
+
+        std::vector<float> BuildNodeMasses(const SolverData& solverData, int nodeCount)
+        {
+            std::vector<float> masses(static_cast<std::size_t>(nodeCount), 0.0f);
+            for (const SolverData::NodeMass& nodeMass : solverData.GetNodeMasses())
+            {
+                if (nodeMass.node < 0 || nodeMass.node >= nodeCount ||
+                    !std::isfinite(nodeMass.mass) || nodeMass.mass <= 0.0f)
+                {
+                    continue;
+                }
+
+                masses[static_cast<std::size_t>(nodeMass.node)] += nodeMass.mass;
+            }
+
+            return masses;
+        }
+
+        std::vector<bool> BuildNodeMassContributions(const SolverData& solverData, int nodeCount)
+        {
+            std::vector<bool> contributed(static_cast<std::size_t>(nodeCount), false);
+            for (const SolverData::NodeMass& nodeMass : solverData.GetNodeMasses())
+            {
+                if (nodeMass.node < 0 || nodeMass.node >= nodeCount)
+                {
+                    continue;
+                }
+
+                contributed[static_cast<std::size_t>(nodeMass.node)] = true;
+            }
+
+            return contributed;
+        }
+
+        std::vector<Vec3> BuildNodeForces(const SolverData& solverData, int nodeCount)
+        {
+            std::vector<Vec3> forces(static_cast<std::size_t>(nodeCount));
+            for (const SolverData::NodeForce& nodeForce : solverData.GetNodeForces())
+            {
+                if (nodeForce.node < 0 || nodeForce.node >= nodeCount ||
+                    !IsFinite(nodeForce.force))
+                {
+                    continue;
+                }
+
+                forces[static_cast<std::size_t>(nodeForce.node)] += nodeForce.force;
+            }
+
+            return forces;
+        }
     }
 
     World::World() = default;
@@ -73,7 +123,6 @@ namespace PhysiK
             else
             {
                 ApplyExplicitForces(solverData, substepDt);
-                Integrate(substepDt);
             }
 
             ClearTransientConnections();
@@ -82,14 +131,8 @@ namespace PhysiK
 
     int World::AddNode(const Vec3& position)
     {
-        return AddNodeWithInverseMass(position, 1.0f);
-    }
-
-    int World::AddNodeWithInverseMass(const Vec3& position, float inverseMass)
-    {
         Node node;
         node.position = position;
-        node.inverseMass = std::max(0.0f, inverseMass);
         nodes.push_back(node);
         return static_cast<int>(nodes.size()) - 1;
     }
@@ -221,19 +264,18 @@ namespace PhysiK
         Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
         if (fixed)
         {
-            node.inverseMass = 0.0f;
+            node.fixed = true;
             node.velocity = Vec3{};
-            node.force = Vec3{};
             return;
         }
 
-        node.inverseMass = node.femMass > 0.0f ? 1.0f / node.femMass : 1.0f;
+        node.fixed = false;
     }
 
     bool World::IsNodeFixed(int nodeIndex) const
     {
         assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
-        return nodes[static_cast<std::size_t>(nodeIndex)].inverseMass <= 0.0f;
+        return nodes[static_cast<std::size_t>(nodeIndex)].fixed;
     }
 
     const std::vector<std::unique_ptr<Component>>& World::GetComponents() const
@@ -312,26 +354,54 @@ namespace PhysiK
 
     void World::BuildSolverData(SolverData& solverData, float dt)
     {
-        ClearForces();
         GenerateCollisionConnections();
 
         solverData.Clear();
-        AddGravityForces(solverData);
         AssembleComponentSystems(solverData, dt);
+        AddDefaultNodeMasses(solverData);
+        AddGravityForces(solverData);
         AssembleConnectionSystems(solverData, dt);
     }
 
-    void World::AddGravityForces(SolverData& solverData)
+    void World::AddDefaultNodeMasses(SolverData& solverData)
     {
+        const std::vector<float> masses =
+            BuildNodeMasses(solverData, static_cast<int>(nodes.size()));
+        const std::vector<bool> massContributed =
+            BuildNodeMassContributions(solverData, static_cast<int>(nodes.size()));
+
         for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
-            const Node& node = nodes[static_cast<std::size_t>(i)];
-            if (node.inverseMass <= 0.0f)
+            if (nodes[static_cast<std::size_t>(i)].fixed ||
+                massContributed[static_cast<std::size_t>(i)] ||
+                masses[static_cast<std::size_t>(i)] > 0.0f)
             {
                 continue;
             }
 
-            solverData.AddNodeForce(i, gravity / node.inverseMass);
+            solverData.AddNodeMass(i, 1.0f);
+        }
+    }
+
+    void World::AddGravityForces(SolverData& solverData)
+    {
+        const std::vector<float> masses =
+            BuildNodeMasses(solverData, static_cast<int>(nodes.size()));
+
+        for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
+        {
+            if (nodes[static_cast<std::size_t>(i)].fixed)
+            {
+                continue;
+            }
+
+            const float mass = masses[static_cast<std::size_t>(i)];
+            if (!std::isfinite(mass) || mass <= 0.0f)
+            {
+                continue;
+            }
+
+            solverData.AddNodeForce(i, gravity * mass);
         }
     }
 
@@ -399,37 +469,28 @@ namespace PhysiK
 
     void World::ApplyExplicitForces(SolverData& solverData, float dt)
     {
-        (void)dt;
+        const std::vector<float> masses =
+            BuildNodeMasses(solverData, static_cast<int>(nodes.size()));
+        const std::vector<Vec3> forces =
+            BuildNodeForces(solverData, static_cast<int>(nodes.size()));
 
-        for (const SolverData::NodeForce& nodeForce : solverData.GetNodeForces())
+        for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
-            if (nodeForce.node >= 0 && nodeForce.node < static_cast<int>(nodes.size()))
-            {
-                nodes[static_cast<std::size_t>(nodeForce.node)].force += nodeForce.force;
-            }
-        }
-    }
-
-    void World::Integrate(float dt)
-    {
-        for (Node& node : nodes)
-        {
-            if (node.inverseMass <= 0.0f)
+            Node& node = nodes[static_cast<std::size_t>(i)];
+            if (node.fixed)
             {
                 continue;
             }
 
-            const Vec3 acceleration = node.force * node.inverseMass;
+            const float mass = masses[static_cast<std::size_t>(i)];
+            if (!std::isfinite(mass) || mass <= 0.0f)
+            {
+                continue;
+            }
+
+            const Vec3 acceleration = forces[static_cast<std::size_t>(i)] / mass;
             node.velocity += acceleration * dt;
             node.position += node.velocity * dt;
-        }
-    }
-
-    void World::ClearForces()
-    {
-        for (Node& node : nodes)
-        {
-            node.force = Vec3{};
         }
     }
 
@@ -440,12 +501,16 @@ namespace PhysiK
             return;
         }
 
+        const std::vector<float> masses =
+            BuildNodeMasses(solverData, static_cast<int>(nodes.size()));
+
         std::vector<int> nodeToDof(nodes.size(), -1);
         int dofCount = 0;
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
-            const Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
-            if (node.inverseMass > 0.0f)
+            const float mass = masses[static_cast<std::size_t>(nodeIndex)];
+            if (!nodes[static_cast<std::size_t>(nodeIndex)].fixed &&
+                std::isfinite(mass) && mass > 0.0f)
             {
                 nodeToDof[static_cast<std::size_t>(nodeIndex)] = dofCount;
                 dofCount += 3;
@@ -473,12 +538,7 @@ namespace PhysiK
             }
 
             const Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
-            if (!IsFinite(node.inverseMass) || node.inverseMass <= 0.0f)
-            {
-                return;
-            }
-
-            const float mass = 1.0f / node.inverseMass;
+            const float mass = masses[static_cast<std::size_t>(nodeIndex)];
             if (!IsFinite(mass))
             {
                 return;

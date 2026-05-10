@@ -37,13 +37,6 @@ extern "C"
         float y,
         float z);
 
-    PHYSIK_API int PHYSIK_AddNodeWithInverseMass(
-        PhysiK::WorldHandle world,
-        float x,
-        float y,
-        float z,
-        float inverseMass);
-
     PHYSIK_API void PHYSIK_SetNodeFixed(
         PhysiK::WorldHandle world,
         int nodeIndex,
@@ -128,10 +121,6 @@ extern "C"
         float* outX,
         float* outY,
         float* outZ);
-
-    PHYSIK_API float PHYSIK_GetNodeInverseMass(
-        PhysiK::WorldHandle world,
-        int nodeIndex);
 
     PHYSIK_API void PHYSIK_SetNodePosition(
         PhysiK::WorldHandle world,

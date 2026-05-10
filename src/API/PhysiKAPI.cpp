@@ -97,21 +97,6 @@ extern "C"
         return -1;
     }
 
-    PHYSIK_API int PHYSIK_AddNodeWithInverseMass(
-        PhysiK::WorldHandle world,
-        float x,
-        float y,
-        float z,
-        float inverseMass)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            return worldPtr->AddNodeWithInverseMass(PhysiK::Vec3{x, y, z}, inverseMass);
-        }
-
-        return -1;
-    }
-
     PHYSIK_API void PHYSIK_SetNodeFixed(
         PhysiK::WorldHandle world,
         int nodeIndex,
@@ -374,18 +359,6 @@ extern "C"
                 *outZ = node.velocity.z;
             }
         }
-    }
-
-    PHYSIK_API float PHYSIK_GetNodeInverseMass(
-        PhysiK::WorldHandle world,
-        int nodeIndex)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            return worldPtr->GetNode(nodeIndex).inverseMass;
-        }
-
-        return 0.0f;
     }
 
     PHYSIK_API void PHYSIK_SetNodePosition(

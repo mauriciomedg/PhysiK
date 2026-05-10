@@ -334,9 +334,9 @@ Use explicit fixed-state APIs for anchored nodes:
 void SetNodeFixed(int nodeIndex, bool fixed);
 bool IsNodeFixed(int nodeIndex) const;
 
-Node inverseMass is an internal solver/runtime representation.
+Node inverse mass is assembled into SolverData for the current solve.
 
-Public FEM workflows should not use inverseMass as a mass tuning API.
+Public FEM workflows should not use inverse mass as a mass tuning API.
 
 Do not add component-specific creation methods to World, such as:
 
@@ -550,7 +550,7 @@ public:
     static std::unique_ptr<TetMeshComponent> CreateFromPositions(
         World& world,
         const Vec3* positions,
-        const float* inverseMasses,
+        const int* fixedNodeFlags,
         int nodeCount,
         const int* tetLocalNodeIndices,
         int tetCount,
@@ -1365,23 +1365,27 @@ Each tet node receives:
 
 nodeMass += tetMass / 4
 
-Then, for non-fixed nodes:
+Then, for non-fixed nodes, SolverData receives:
 
-node.inverseMass = 1 / nodeMass
+nodeMass += tetMass / 4
 
 For shared nodes, mass contributions accumulate from connected tetrahedra.
 
-Nodes marked fixed with SetNodeFixed remain fixed and must keep inverseMass = 0 internally.
+Nodes marked fixed with SetNodeFixed remain fixed and receive no dynamic node mass.
 
 For FEM tet mesh nodes, density-derived mass is the default physical mass.
 
-Positive manually supplied inverseMass values are legacy/internal convenience only, not FEM mass tuning.
+Positive manually supplied inverse mass values are legacy convenience only, not FEM mass tuning.
 
 Unity-facing FEM usage:
 
 - Create nodes using PHYSIK_AddNode(world, x, y, z).
 - Use PHYSIK_SetNodeFixed only for fixed nodes.
 - Use material density for FEM mass.
+
+World nodes do not own FEM lumped mass or inverse mass.
+
+SolverData owns the assembled mass values consumed by integration and implicit solves.
 
 ---
 

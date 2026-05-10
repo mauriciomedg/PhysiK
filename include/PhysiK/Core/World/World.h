@@ -29,7 +29,6 @@ namespace PhysiK
         void Step(float frameDt);
 
         int AddNode(const Vec3& position);
-        int AddNodeWithInverseMass(const Vec3& position, float inverseMass);
         ComponentHandle AddComponent(std::unique_ptr<Component> component);
         Component* GetComponent(ComponentHandle handle);
         const Component* GetComponent(ComponentHandle handle) const;
@@ -64,6 +63,7 @@ namespace PhysiK
         void UpdateFrameComponents(float frameDt);
         void UpdateKinematicTargets();
         void BuildSolverData(SolverData& solverData, float dt);
+        void AddDefaultNodeMasses(SolverData& solverData);
         void AddGravityForces(SolverData& solverData);
         void AssembleConnectionSystems(SolverData& solverData, float dt);
         void GenerateCollisionConnections();
@@ -71,8 +71,6 @@ namespace PhysiK
         void GeneratePointConnectionFromContact(const Contact& contact);
         void ApplyExplicitForces(SolverData& solverData, float dt);
         void SolveImplicitEuler(SolverData& solverData, float dt);
-        void Integrate(float dt);
-        void ClearForces();
         void ClearTransientConnections();
 
         std::vector<Node> nodes;

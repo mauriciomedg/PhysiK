@@ -29,11 +29,6 @@ namespace
         return point;
     }
 
-    float GetNodeInverseMass(PhysiK::WorldHandle world, int nodeIndex)
-    {
-        return PHYSIK_GetNodeInverseMass(world, nodeIndex);
-    }
-
     bool IsNodeFixed(PhysiK::WorldHandle world, int nodeIndex)
     {
         return PHYSIK_IsNodeFixed(world, nodeIndex) != 0;
@@ -400,12 +395,11 @@ void AddNodeCreatesDynamicGeometryNode()
     const int node = PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f);
 
     assert(!IsNodeFixed(world, node));
-    assert(GetNodeInverseMass(world, node) > 0.0f);
 
     PHYSIK_DestroyWorld(world);
 }
 
-void SetNodeFixedControlsInternalInverseMass()
+void SetNodeFixedControlsDynamicState()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
@@ -414,24 +408,9 @@ void SetNodeFixedControlsInternalInverseMass()
 
     PHYSIK_SetNodeFixed(world, node, 1);
     assert(IsNodeFixed(world, node));
-    assert(GetNodeInverseMass(world, node) == 0.0f);
 
     PHYSIK_SetNodeFixed(world, node, 0);
     assert(!IsNodeFixed(world, node));
-    assert(NearlyEqual(GetNodeInverseMass(world, node), 1.0f));
-
-    PHYSIK_DestroyWorld(world);
-}
-
-void LegacyAddNodeWithInverseMassStillWorks()
-{
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    assert(world != nullptr);
-
-    const int node = PHYSIK_AddNodeWithInverseMass(world, 0.0f, 0.0f, 0.0f, 0.5f);
-
-    assert(!IsNodeFixed(world, node));
-    assert(NearlyEqual(GetNodeInverseMass(world, node), 0.5f));
 
     PHYSIK_DestroyWorld(world);
 }
@@ -764,11 +743,25 @@ void FEMLumpedMassUsesDensityAndRestVolume()
     int nodes[4] = {};
     CreateSingleTetWithMaterial(world, nodes, 0.0f, 0.0f, 1.0f);
 
-    const float expectedInverseMass = 24.0f;
-    for (int node : nodes)
-    {
-        assert(NearlyEqual(GetNodeInverseMass(world, node), expectedInverseMass));
-    }
+    PHYSIK_AddPointConnection(
+        world,
+        nodes[3],
+        nodes[3],
+        nodes[3],
+        nodes[3],
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        2.0f,
+        1.0f,
+        0.0f);
+    PHYSIK_Step(world, 0.1f);
+
+    const Point velocity = GetNodeVelocity(world, nodes[3]);
+    assert(NearlyEqual(velocity.z, 2.4f, 0.0001f));
 
     PHYSIK_DestroyWorld(world);
 }
@@ -837,10 +830,10 @@ void FEMLumpedMassPreservesFixedNodes()
             0.0f);
     assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
 
-    assert(GetNodeInverseMass(world, node0) == 0.0f);
-    assert(NearlyEqual(GetNodeInverseMass(world, node1), 24.0f));
-    assert(NearlyEqual(GetNodeInverseMass(world, node2), 24.0f));
-    assert(NearlyEqual(GetNodeInverseMass(world, node3), 24.0f));
+    assert(IsNodeFixed(world, node0));
+    assert(!IsNodeFixed(world, node1));
+    assert(!IsNodeFixed(world, node2));
+    assert(!IsNodeFixed(world, node3));
 
     PHYSIK_DestroyWorld(world);
 }
@@ -1137,8 +1130,7 @@ int main()
     ImplicitEulerGravityMatchesSemiImplicitEulerForFreeNode();
     ImplicitEulerFixedNodeDoesNotMove();
     AddNodeCreatesDynamicGeometryNode();
-    SetNodeFixedControlsInternalInverseMass();
-    LegacyAddNodeWithInverseMassStillWorks();
+    SetNodeFixedControlsDynamicState();
     SphereContactCreatesTransientConnectionAndMovesTet();
     MultipleForceSourcesCoexist();
     ExternalLogicHookRunsOnceBeforeSubsteps();

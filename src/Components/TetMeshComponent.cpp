@@ -30,30 +30,32 @@ namespace PhysiK
             component.tets.push_back(tet);
         }
 
-        void AddLumpedMassToNode(World& world, int nodeIndex, float mass)
+        void AddLumpedMassToSolverData(
+            const World& world,
+            SolverData& solverData,
+            int nodeIndex,
+            float mass)
         {
-            if (nodeIndex < 0 || !std::isfinite(mass) || mass <= 0.0f)
+            if (nodeIndex < 0 || !std::isfinite(mass))
             {
                 return;
             }
 
-            Node& node = world.GetNode(nodeIndex);
-            if (node.inverseMass <= 0.0f)
+            if (world.IsNodeFixed(nodeIndex))
             {
                 return;
             }
 
-            node.femMass += mass;
-            if (node.femMass > 0.0f && std::isfinite(node.femMass))
-            {
-                node.inverseMass = 1.0f / node.femMass;
-            }
+            solverData.AddNodeMass(nodeIndex, std::max(0.0f, mass));
         }
 
-        void ApplyLumpedMass(TetMeshComponent& component, World& world)
+        void AssembleLumpedMass(
+            const TetMeshComponent& component,
+            const World& world,
+            SolverData& solverData)
         {
             const float density = std::max(0.0f, component.material.density);
-            if (!std::isfinite(density) || density <= 0.0f)
+            if (!std::isfinite(density))
             {
                 return;
             }
@@ -66,10 +68,10 @@ namespace PhysiK
                 }
 
                 const float nodalMass = density * tet.restVolume * 0.25f;
-                AddLumpedMassToNode(world, tet.node0, nodalMass);
-                AddLumpedMassToNode(world, tet.node1, nodalMass);
-                AddLumpedMassToNode(world, tet.node2, nodalMass);
-                AddLumpedMassToNode(world, tet.node3, nodalMass);
+                AddLumpedMassToSolverData(world, solverData, tet.node0, nodalMass);
+                AddLumpedMassToSolverData(world, solverData, tet.node1, nodalMass);
+                AddLumpedMassToSolverData(world, solverData, tet.node2, nodalMass);
+                AddLumpedMassToSolverData(world, solverData, tet.node3, nodalMass);
             }
         }
     }
@@ -105,15 +107,13 @@ namespace PhysiK
             }
         }
 
-        ApplyLumpedMass(*component, world);
-
         return component;
     }
 
     std::unique_ptr<TetMeshComponent> TetMeshComponent::CreateFromPositions(
         World& world,
         const Vec3* positions,
-        const float* inverseMasses,
+        const int* fixedNodeFlags,
         int nodeCount,
         const int* tetLocalNodeIndices,
         int tetCount,
@@ -128,7 +128,7 @@ namespace PhysiK
             for (int i = 0; i < nodeCount; ++i)
             {
                 const int nodeIndex = world.AddNode(positions[i]);
-                if (inverseMasses != nullptr && inverseMasses[i] <= 0.0f)
+                if (fixedNodeFlags != nullptr && fixedNodeFlags[i] != 0)
                 {
                     world.SetNodeFixed(nodeIndex, true);
                 }
@@ -165,8 +165,6 @@ namespace PhysiK
             }
         }
 
-        ApplyLumpedMass(*component, world);
-
         return component;
     }
 
@@ -175,6 +173,7 @@ namespace PhysiK
         SolverData& solverData,
         float dt)
     {
+        AssembleLumpedMass(*this, world, solverData);
         femModel.UpdateSystem(world, *this, solverData, dt);
     }
 }
