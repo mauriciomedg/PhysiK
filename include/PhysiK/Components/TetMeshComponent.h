@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Math/Vec3.h"
@@ -11,7 +12,13 @@
 
 namespace PhysiK
 {
-    class TetMeshComponent : public Component
+    struct TetMeshComponentDesc
+    {
+        Material material;
+        FemModel femModel = FemModel::Linear;
+    };
+
+    class PHYSIK_API TetMeshComponent : public Component
     {
     public:
         static std::unique_ptr<TetMeshComponent> CreateFromGlobalNodes(
@@ -22,6 +29,14 @@ namespace PhysiK
             int tetCount,
             const Material& material);
 
+        static std::unique_ptr<TetMeshComponent> CreateFromGlobalNodes(
+            World& world,
+            const int* globalNodeIndices,
+            int nodeCount,
+            const int* tetGlobalNodeIndices,
+            int tetCount,
+            const TetMeshComponentDesc& desc);
+
         static std::unique_ptr<TetMeshComponent> CreateFromPositions(
             World& world,
             const Vec3* positions,
@@ -31,13 +46,32 @@ namespace PhysiK
             int tetCount,
             const Material& material);
 
+        static std::unique_ptr<TetMeshComponent> CreateFromPositions(
+            World& world,
+            const Vec3* positions,
+            const int* fixedNodeFlags,
+            int nodeCount,
+            const int* tetLocalNodeIndices,
+            int tetCount,
+            const TetMeshComponentDesc& desc);
+
         std::vector<int> nodeIndices;
         std::vector<Tet> tets;
 
         Material material;
+        FemModel selectedFemModel = FemModel::Linear;
         FEMModel femModel;
 
         void SetMaterial(const Material& value);
+        void SetFemModel(FemModel value)
+        {
+            selectedFemModel = value;
+        }
+
+        FemModel GetFemModel() const
+        {
+            return selectedFemModel;
+        }
 
         void UpdateSystem(
             World& world,

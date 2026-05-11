@@ -1,4 +1,5 @@
 #include "PhysiK/API/PhysiKAPI.h"
+#include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 
@@ -1206,6 +1207,87 @@ void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
     PHYSIK_DestroyWorld(world);
 }
 
+void TetMeshComponentDefaultFemModelIsLinear()
+{
+    PhysiK::TetMeshComponent component;
+
+    assert(component.GetFemModel() == PhysiK::FemModel::Linear);
+}
+
+void TetMeshComponentStoresSelectedFemModel()
+{
+    PhysiK::TetMeshComponent component;
+
+    component.SetFemModel(PhysiK::FemModel::Linear);
+    assert(component.GetFemModel() == PhysiK::FemModel::Linear);
+
+    component.SetFemModel(PhysiK::FemModel::Corotational);
+    assert(component.GetFemModel() == PhysiK::FemModel::Corotational);
+
+    component.SetFemModel(PhysiK::FemModel::NeoHookean);
+    assert(component.GetFemModel() == PhysiK::FemModel::NeoHookean);
+}
+
+void FemModelLinearRouteUsesExistingAssembly()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet();
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.1f};
+
+    PhysiK::SolverData solverData;
+    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+        PhysiK::FemModel::Linear,
+        {tet},
+        nodes,
+        solverData);
+
+    assert(implemented);
+    assert(!solverData.GetNodeForces().empty());
+    assert(!solverData.GetStiffnessBlocks().empty());
+    assert(SumForcesForNode(solverData, 3).z < 0.0f);
+}
+
+void FemModelCorotationalRouteIsExplicitlyNotImplemented()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet();
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.1f};
+
+    PhysiK::SolverData solverData;
+    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+        PhysiK::FemModel::Corotational,
+        {tet},
+        nodes,
+        solverData);
+
+    assert(!implemented);
+    assert(!PhysiK::FEMModel::IsFemModelImplemented(PhysiK::FemModel::Corotational));
+    assert(solverData.GetNodeForces().empty());
+    assert(solverData.GetStiffnessBlocks().empty());
+}
+
+void FemModelNeoHookeanRouteIsExplicitlyNotImplemented()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet();
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.1f};
+
+    PhysiK::SolverData solverData;
+    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+        PhysiK::FemModel::NeoHookean,
+        {tet},
+        nodes,
+        solverData);
+
+    assert(!implemented);
+    assert(!PhysiK::FEMModel::IsFemModelImplemented(PhysiK::FemModel::NeoHookean));
+    assert(solverData.GetNodeForces().empty());
+    assert(solverData.GetStiffnessBlocks().empty());
+}
+
 void LinearTetAssemblyProducesForcesAndSymmetricStiffness()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -1398,6 +1480,11 @@ int main()
     PointConnectionBarycentricAssemblyDistributesForcesAndStiffness();
     ImplicitAnchoredTetPointConnectionsRemainStableUnderGravity();
     TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
+    TetMeshComponentDefaultFemModelIsLinear();
+    TetMeshComponentStoresSelectedFemModel();
+    FemModelLinearRouteUsesExistingAssembly();
+    FemModelCorotationalRouteIsExplicitlyNotImplemented();
+    FemModelNeoHookeanRouteIsExplicitlyNotImplemented();
     UnitTetShapeFunctionGradientsMatchExpectedConvention();
     DegenerateTetIsSkippedWithoutInvalidAssembly();
     LinearTetMaterialSanitizationAvoidsInvalidForces();

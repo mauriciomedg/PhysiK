@@ -84,8 +84,28 @@ namespace PhysiK
         int tetCount,
         const Material& material)
     {
+        TetMeshComponentDesc desc;
+        desc.material = material;
+        return CreateFromGlobalNodes(
+            world,
+            globalNodeIndices,
+            nodeCount,
+            tetGlobalNodeIndices,
+            tetCount,
+            desc);
+    }
+
+    std::unique_ptr<TetMeshComponent> TetMeshComponent::CreateFromGlobalNodes(
+        World& world,
+        const int* globalNodeIndices,
+        int nodeCount,
+        const int* tetGlobalNodeIndices,
+        int tetCount,
+        const TetMeshComponentDesc& desc)
+    {
         auto component = std::make_unique<TetMeshComponent>();
-        component->material = material;
+        component->material = desc.material;
+        component->selectedFemModel = desc.femModel;
 
         if (globalNodeIndices != nullptr && nodeCount > 0)
         {
@@ -119,8 +139,30 @@ namespace PhysiK
         int tetCount,
         const Material& material)
     {
+        TetMeshComponentDesc desc;
+        desc.material = material;
+        return CreateFromPositions(
+            world,
+            positions,
+            fixedNodeFlags,
+            nodeCount,
+            tetLocalNodeIndices,
+            tetCount,
+            desc);
+    }
+
+    std::unique_ptr<TetMeshComponent> TetMeshComponent::CreateFromPositions(
+        World& world,
+        const Vec3* positions,
+        const int* fixedNodeFlags,
+        int nodeCount,
+        const int* tetLocalNodeIndices,
+        int tetCount,
+        const TetMeshComponentDesc& desc)
+    {
         auto component = std::make_unique<TetMeshComponent>();
-        component->material = material;
+        component->material = desc.material;
+        component->selectedFemModel = desc.femModel;
 
         if (positions != nullptr && nodeCount > 0)
         {
