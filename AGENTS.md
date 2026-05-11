@@ -1345,6 +1345,29 @@ FEMModel does not require World to own tets.
 
 ---
 
+# FEM Model Selection
+
+TetMeshComponent owns the selected FEM formulation for its private tet topology.
+
+enum class FemModel
+{
+    Linear = 0,
+    Corotational = 1,
+    NeoHookean = 2
+};
+
+TetMeshComponent defaults to FemModel::Linear.
+
+Solver assembly routes through the selected model:
+
+- Linear uses the current small-strain tetrahedral FEM implementation.
+- Corotational is an architecture option and must report or return not implemented until the model exists.
+- NeoHookean is reserved for the future and must report or return not implemented until the model exists.
+
+World nodes must not store FEM model selection, material, mass, or inverse mass.
+
+---
+
 # Linear Tetrahedral FEM Assembly Status
 
 The engine currently supports small-strain linear tetrahedral FEM assembly:

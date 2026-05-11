@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <vector>
 
 #include "PhysiK/API/PhysiKAPI.h"
@@ -9,6 +10,13 @@
 
 namespace PhysiK
 {
+    enum class FemModel : std::uint32_t
+    {
+        Linear = 0,
+        Corotational = 1,
+        NeoHookean = 2
+    };
+
     class SolverData;
     class TetMeshComponent;
     class World;
@@ -27,5 +35,12 @@ namespace PhysiK
             const std::vector<Tet>& tets,
             const std::vector<Node>& nodes,
             SolverData& solverData);
+        static bool AccumulateForces(
+            FemModel femModel,
+            const std::vector<Tet>& tets,
+            const std::vector<Node>& nodes,
+            SolverData& solverData);
+        static bool IsFemModelImplemented(FemModel femModel);
+        static const char* GetNotImplementedMessage(FemModel femModel);
     };
 }

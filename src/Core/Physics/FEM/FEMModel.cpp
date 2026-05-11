@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <iostream>
 
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
@@ -242,7 +243,48 @@ namespace PhysiK
         float dt)
     {
         (void)dt;
-        AccumulateElasticForces(owner.tets, world.GetNodes(), solverData);
+        AccumulateForces(owner.GetFemModel(), owner.tets, world.GetNodes(), solverData);
+    }
+
+    bool FEMModel::IsFemModelImplemented(FemModel femModel)
+    {
+        return femModel == FemModel::Linear;
+    }
+
+    const char* FEMModel::GetNotImplementedMessage(FemModel femModel)
+    {
+        switch (femModel)
+        {
+        case FemModel::Corotational:
+            return "Corotational FEM is not implemented yet";
+        case FemModel::NeoHookean:
+            return "NeoHookean FEM is not implemented yet";
+        case FemModel::Linear:
+            return "";
+        }
+
+        return "Unknown FEM model is not implemented";
+    }
+
+    bool FEMModel::AccumulateForces(
+        FemModel femModel,
+        const std::vector<Tet>& tets,
+        const std::vector<Node>& nodes,
+        SolverData& solverData)
+    {
+        switch (femModel)
+        {
+        case FemModel::Linear:
+            AccumulateElasticForces(tets, nodes, solverData);
+            return true;
+        case FemModel::Corotational:
+        case FemModel::NeoHookean:
+            std::cerr << GetNotImplementedMessage(femModel) << '\n';
+            return false;
+        }
+
+        std::cerr << GetNotImplementedMessage(femModel) << '\n';
+        return false;
     }
 
     void FEMModel::InitializeTetRestData(Tet& tet, const std::vector<Node>& nodes)
