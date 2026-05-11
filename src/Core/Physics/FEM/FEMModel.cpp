@@ -20,6 +20,7 @@ namespace PhysiK
         using Vector12 = std::array<float, 12>;
 
         constexpr float MinTetVolume = 1.0e-8f;
+        constexpr float MinPolarDeterminant = 1.0e-8f;
 
         Mat3 BuildDm(const Tet& tet, const std::vector<Node>& nodes)
         {
@@ -45,6 +46,22 @@ namespace PhysiK
             return Vec3{matrix.columns[0].z, matrix.columns[1].z, matrix.columns[2].z};
         }
 
+        float GetBlockValue(const Mat3& matrix, int row, int column)
+        {
+            const Vec3& sourceColumn = matrix.columns[column];
+            if (row == 0)
+            {
+                return sourceColumn.x;
+            }
+
+            if (row == 1)
+            {
+                return sourceColumn.y;
+            }
+
+            return sourceColumn.z;
+        }
+
         void SetBlockValue(Mat3& matrix, int row, int column, float value)
         {
             Vec3& targetColumn = matrix.columns[column];
@@ -60,6 +77,93 @@ namespace PhysiK
             {
                 targetColumn.z = value;
             }
+        }
+
+        Mat3 Add(const Mat3& a, const Mat3& b)
+        {
+            return Mat3::FromColumns(
+                a.columns[0] + b.columns[0],
+                a.columns[1] + b.columns[1],
+                a.columns[2] + b.columns[2]);
+        }
+
+        Mat3 Scale(const Mat3& matrix, float scale)
+        {
+            return Mat3::FromColumns(
+                matrix.columns[0] * scale,
+                matrix.columns[1] * scale,
+                matrix.columns[2] * scale);
+        }
+
+        bool IsFinite(const Vec3& value)
+        {
+            return std::isfinite(value.x) &&
+                std::isfinite(value.y) &&
+                std::isfinite(value.z);
+        }
+
+        bool IsFinite(const Mat3& matrix)
+        {
+            return IsFinite(matrix.columns[0]) &&
+                IsFinite(matrix.columns[1]) &&
+                IsFinite(matrix.columns[2]);
+        }
+
+        float FrobeniusDifferenceSquared(const Mat3& a, const Mat3& b)
+        {
+            float total = 0.0f;
+            for (int column = 0; column < 3; ++column)
+            {
+                const Vec3 difference = a.columns[column] - b.columns[column];
+                total += difference.LengthSquared();
+            }
+            return total;
+        }
+
+        Mat3 ExtractRotationPolar(const Mat3& deformationGradient)
+        {
+            if (!IsFinite(deformationGradient) ||
+                std::abs(Determinant(deformationGradient)) <= MinPolarDeterminant)
+            {
+                return Mat3::Identity();
+            }
+
+            Mat3 rotation = deformationGradient;
+            for (int iteration = 0; iteration < 12; ++iteration)
+            {
+                const Mat3 transposeInverse = Inverse(Transpose(rotation));
+                if (!IsFinite(transposeInverse) ||
+                    std::abs(Determinant(transposeInverse)) <= MinPolarDeterminant)
+                {
+                    return Mat3::Identity();
+                }
+
+                const Mat3 nextRotation = Scale(Add(rotation, transposeInverse), 0.5f);
+                if (!IsFinite(nextRotation))
+                {
+                    return Mat3::Identity();
+                }
+
+                if (FrobeniusDifferenceSquared(nextRotation, rotation) <= 1.0e-10f)
+                {
+                    rotation = nextRotation;
+                    break;
+                }
+
+                rotation = nextRotation;
+            }
+
+            if (!IsFinite(rotation))
+            {
+                return Mat3::Identity();
+            }
+
+            if (Determinant(rotation) < 0.0f)
+            {
+                rotation.columns[2] *= -1.0f;
+            }
+
+            return rotation;
         }
 
         bool HasValidNodes(const Tet& tet, const std::vector<Node>& nodes)
@@ -142,6 +246,32 @@ namespace PhysiK
             return displacement;
         }
 
+        Vector12 BuildCorotatedDisplacementVector(
+            const Tet& tet,
+            const std::vector<Node>& nodes,
+            const Mat3& rotation)
+        {
+            const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            const Vec3& currentOrigin = nodes[static_cast<std::size_t>(tet.node0)].position;
+            const Vec3& restOrigin = tet.restPositions[0];
+            const Mat3 inverseRotation = Transpose(rotation);
+            Vector12 displacement{};
+
+            for (int node = 0; node < 4; ++node)
+            {
+                const Vec3 localCurrent =
+                    inverseRotation *
+                    (nodes[static_cast<std::size_t>(nodeIndices[node])].position - currentOrigin) +
+                    restOrigin;
+                const Vec3 u = localCurrent - tet.restPositions[node];
+                displacement[node * 3 + 0] = u.x;
+                displacement[node * 3 + 1] = u.y;
+                displacement[node * 3 + 2] = u.z;
+            }
+
+            return displacement;
+        }
+
         Vector6 Multiply(const Matrix6x12& matrix, const Vector12& vector)
         {
             Vector6 result{};
@@ -205,9 +335,14 @@ namespace PhysiK
             return stiffness;
         }
 
-        void AssembleStiffness(const Tet& tet, const Matrix12& stiffness, SolverData& solverData)
+        void AssembleStiffness(
+            const Tet& tet,
+            const Matrix12& stiffness,
+            SolverData& solverData,
+            const Mat3* rotation = nullptr)
         {
             const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            const Mat3 rotationTranspose = rotation != nullptr ? Transpose(*rotation) : Mat3::Identity();
 
             for (int rowNode = 0; rowNode < 4; ++rowNode)
             {
@@ -227,12 +362,67 @@ namespace PhysiK
                         }
                     }
 
+                    if (rotation != nullptr)
+                    {
+                        block = (*rotation) * block * rotationTranspose;
+                    }
+
                     solverData.AddStiffnessBlock(
                         nodeIndices[rowNode],
                         nodeIndices[columnNode],
                         block);
                 }
             }
+        }
+
+        void AddElasticForcesAndStiffness(
+            const Tet& tet,
+            const std::vector<Node>& nodes,
+            SolverData& solverData,
+            const Vector12& displacement,
+            const Mat3* rotation)
+        {
+            const Matrix6x12 b = BuildStrainDisplacementMatrix(tet);
+            const Matrix6 d = BuildElasticityMatrix(tet.youngModulus, tet.poissonRatio);
+
+            // epsilon = B * u_e.
+            const Vector6 strain = Multiply(b, displacement);
+
+            // sigma = D * epsilon.
+            const Vector6 stress = Multiply(d, strain);
+
+            // f_int = V * B^T * sigma. SolverData stores total force, so assemble -f_int.
+            Vector12 internalForce = MultiplyTranspose(b, stress);
+            for (float& value : internalForce)
+            {
+                value *= tet.restVolume;
+            }
+
+            const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            for (int node = 0; node < 4; ++node)
+            {
+                const int nodeIndex = nodeIndices[node];
+                Vec3 elasticForce{
+                    -internalForce[node * 3 + 0],
+                    -internalForce[node * 3 + 1],
+                    -internalForce[node * 3 + 2]};
+                if (rotation != nullptr)
+                {
+                    elasticForce = (*rotation) * elasticForce;
+                }
+
+                const Vec3 dampingForce =
+                    nodes[static_cast<std::size_t>(nodeIndex)].velocity * (-tet.damping);
+                // Temporary per-node damping for stability.
+                // This is not Rayleigh damping or element-level damping.
+                // A future milestone should replace this with a proper damping model.
+                solverData.AddNodeForce(nodeIndex, elasticForce + dampingForce);
+            }
+
+            const Matrix12 stiffness = BuildElementStiffness(b, d, tet.restVolume);
+            // Store positive element stiffness K_e.
+            // The implicit solver decides how to combine it into the global system.
+            AssembleStiffness(tet, stiffness, solverData, rotation);
         }
     }
 
@@ -248,7 +438,8 @@ namespace PhysiK
 
     bool FEMModel::IsFemModelImplemented(FemModel femModel)
     {
-        return femModel == FemModel::Linear;
+        return femModel == FemModel::Linear ||
+            femModel == FemModel::Corotational;
     }
 
     const char* FEMModel::GetNotImplementedMessage(FemModel femModel)
@@ -256,7 +447,7 @@ namespace PhysiK
         switch (femModel)
         {
         case FemModel::Corotational:
-            return "Corotational FEM is not implemented yet";
+            return "";
         case FemModel::NeoHookean:
             return "NeoHookean FEM is not implemented yet";
         case FemModel::Linear:
@@ -278,6 +469,8 @@ namespace PhysiK
             AccumulateElasticForces(tets, nodes, solverData);
             return true;
         case FemModel::Corotational:
+            AccumulateCorotationalElasticForces(tets, nodes, solverData);
+            return true;
         case FemModel::NeoHookean:
             std::cerr << GetNotImplementedMessage(femModel) << '\n';
             return false;
@@ -339,43 +532,33 @@ namespace PhysiK
                 continue;
             }
 
-            const Matrix6x12 b = BuildStrainDisplacementMatrix(tet);
-            const Matrix6 d = BuildElasticityMatrix(tet.youngModulus, tet.poissonRatio);
             const Vector12 displacement = BuildDisplacementVector(tet, nodes);
+            AddElasticForcesAndStiffness(tet, nodes, solverData, displacement, nullptr);
+        }
+    }
 
-            // epsilon = B * u_e.
-            const Vector6 strain = Multiply(b, displacement);
-
-            // sigma = D * epsilon.
-            const Vector6 stress = Multiply(d, strain);
-
-            // f_int = V * B^T * sigma. SolverData stores total force, so assemble -f_int.
-            Vector12 internalForce = MultiplyTranspose(b, stress);
-            for (float& value : internalForce)
+    void FEMModel::AccumulateCorotationalElasticForces(
+        const std::vector<Tet>& tets,
+        const std::vector<Node>& nodes,
+        SolverData& solverData)
+    {
+        for (const Tet& tet : tets)
+        {
+            if (!HasValidNodes(tet, nodes) || tet.restVolume <= 0.0f)
             {
-                value *= tet.restVolume;
+                continue;
             }
 
-            const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
-            for (int node = 0; node < 4; ++node)
+            const Mat3 ds = BuildDm(tet, nodes);
+            const Mat3 deformationGradient = ds * tet.restDmInverse;
+            if (!IsFinite(deformationGradient))
             {
-                const int nodeIndex = nodeIndices[node];
-                const Vec3 elasticForce{
-                    -internalForce[node * 3 + 0],
-                    -internalForce[node * 3 + 1],
-                    -internalForce[node * 3 + 2]};
-                const Vec3 dampingForce =
-                    nodes[static_cast<std::size_t>(nodeIndex)].velocity * (-tet.damping);
-                // Temporary per-node damping for stability.
-                // This is not Rayleigh damping or element-level damping.
-                // A future milestone should replace this with a proper damping model.
-                solverData.AddNodeForce(nodeIndex, elasticForce + dampingForce);
+                continue;
             }
 
-            const Matrix12 stiffness = BuildElementStiffness(b, d, tet.restVolume);
-            // Store positive element stiffness K_e.
-            // The future implicit solver will decide how to combine it into the global system.
-            AssembleStiffness(tet, stiffness, solverData);
+            const Mat3 rotation = ExtractRotationPolar(deformationGradient);
+            const Vector12 displacement = BuildCorotatedDisplacementVector(tet, nodes, rotation);
+            AddElasticForcesAndStiffness(tet, nodes, solverData, displacement, &rotation);
         }
     }
 }

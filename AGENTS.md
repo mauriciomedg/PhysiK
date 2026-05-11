@@ -1361,16 +1361,41 @@ TetMeshComponent defaults to FemModel::Linear.
 Solver assembly routes through the selected model:
 
 - Linear uses the current small-strain tetrahedral FEM implementation.
-- Corotational is an architecture option and must report or return not implemented until the model exists.
+- Corotational computes a per-tet polar-decomposition rotation, evaluates linear elasticity in the corotated frame, then rotates forces and stiffness blocks back to world space.
 - NeoHookean is reserved for the future and must report or return not implemented until the model exists.
 
 World nodes must not store FEM model selection, material, mass, or inverse mass.
 
 ---
 
+# Corotational Tetrahedral FEM
+
+Corotational FEM separates rigid element rotation from elastic deformation.
+
+For each tet:
+
+- Ds = [x1 - x0, x2 - x0, x3 - x0]
+- F = Ds * restDmInverse
+- R is extracted from F using iterative polar decomposition.
+- Current positions are rotated back by R^T into the rest frame.
+- The existing linear tetrahedral strain/stress/stiffness calculation runs in that local frame.
+- Local forces are rotated to world with R.
+- Local stiffness blocks are transformed as K_world = R * K_local * R^T.
+
+A pure rigid rotation should produce near-zero elastic force.
+
+Current limitations:
+
+- Uses a linearized corotational stiffness approximation.
+- Does not include derivatives of R in the stiffness.
+- Damping remains temporary per-node damping.
+- Neo-Hookean FEM is still not implemented.
+
+---
+
 # Linear Tetrahedral FEM Assembly Status
 
-The engine currently supports small-strain linear tetrahedral FEM assembly:
+The engine supports small-strain linear tetrahedral FEM assembly:
 
 - epsilon = B u_e
 - sigma = D epsilon
@@ -1379,11 +1404,9 @@ The engine currently supports small-strain linear tetrahedral FEM assembly:
 
 Current limitations:
 
-- Linear small-strain model only.
 - Temporary per-node damping only.
 - Explicit force integration path currently.
 - Stiffness blocks are assembled for a future implicit solve.
-- No corotational model yet.
 - No Neo-Hookean model yet.
 - No implicit Euler yet.
 - No fracture or tearing yet.
