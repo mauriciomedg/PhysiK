@@ -59,26 +59,9 @@ extern "C"
         const int* nodeIndices,
         int nodeCount,
         const int* tetNodeIndices,
-        int tetCount);
-
-    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterial(
-        PhysiK::WorldHandle world,
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
         int tetCount,
-        float density,
-        float youngModulus,
-        float poissonRatio,
-        float damping);
-
-    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
-        PhysiK::WorldHandle world,
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
-        int tetCount,
-        const PhysikMaterialDesc* material);
+        const PhysikMaterialDesc* material,
+        int femModel);
 
     PHYSIK_API void PHYSIK_SetTetMeshMaterial(
         PhysiK::WorldHandle world,

@@ -1702,15 +1702,14 @@ extern "C"
         WorldHandle world,
         int nodeIndex);
 
-    PHYSIK_API ComponentHandle PHYSIK_CreateTetMeshComponent(...);
-
-    PHYSIK_API ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
+    PHYSIK_API ComponentHandle PHYSIK_CreateTetMeshComponent(
         WorldHandle world,
         const int* nodeIndices,
         int nodeCount,
         const int* tetNodeIndices,
         int tetCount,
-        const PhysikMaterialDesc* material);
+        const PhysikMaterialDesc* material,
+        int femModel);
 
     PHYSIK_API void PHYSIK_SetTetMeshMaterial(
         WorldHandle world,
@@ -1748,7 +1747,9 @@ extern "C"
         int substepCount);
 }
 
-PHYSIK_CreateTetMeshComponent receives global node indices and tetrahedron node-index tuples.
+PHYSIK_CreateTetMeshComponent receives global node indices, tetrahedron node-index tuples, material parameters, and FEM model selection.
+The FEM model integer maps to FemModel: 0 = Linear, 1 = Corotational, 2 = NeoHookean.
+PhysikMaterialDesc contains material parameters only; FEM model selection is TetMeshComponent configuration, not material data.
 The C API calls TetMeshComponent::CreateFromGlobalNodes and registers the result with World::AddComponent.
 
 The created TetMeshComponent owns the tetrahedra.
