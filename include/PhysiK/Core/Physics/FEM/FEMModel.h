@@ -35,6 +35,10 @@ namespace PhysiK
             const std::vector<Tet>& tets,
             const std::vector<Node>& nodes,
             SolverData& solverData);
+        static void AccumulateCorotationalElasticForces(
+            const std::vector<Tet>& tets,
+            const std::vector<Node>& nodes,
+            SolverData& solverData);
         static bool AccumulateForces(
             FemModel femModel,
             const std::vector<Tet>& tets,

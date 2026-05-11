@@ -90,6 +90,11 @@ namespace
         return value.x * value.x + value.y * value.y + value.z * value.z;
     }
 
+    PhysiK::Vec3 RotateZ90(const PhysiK::Vec3& value)
+    {
+        return PhysiK::Vec3{-value.y, value.x, value.z};
+    }
+
     bool IsFinite(float value)
     {
         return std::isfinite(value);
@@ -147,6 +152,16 @@ namespace
             {
                 total += force.force;
             }
+        }
+        return total;
+    }
+
+    float SumForceLengthSquared(const PhysiK::SolverData& solverData)
+    {
+        float total = 0.0f;
+        for (const PhysiK::SolverData::NodeForce& force : solverData.GetNodeForces())
+        {
+            total += LengthSquared(force.force);
         }
         return total;
     }
@@ -1248,7 +1263,7 @@ void FemModelLinearRouteUsesExistingAssembly()
     assert(SumForcesForNode(solverData, 3).z < 0.0f);
 }
 
-void FemModelCorotationalRouteIsExplicitlyNotImplemented()
+void FemModelCorotationalRouteUsesCorotationalAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet();
@@ -1262,10 +1277,11 @@ void FemModelCorotationalRouteIsExplicitlyNotImplemented()
         nodes,
         solverData);
 
-    assert(!implemented);
-    assert(!PhysiK::FEMModel::IsFemModelImplemented(PhysiK::FemModel::Corotational));
-    assert(solverData.GetNodeForces().empty());
-    assert(solverData.GetStiffnessBlocks().empty());
+    assert(implemented);
+    assert(PhysiK::FEMModel::IsFemModelImplemented(PhysiK::FemModel::Corotational));
+    assert(!solverData.GetNodeForces().empty());
+    assert(!solverData.GetStiffnessBlocks().empty());
+    assert(SumForcesForNode(solverData, 3).z < 0.0f);
 }
 
 void FemModelNeoHookeanRouteIsExplicitlyNotImplemented()
@@ -1286,6 +1302,102 @@ void FemModelNeoHookeanRouteIsExplicitlyNotImplemented()
     assert(!PhysiK::FEMModel::IsFemModelImplemented(PhysiK::FemModel::NeoHookean));
     assert(solverData.GetNodeForces().empty());
     assert(solverData.GetStiffnessBlocks().empty());
+}
+
+void CorotationalFemHasNearZeroForceForRigidRotation()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet(1000.0f);
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+
+    for (PhysiK::Node& node : nodes)
+    {
+        node.position = RotateZ90(node.position);
+    }
+
+    PhysiK::SolverData solverData;
+    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+        PhysiK::FemModel::Corotational,
+        {tet},
+        nodes,
+        solverData);
+
+    assert(implemented);
+    assert(SumForceLengthSquared(solverData) < 0.000001f);
+}
+
+void LinearFemProducesForceForRigidRotation()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet(1000.0f);
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+
+    for (PhysiK::Node& node : nodes)
+    {
+        node.position = RotateZ90(node.position);
+    }
+
+    PhysiK::SolverData solverData;
+    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+        PhysiK::FemModel::Linear,
+        {tet},
+        nodes,
+        solverData);
+
+    assert(implemented);
+    assert(SumForceLengthSquared(solverData) > 0.000001f);
+}
+
+void CorotationalFemProducesRestoringForceForSmallDeformation()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet(1000.0f);
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    nodes[3].position.z += 0.1f;
+
+    PhysiK::SolverData solverData;
+    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+        PhysiK::FemModel::Corotational,
+        {tet},
+        nodes,
+        solverData);
+
+    assert(implemented);
+    const PhysiK::Vec3 node3Force = SumForcesForNode(solverData, 3);
+    assert(LengthSquared(node3Force) > 0.000001f);
+    assert(node3Force.z < 0.0f);
+}
+
+void CorotationalAssemblySmokeTestStaysFinite()
+{
+    std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
+    PhysiK::Tet tet = CreateUnitTet(250.0f);
+    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+
+    for (PhysiK::Node& node : nodes)
+    {
+        node.position = RotateZ90(node.position);
+    }
+    nodes[3].position.z += 0.05f;
+
+    PhysiK::SolverData solverData;
+    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+        PhysiK::FemModel::Corotational,
+        {tet},
+        nodes,
+        solverData);
+
+    assert(implemented);
+    assert(!solverData.GetNodeForces().empty());
+    assert(!solverData.GetStiffnessBlocks().empty());
+    for (const PhysiK::SolverData::NodeForce& force : solverData.GetNodeForces())
+    {
+        assert(IsFinite(force.force));
+    }
+    for (const PhysiK::SolverData::StiffnessBlock& block : solverData.GetStiffnessBlocks())
+    {
+        assert(IsFinite(block.block));
+    }
 }
 
 void LinearTetAssemblyProducesForcesAndSymmetricStiffness()
@@ -1483,8 +1595,12 @@ int main()
     TetMeshComponentDefaultFemModelIsLinear();
     TetMeshComponentStoresSelectedFemModel();
     FemModelLinearRouteUsesExistingAssembly();
-    FemModelCorotationalRouteIsExplicitlyNotImplemented();
+    FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();
+    CorotationalFemHasNearZeroForceForRigidRotation();
+    LinearFemProducesForceForRigidRotation();
+    CorotationalFemProducesRestoringForceForSmallDeformation();
+    CorotationalAssemblySmokeTestStaysFinite();
     UnitTetShapeFunctionGradientsMatchExpectedConvention();
     DegenerateTetIsSkippedWithoutInvalidAssembly();
     LinearTetMaterialSanitizationAvoidsInvalidForces();
