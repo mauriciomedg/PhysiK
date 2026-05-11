@@ -1048,6 +1048,142 @@ void ImplicitEulerUsesStiffnessBlocks()
     PHYSIK_DestroyWorld(stiffnessWorld);
 }
 
+void ImplicitPointConnectionStableWithHighStiffness()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_SetGravity(world, 0.0f, 0.0f, 0.0f);
+    const int node = AddNode(world, 0.0f, 0.0f, 0.0f);
+
+    PHYSIK_AddPointConnection(
+        world,
+        node,
+        node,
+        node,
+        node,
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        10000.0f,
+        0.0f);
+    assert(PHYSIK_GetPointConnectionCount(world) == 1);
+
+    PHYSIK_Step(world, 0.1f);
+
+    const Point position = GetNodePosition(world, node);
+    const Point velocity = GetNodeVelocity(world, node);
+    assert(IsFinite(position.z));
+    assert(IsFinite(velocity.z));
+    assert(position.z > 0.9f);
+    assert(position.z < 1.1f);
+    assert(PHYSIK_GetPointConnectionCount(world) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void PointConnectionBarycentricAssemblyDistributesForcesAndStiffness()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetWithMaterial(world, nodes, 0.0f, 0.0f, 24.0f);
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_SetGravity(world, 0.0f, 0.0f, 0.0f);
+
+    PHYSIK_AddPointConnection(
+        world,
+        nodes[0],
+        nodes[1],
+        nodes[2],
+        nodes[3],
+        0.25f,
+        0.25f,
+        0.25f,
+        0.25f,
+        0.25f,
+        0.25f,
+        1.25f,
+        100.0f,
+        0.0f);
+
+    PHYSIK_Step(world, 0.1f);
+
+    const float velocity0 = GetNodeVelocity(world, nodes[0]).z;
+    const float velocity1 = GetNodeVelocity(world, nodes[1]).z;
+    const float velocity2 = GetNodeVelocity(world, nodes[2]).z;
+    const float velocity3 = GetNodeVelocity(world, nodes[3]).z;
+
+    assert(velocity0 > 0.0f);
+    assert(NearlyEqual(velocity0, velocity1, 0.0001f));
+    assert(NearlyEqual(velocity0, velocity2, 0.0001f));
+    assert(NearlyEqual(velocity0, velocity3, 0.0001f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void ImplicitAnchoredTetPointConnectionsRemainStableUnderGravity()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetWithMaterial(world, nodes, 250.0f, 0.0f, 1.0f);
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
+
+    const Point anchors[3] = {
+        GetNodePosition(world, nodes[0]),
+        GetNodePosition(world, nodes[1]),
+        GetNodePosition(world, nodes[2])};
+
+    for (int i = 0; i < 3; ++i)
+    {
+        PHYSIK_AddPointConnection(
+            world,
+            nodes[i],
+            nodes[i],
+            nodes[i],
+            nodes[i],
+            1.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            anchors[i].x,
+            anchors[i].y,
+            anchors[i].z,
+            10000.0f,
+            0.0f);
+    }
+
+    PHYSIK_Step(world, 0.1f);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        const Point position = GetNodePosition(world, nodes[i]);
+        const Point velocity = GetNodeVelocity(world, nodes[i]);
+        assert(IsFinite(position.x));
+        assert(IsFinite(position.y));
+        assert(IsFinite(position.z));
+        assert(IsFinite(velocity.x));
+        assert(IsFinite(velocity.y));
+        assert(IsFinite(velocity.z));
+    }
+
+    assert(DistanceSquared(GetNodePosition(world, nodes[0]), anchors[0]) < 0.02f);
+    assert(DistanceSquared(GetNodePosition(world, nodes[1]), anchors[1]) < 0.02f);
+    assert(DistanceSquared(GetNodePosition(world, nodes[2]), anchors[2]) < 0.02f);
+    assert(PHYSIK_GetPointConnectionCount(world) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -1258,6 +1394,9 @@ int main()
     FEMLumpedMassPreservesFixedNodes();
     FEMGravityAccelerationIsIndependentOfDensity();
     ImplicitEulerUsesStiffnessBlocks();
+    ImplicitPointConnectionStableWithHighStiffness();
+    PointConnectionBarycentricAssemblyDistributesForcesAndStiffness();
+    ImplicitAnchoredTetPointConnectionsRemainStableUnderGravity();
     TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
     UnitTetShapeFunctionGradientsMatchExpectedConvention();
     DegenerateTetIsSkippedWithoutInvalidAssembly();

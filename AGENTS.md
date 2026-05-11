@@ -1060,7 +1060,29 @@ Energy:
 
 E = 0.5 * k * ||p - targetPosition||²
 
-Force is distributed to the four tet nodes using barycentric weights.
+Gradient:
+
+g_i = k * w_i * (p - targetPosition)
+
+Force:
+
+f_i = -g_i
+
+Implicit stiffness:
+
+K_ij = k * w_i * w_j * I3
+
+PointConnection contributes both force and positive stiffness blocks into SolverData.
+
+The implicit solver consumes those stiffness blocks with the same sign convention as FEM:
+
+A += dtÂ² K
+
+b += dt f - dtÂ² K v_current
+
+Force and stiffness are distributed to the four tet nodes using barycentric weights.
+
+Damping is currently assembled as a force contribution only; add a solver-side damping matrix before treating it implicitly.
 
 Use cases:
 
