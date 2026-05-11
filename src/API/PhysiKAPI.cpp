@@ -23,6 +23,20 @@ namespace
         material.damping = desc.damping;
         return material;
     }
+
+    PhysiK::FemModel ToFemModel(int value)
+    {
+        switch (value)
+        {
+        case 1:
+            return PhysiK::FemModel::Corotational;
+        case 2:
+            return PhysiK::FemModel::NeoHookean;
+        case 0:
+        default:
+            return PhysiK::FemModel::Linear;
+        }
+    }
 }
 
 extern "C"
@@ -135,22 +149,28 @@ extern "C"
         const int* nodeIndices,
         int nodeCount,
         const int* tetNodeIndices,
-        int tetCount)
+        int tetCount,
+        const PhysikMaterialDesc* material,
+        int femModel)
     {
-        if (PhysiK::World* worldPtr = AsWorld(world))
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr || material == nullptr)
         {
-            PhysiK::Material material;
-            auto component = PhysiK::TetMeshComponent::CreateFromGlobalNodes(
-                *worldPtr,
-                nodeIndices,
-                nodeCount,
-                tetNodeIndices,
-                tetCount,
-                material);
-            return worldPtr->AddComponent(std::move(component));
+            return PhysiK::ComponentHandle{};
         }
 
-        return PhysiK::ComponentHandle{};
+        PhysiK::TetMeshComponentDesc desc;
+        desc.material = ToMaterial(*material);
+        desc.femModel = ToFemModel(femModel);
+
+        auto component = PhysiK::TetMeshComponent::CreateFromGlobalNodes(
+            *worldPtr,
+            nodeIndices,
+            nodeCount,
+            tetNodeIndices,
+            tetCount,
+            desc);
+        return worldPtr->AddComponent(std::move(component));
     }
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateCollisionSphereComponent(
@@ -169,62 +189,6 @@ extern "C"
         }
 
         return PhysiK::ComponentHandle{};
-    }
-
-    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterial(
-        PhysiK::WorldHandle world,
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
-        int tetCount,
-        float density,
-        float youngModulus,
-        float poissonRatio,
-        float damping)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            PhysiK::Material material;
-            material.density = density;
-            material.youngModulus = youngModulus;
-            material.poissonRatio = poissonRatio;
-            material.damping = damping;
-
-            auto component = PhysiK::TetMeshComponent::CreateFromGlobalNodes(
-                *worldPtr,
-                nodeIndices,
-                nodeCount,
-                tetNodeIndices,
-                tetCount,
-                material);
-            return worldPtr->AddComponent(std::move(component));
-        }
-
-        return PhysiK::ComponentHandle{};
-    }
-
-    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponentWithMaterialDesc(
-        PhysiK::WorldHandle world,
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
-        int tetCount,
-        const PhysikMaterialDesc* material)
-    {
-        PhysiK::World* worldPtr = AsWorld(world);
-        if (worldPtr == nullptr || material == nullptr)
-        {
-            return PhysiK::ComponentHandle{};
-        }
-
-        auto component = PhysiK::TetMeshComponent::CreateFromGlobalNodes(
-            *worldPtr,
-            nodeIndices,
-            nodeCount,
-            tetNodeIndices,
-            tetCount,
-            ToMaterial(*material));
-        return worldPtr->AddComponent(std::move(component));
     }
 
     PHYSIK_API void PHYSIK_SetTetMeshMaterial(
