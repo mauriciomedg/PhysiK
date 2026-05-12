@@ -1578,15 +1578,15 @@ x_new = x_old + dt v_new
 
 Current limitations:
 
-- First implicit milestone uses a dense linear solve.
+- Implicit Euler assembles a SparseBlockMatrix and solves delta velocity with Conjugate Gradient.
+- The current preconditioner is scalar Jacobi from the sparse matrix diagonal.
 - No Newton iterations yet.
 - No nonlinear FEM yet.
-- No corotational FEM yet.
 - No Neo-Hookean FEM yet.
 - Damping matrix C is not fully implemented yet.
 - Dynamic-fixed stiffness coupling is not moved to the right-hand side yet.
-- Dense solver is acceptable for small tests.
-- A future milestone should replace the dense solve with sparse CG or LDLT.
+- DenseLinearSolver remains as a reference utility, but sparse CG is the default implicit path.
+- A future milestone may add sparse LDLT, matrix-free CG, or stronger block preconditioning.
 
 Architecture:
 

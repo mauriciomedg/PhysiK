@@ -69,8 +69,10 @@ namespace PhysiK
         void GenerateCollisionConnections();
         void AssembleComponentSystems(SolverData& solverData, float dt);
         void GeneratePointConnectionFromContact(const Contact& contact);
-        void ApplyExplicitForces(SolverData& solverData, float dt);
-        void SolveImplicitEuler(SolverData& solverData, float dt);
+        void PrecomputeSolve(SolverData& solverData, float dt);
+        bool SolveImplicitLinearSystem(SolverData& solverData, float dt);
+        bool IntegrateImplicitEuler(const SolverData& solverData, float dt);
+        void IntegrateExplicitEuler(const SolverData& solverData, float dt);
         void ClearTransientConnections();
 
         std::vector<Node> nodes;
