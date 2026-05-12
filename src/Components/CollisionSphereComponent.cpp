@@ -63,6 +63,11 @@ namespace PhysiK
 
             for (const Tet& tet : tetMesh->tets)
             {
+                if (!tet.active)
+                {
+                    continue;
+                }
+
                 const Node& node0 = world.GetNode(tet.node0);
                 const Node& node1 = world.GetNode(tet.node1);
                 const Node& node2 = world.GetNode(tet.node2);

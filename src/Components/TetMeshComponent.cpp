@@ -63,6 +63,11 @@ namespace PhysiK
 
             for (const Tet& tet : component.tets)
             {
+                if (!tet.active)
+                {
+                    continue;
+                }
+
                 if (!std::isfinite(tet.restVolume) || tet.restVolume <= 0.0f)
                 {
                     continue;
@@ -254,6 +259,45 @@ namespace PhysiK
             worldNodeCount,
             BuildSparsePatternFromTetConnectivity(tets));
         femSparsePatternDirty = false;
+    }
+
+    bool TetMeshComponent::IsTetActive(int tetIndex) const
+    {
+        if (tetIndex < 0 || tetIndex >= static_cast<int>(tets.size()))
+        {
+            return false;
+        }
+
+        return tets[static_cast<std::size_t>(tetIndex)].active;
+    }
+
+    void TetMeshComponent::SetTetActive(int tetIndex, bool active)
+    {
+        if (tetIndex < 0 || tetIndex >= static_cast<int>(tets.size()))
+        {
+            return;
+        }
+
+        tets[static_cast<std::size_t>(tetIndex)].active = active;
+    }
+
+    void TetMeshComponent::DeactivateTet(int tetIndex)
+    {
+        SetTetActive(tetIndex, false);
+    }
+
+    int TetMeshComponent::GetActiveTetCount() const
+    {
+        int activeCount = 0;
+        for (const Tet& tet : tets)
+        {
+            if (tet.active)
+            {
+                ++activeCount;
+            }
+        }
+
+        return activeCount;
     }
 
     void TetMeshComponent::UpdateSystem(

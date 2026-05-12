@@ -1468,6 +1468,34 @@ World nodes must not store sparse matrix data or solver-specific caches.
 
 ---
 
+# Basic Tetrahedron Cutting
+
+The first cutting milestone deactivates tetrahedra instead of changing topology.
+
+TetMeshComponent owns tet active state.
+
+Inactive tetrahedra remain in the tets array so tet indices stay stable.
+
+Inactive tetrahedra contribute no:
+
+- FEM force
+- FEM stiffness
+- damping
+- lumped mass
+- tet-based collision contacts
+
+Nodes are not deleted or duplicated by this milestone.
+
+There is no remeshing, geometric blade cutting, visual surface reconstruction, or topology splitting yet.
+
+The cached sparse FEM pattern may remain a superset built from the original tet connectivity.
+
+Deactivating a tet clears no sparse pattern by itself; per-substep matrix values are cleared and inactive tets simply add no values.
+
+World nodes must not store cutting state.
+
+---
+
 # FEM Lumped Mass
 
 TetMeshComponent computes simple lumped nodal mass after tet rest data is initialized.

@@ -12,6 +12,8 @@ namespace PhysiK
         int node2 = -1;
         int node3 = -1;
 
+        bool active = true;
+
         float restVolume = 0.0f;
         Mat3 restDmInverse;
         Vec3 restPositions[4];
