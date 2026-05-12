@@ -10,6 +10,16 @@
 
 namespace PhysiK
 {
+    struct World::ImplicitSolveData
+    {
+        std::vector<float> masses;
+        std::vector<int> nodeToDynamicBlock;
+        int dynamicBlockCount = 0;
+        std::vector<float> rhs;
+        SparseBlockMatrix matrix;
+        std::vector<float> deltaVelocity;
+    };
+
     namespace
     {
         bool IsFinite(float value)
@@ -497,55 +507,76 @@ namespace PhysiK
 
     void World::SolveImplicitEuler(SolverData& solverData, float dt)
     {
-        if (dt <= 0.0f)
+        ImplicitSolveData solveData;
+        if (!PrecomputeSolve(solverData, dt, solveData))
         {
             return;
         }
 
-        const std::vector<float> masses =
-            BuildNodeMasses(solverData, static_cast<int>(nodes.size()));
+        if (!SolveImplicitLinearSystem(solveData))
+        {
+            return;
+        }
 
-        std::vector<int> nodeToDynamicBlock(nodes.size(), -1);
-        int dynamicBlockCount = 0;
+        if (!IntegrateImplicitEuler(solveData, dt))
+        {
+            return;
+        }
+    }
+
+    bool World::PrecomputeSolve(
+        const SolverData& solverData,
+        float dt,
+        ImplicitSolveData& solveData) const
+    {
+        if (dt <= 0.0f)
+        {
+            return false;
+        }
+
+        solveData = ImplicitSolveData{};
+        solveData.masses = BuildNodeMasses(solverData, static_cast<int>(nodes.size()));
+        solveData.nodeToDynamicBlock.assign(nodes.size(), -1);
+
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
-            const float mass = masses[static_cast<std::size_t>(nodeIndex)];
+            const float mass = solveData.masses[static_cast<std::size_t>(nodeIndex)];
             if (!nodes[static_cast<std::size_t>(nodeIndex)].fixed &&
                 std::isfinite(mass) && mass > 0.0f)
             {
-                nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)] = dynamicBlockCount;
-                ++dynamicBlockCount;
+                solveData.nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)] =
+                    solveData.dynamicBlockCount;
+                ++solveData.dynamicBlockCount;
             }
         }
 
-        if (dynamicBlockCount == 0)
+        if (solveData.dynamicBlockCount == 0)
         {
-            return;
+            return false;
         }
 
-        const std::size_t dimension = static_cast<std::size_t>(dynamicBlockCount * 3);
-        std::vector<float> rhs(dimension, 0.0f);
-
-        std::vector<Vec3> updatedVelocities(nodes.size());
-        std::vector<Vec3> updatedPositions(nodes.size());
+        const std::size_t dimension =
+            static_cast<std::size_t>(solveData.dynamicBlockCount * 3);
+        solveData.rhs.assign(dimension, 0.0f);
 
         std::vector<std::pair<int, int>> blockCoordinates;
         blockCoordinates.reserve(
-            static_cast<std::size_t>(dynamicBlockCount) +
+            static_cast<std::size_t>(solveData.dynamicBlockCount) +
             solverData.GetStiffnessBlocks().size());
 
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
-            const int dynamicBlock = nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)];
+            const int dynamicBlock =
+                solveData.nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)];
             if (dynamicBlock < 0)
             {
                 continue;
             }
 
-            const float mass = masses[static_cast<std::size_t>(nodeIndex)];
+            const float mass = solveData.masses[static_cast<std::size_t>(nodeIndex)];
             if (!IsFinite(mass))
             {
-                return;
+                return false;
             }
 
             blockCoordinates.push_back({dynamicBlock, dynamicBlock});
@@ -560,7 +591,8 @@ namespace PhysiK
                 continue;
             }
 
-            const int rowBlock = nodeToDynamicBlock[static_cast<std::size_t>(block.nodeA)];
+            const int rowBlock =
+                solveData.nodeToDynamicBlock[static_cast<std::size_t>(block.nodeA)];
             if (rowBlock < 0)
             {
                 continue;
@@ -568,27 +600,31 @@ namespace PhysiK
 
             if (!IsFinite(block.block))
             {
-                return;
+                return false;
             }
 
             const Vec3& columnVelocity = nodes[static_cast<std::size_t>(block.nodeB)].velocity;
             if (!IsFinite(columnVelocity))
             {
-                return;
+                return false;
             }
 
             const Vec3 stiffnessVelocity = block.block * columnVelocity;
             if (!IsFinite(stiffnessVelocity))
             {
-                return;
+                return false;
             }
 
             const int rowBase = rowBlock * 3;
-            rhs[static_cast<std::size_t>(rowBase + 0)] -= stiffnessScale * stiffnessVelocity.x;
-            rhs[static_cast<std::size_t>(rowBase + 1)] -= stiffnessScale * stiffnessVelocity.y;
-            rhs[static_cast<std::size_t>(rowBase + 2)] -= stiffnessScale * stiffnessVelocity.z;
+            solveData.rhs[static_cast<std::size_t>(rowBase + 0)] -=
+                stiffnessScale * stiffnessVelocity.x;
+            solveData.rhs[static_cast<std::size_t>(rowBase + 1)] -=
+                stiffnessScale * stiffnessVelocity.y;
+            solveData.rhs[static_cast<std::size_t>(rowBase + 2)] -=
+                stiffnessScale * stiffnessVelocity.z;
 
-            const int columnBlock = nodeToDynamicBlock[static_cast<std::size_t>(block.nodeB)];
+            const int columnBlock =
+                solveData.nodeToDynamicBlock[static_cast<std::size_t>(block.nodeB)];
             if (columnBlock < 0)
             {
                 continue;
@@ -597,21 +633,21 @@ namespace PhysiK
             blockCoordinates.push_back({rowBlock, columnBlock});
         }
 
-        SparseBlockMatrix matrix;
-        matrix.BuildPattern(dynamicBlockCount, blockCoordinates);
+        solveData.matrix.BuildPattern(solveData.dynamicBlockCount, blockCoordinates);
 
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
-            const int dynamicBlock = nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)];
+            const int dynamicBlock =
+                solveData.nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)];
             if (dynamicBlock < 0)
             {
                 continue;
             }
 
-            const float mass = masses[static_cast<std::size_t>(nodeIndex)];
-            if (!matrix.AddBlock(dynamicBlock, dynamicBlock, ScaledIdentity(mass)))
+            const float mass = solveData.masses[static_cast<std::size_t>(nodeIndex)];
+            if (!solveData.matrix.AddBlock(dynamicBlock, dynamicBlock, ScaledIdentity(mass)))
             {
-                return;
+                return false;
             }
         }
 
@@ -624,16 +660,18 @@ namespace PhysiK
                 continue;
             }
 
-            const int rowBlock = nodeToDynamicBlock[static_cast<std::size_t>(block.nodeA)];
-            const int columnBlock = nodeToDynamicBlock[static_cast<std::size_t>(block.nodeB)];
+            const int rowBlock =
+                solveData.nodeToDynamicBlock[static_cast<std::size_t>(block.nodeA)];
+            const int columnBlock =
+                solveData.nodeToDynamicBlock[static_cast<std::size_t>(block.nodeB)];
             if (rowBlock < 0 || columnBlock < 0)
             {
                 continue;
             }
 
-            if (!matrix.AddBlock(rowBlock, columnBlock, Scale(block.block, stiffnessScale)))
+            if (!solveData.matrix.AddBlock(rowBlock, columnBlock, Scale(block.block, stiffnessScale)))
             {
-                return;
+                return false;
             }
         }
 
@@ -646,36 +684,57 @@ namespace PhysiK
 
             if (!IsFinite(nodeForce.force))
             {
-                return;
+                return false;
             }
 
-            const int dynamicBlock = nodeToDynamicBlock[static_cast<std::size_t>(nodeForce.node)];
+            const int dynamicBlock =
+                solveData.nodeToDynamicBlock[static_cast<std::size_t>(nodeForce.node)];
             if (dynamicBlock < 0)
             {
                 continue;
             }
 
             const int baseDof = dynamicBlock * 3;
-            rhs[static_cast<std::size_t>(baseDof + 0)] += dt * nodeForce.force.x;
-            rhs[static_cast<std::size_t>(baseDof + 1)] += dt * nodeForce.force.y;
-            rhs[static_cast<std::size_t>(baseDof + 2)] += dt * nodeForce.force.z;
+            solveData.rhs[static_cast<std::size_t>(baseDof + 0)] += dt * nodeForce.force.x;
+            solveData.rhs[static_cast<std::size_t>(baseDof + 1)] += dt * nodeForce.force.y;
+            solveData.rhs[static_cast<std::size_t>(baseDof + 2)] += dt * nodeForce.force.z;
         }
 
-        std::vector<float> deltaVelocity;
+        return true;
+    }
+
+    bool World::SolveImplicitLinearSystem(ImplicitSolveData& solveData) const
+    {
+        const std::size_t dimension =
+            static_cast<std::size_t>(solveData.dynamicBlockCount * 3);
+        if (dimension == 0)
+        {
+            return false;
+        }
+
         ConjugateGradientSettings cgSettings;
-        cgSettings.maxIterations = std::max(128, dynamicBlockCount * 12);
+        cgSettings.maxIterations = std::max(128, solveData.dynamicBlockCount * 12);
         cgSettings.tolerance = 1.0e-5f;
         cgSettings.useJacobiPreconditioner = true;
+
         const ConjugateGradientResult cgResult =
-            SolveConjugateGradient(matrix, rhs, deltaVelocity, cgSettings);
-        if (!cgResult.converged || deltaVelocity.size() != dimension)
-        {
-            return;
-        }
+            SolveConjugateGradient(
+                solveData.matrix,
+                solveData.rhs,
+                solveData.deltaVelocity,
+                cgSettings);
+        return cgResult.converged && solveData.deltaVelocity.size() == dimension;
+    }
+
+    bool World::IntegrateImplicitEuler(const ImplicitSolveData& solveData, float dt)
+    {
+        std::vector<Vec3> updatedVelocities(nodes.size());
+        std::vector<Vec3> updatedPositions(nodes.size());
 
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
-            const int dynamicBlock = nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)];
+            const int dynamicBlock =
+                solveData.nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)];
             if (dynamicBlock < 0)
             {
                 continue;
@@ -684,19 +743,19 @@ namespace PhysiK
             const int baseDof = dynamicBlock * 3;
             const Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
             const Vec3 velocityChange{
-                deltaVelocity[static_cast<std::size_t>(baseDof + 0)],
-                deltaVelocity[static_cast<std::size_t>(baseDof + 1)],
-                deltaVelocity[static_cast<std::size_t>(baseDof + 2)]};
+                solveData.deltaVelocity[static_cast<std::size_t>(baseDof + 0)],
+                solveData.deltaVelocity[static_cast<std::size_t>(baseDof + 1)],
+                solveData.deltaVelocity[static_cast<std::size_t>(baseDof + 2)]};
             if (!IsFinite(node.position) || !IsFinite(node.velocity) || !IsFinite(velocityChange))
             {
-                return;
+                return false;
             }
 
             const Vec3 updatedVelocity = node.velocity + velocityChange;
             const Vec3 updatedPosition = node.position + updatedVelocity * dt;
             if (!IsFinite(updatedVelocity) || !IsFinite(updatedPosition))
             {
-                return;
+                return false;
             }
 
             updatedVelocities[static_cast<std::size_t>(nodeIndex)] = updatedVelocity;
@@ -705,7 +764,7 @@ namespace PhysiK
 
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
-            if (nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)] < 0)
+            if (solveData.nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)] < 0)
             {
                 continue;
             }
@@ -714,6 +773,8 @@ namespace PhysiK
             node.velocity = updatedVelocities[static_cast<std::size_t>(nodeIndex)];
             node.position = updatedPositions[static_cast<std::size_t>(nodeIndex)];
         }
+
+        return true;
     }
 
     void World::ClearTransientConnections()

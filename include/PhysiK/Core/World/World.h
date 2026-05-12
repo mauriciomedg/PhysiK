@@ -58,6 +58,8 @@ namespace PhysiK
         bool HasValidNodeIndices(const PointConnection& connection) const;
 
     private:
+        struct ImplicitSolveData;
+
         bool IsComponentHandleValid(ComponentHandle handle) const;
         void RunExternalLogic();
         void UpdateFrameComponents(float frameDt);
@@ -71,6 +73,12 @@ namespace PhysiK
         void GeneratePointConnectionFromContact(const Contact& contact);
         void ApplyExplicitForces(SolverData& solverData, float dt);
         void SolveImplicitEuler(SolverData& solverData, float dt);
+        bool PrecomputeSolve(
+            const SolverData& solverData,
+            float dt,
+            ImplicitSolveData& solveData) const;
+        bool SolveImplicitLinearSystem(ImplicitSolveData& solveData) const;
+        bool IntegrateImplicitEuler(const ImplicitSolveData& solveData, float dt);
         void ClearTransientConnections();
 
         std::vector<Node> nodes;
