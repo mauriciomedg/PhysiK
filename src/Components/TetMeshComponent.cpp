@@ -75,6 +75,27 @@ namespace PhysiK
                 AddLumpedMassToSolverData(world, solverData, tet.node3, nodalMass);
             }
         }
+
+        std::vector<std::pair<int, int>> BuildSparsePatternFromTetConnectivity(
+            const std::vector<Tet>& tets)
+        {
+            std::vector<std::pair<int, int>> blockCoordinates;
+            blockCoordinates.reserve(tets.size() * 16u);
+
+            for (const Tet& tet : tets)
+            {
+                const int nodes[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+                for (int row = 0; row < 4; ++row)
+                {
+                    for (int column = 0; column < 4; ++column)
+                    {
+                        blockCoordinates.push_back({nodes[row], nodes[column]});
+                    }
+                }
+            }
+
+            return blockCoordinates;
+        }
     }
 
     std::unique_ptr<TetMeshComponent> TetMeshComponent::CreateFromGlobalNodes(
@@ -224,12 +245,14 @@ namespace PhysiK
 
     void TetMeshComponent::EnsureFemSparsePattern(int worldNodeCount)
     {
-        if (!femSparsePatternDirty && femSparseMatrix.nodeCount == worldNodeCount)
+        if (!femSparsePatternDirty && femSparseMatrix.blockCount == worldNodeCount)
         {
             return;
         }
 
-        femSparseMatrix.BuildFromTetConnectivity(worldNodeCount, tets);
+        femSparseMatrix.BuildPattern(
+            worldNodeCount,
+            BuildSparsePatternFromTetConnectivity(tets));
         femSparsePatternDirty = false;
     }
 
@@ -255,14 +278,14 @@ namespace PhysiK
             femSparseMatrix.AddBlock(block.nodeA, block.nodeB, block.block);
         }
 
-        for (int rowNode = 0; rowNode < femSparseMatrix.nodeCount; ++rowNode)
+        for (int rowBlock = 0; rowBlock < femSparseMatrix.blockCount; ++rowBlock)
         {
-            const int rowBegin = femSparseMatrix.rowStart[static_cast<std::size_t>(rowNode)];
-            const int rowEnd = femSparseMatrix.rowStart[static_cast<std::size_t>(rowNode + 1)];
+            const int rowBegin = femSparseMatrix.rowStart[static_cast<std::size_t>(rowBlock)];
+            const int rowEnd = femSparseMatrix.rowStart[static_cast<std::size_t>(rowBlock + 1)];
             for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
             {
                 solverData.AddStiffnessBlock(
-                    rowNode,
+                    rowBlock,
                     femSparseMatrix.colIndex[static_cast<std::size_t>(blockIndex)],
                     femSparseMatrix.values[static_cast<std::size_t>(blockIndex)]);
             }

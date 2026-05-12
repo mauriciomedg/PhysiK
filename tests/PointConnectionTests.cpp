@@ -1,8 +1,8 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
-#include "PhysiK/Core/Solvers/SparseBlockMatrix.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
+#include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <cassert>
 #include <cmath>
@@ -152,9 +152,30 @@ namespace
             PhysiK::Vec3{0.0f, 0.0f, value});
     }
 
-    bool HasSparseBlock(const PhysiK::SparseBlockMatrix& matrix, int rowNode, int colNode)
+    bool HasSparseBlock(const PhysiK::SparseBlockMatrix& matrix, int rowBlock, int colBlock)
     {
-        return matrix.FindBlockIndex(rowNode, colNode) >= 0;
+        return matrix.FindBlockIndex(rowBlock, colBlock) >= 0;
+    }
+
+    std::vector<std::pair<int, int>> BuildSparsePatternFromTetConnectivity(
+        const std::vector<PhysiK::Tet>& tets)
+    {
+        std::vector<std::pair<int, int>> blockCoordinates;
+        blockCoordinates.reserve(tets.size() * 16u);
+
+        for (const PhysiK::Tet& tet : tets)
+        {
+            const int nodes[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            for (int row = 0; row < 4; ++row)
+            {
+                for (int column = 0; column < 4; ++column)
+                {
+                    blockCoordinates.push_back({nodes[row], nodes[column]});
+                }
+            }
+        }
+
+        return blockCoordinates;
     }
 
     PhysiK::Vec3 SumForcesForNode(const PhysiK::SolverData& solverData, int node)
@@ -1242,7 +1263,7 @@ void SparseBlockMatrixStoresAndMultipliesBlocks()
 {
     PhysiK::SparseBlockMatrix matrix;
     matrix.BuildPattern(2, {{0, 0}, {0, 1}, {1, 1}});
-    assert(matrix.nodeCount == 2);
+    assert(matrix.blockCount == 2);
     assert(matrix.values.size() == 3);
 
     assert(matrix.AddBlock(0, 0, DiagonalBlock(2.0f)));
@@ -1279,7 +1300,7 @@ void SparseBlockMatrixAddBlockAccumulatesContributions()
     matrix.ClearValues();
     assert(NearlyEqual(GetMat3Value(matrix.values[static_cast<std::size_t>(blockIndex)], 0, 0), 0.0f));
 
-    assert(matrix.AddMassToDiagonal(0, 7.0f));
+    assert(matrix.AddBlock(0, 0, DiagonalBlock(7.0f)));
     assert(NearlyEqual(GetMat3Value(matrix.values[static_cast<std::size_t>(blockIndex)], 2, 2), 7.0f));
 }
 
@@ -1287,9 +1308,9 @@ void SparseBlockMatrixSingleTetPatternContainsAllCouplings()
 {
     PhysiK::SparseBlockMatrix matrix;
     PhysiK::Tet tet = CreateUnitTet();
-    matrix.BuildFromTetConnectivity(4, {tet});
+    matrix.BuildPattern(4, BuildSparsePatternFromTetConnectivity({tet}));
 
-    assert(matrix.nodeCount == 4);
+    assert(matrix.blockCount == 4);
     assert(matrix.values.size() == 16);
     for (int row = 0; row < 4; ++row)
     {
@@ -1316,9 +1337,9 @@ void SparseBlockMatrixAdjacentTetsReuseSharedBlocks()
     tetB.node2 = 3;
     tetB.node3 = 4;
 
-    matrix.BuildFromTetConnectivity(5, {tetA, tetB});
+    matrix.BuildPattern(5, BuildSparsePatternFromTetConnectivity({tetA, tetB}));
 
-    assert(matrix.nodeCount == 5);
+    assert(matrix.blockCount == 5);
     assert(matrix.values.size() == 23);
     assert(HasSparseBlock(matrix, 1, 2));
     assert(HasSparseBlock(matrix, 2, 1));
@@ -1334,7 +1355,7 @@ void TetMeshComponentCachesFemSparsePattern()
     component.EnsureFemSparsePattern(4);
 
     assert(!component.femSparsePatternDirty);
-    assert(component.GetFemSparseMatrix().nodeCount == 4);
+    assert(component.GetFemSparseMatrix().blockCount == 4);
     assert(component.GetFemSparseMatrix().values.size() == 16);
 
     component.EnsureFemSparsePattern(4);
@@ -1344,7 +1365,7 @@ void TetMeshComponentCachesFemSparsePattern()
     assert(component.femSparsePatternDirty);
     component.EnsureFemSparsePattern(5);
     assert(!component.femSparsePatternDirty);
-    assert(component.GetFemSparseMatrix().nodeCount == 5);
+    assert(component.GetFemSparseMatrix().blockCount == 5);
 }
 
 void TetMeshComponentDefaultFemModelIsLinear()

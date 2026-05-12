@@ -6,7 +6,7 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
-#include "PhysiK/Core/Solvers/SparseBlockMatrix.h"
+#include "PhysiK/Math/SparseBlockMatrix.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/PhysicsData/Material.h"
 #include "PhysiK/PhysicsData/Tet.h"

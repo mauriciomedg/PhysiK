@@ -1425,12 +1425,25 @@ Safety requirements:
 
 FEM stiffness assembly uses a cached block sparse pattern built from TetMeshComponent tet connectivity.
 
-SparseBlockMatrix stores 3x3 node blocks in compressed-row form:
+PhysiK/Math/SparseBlockMatrix is a generic mathematical 3x3 block sparse matrix.
 
-- nodeCount
+It does not include Tet, FEM, mass, World node, or solver-specific data.
+
+SparseBlockMatrix stores blocks in compressed-row form:
+
+- blockCount
 - rowStart
 - colIndex
 - values
+
+SparseBlockMatrix supports:
+
+- Clear
+- ClearValues
+- BuildPattern
+- AddBlock
+- Multiply
+- FindBlockIndex
 
 The cached FEM pattern contains only persistent tet-topology couplings:
 
@@ -1449,12 +1462,7 @@ Per substep:
 - Linear or Corotational FEM stiffness blocks are accumulated into SparseBlockMatrix.
 - Accumulated sparse blocks are emitted into SolverData for the current solver path.
 
-The sparse matrix supports:
-
-- ClearValues
-- AddBlock
-- AddMassToDiagonal
-- Multiply
+Tet/FEM-specific helpers, such as converting tet connectivity into block coordinates, live in component or solver assembly code outside Math.
 
 World nodes must not store sparse matrix data or solver-specific caches.
 
