@@ -87,6 +87,26 @@ extern "C"
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component);
 
+    PHYSIK_API int PHYSIK_IsTetActive(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        int tetIndex);
+
+    PHYSIK_API void PHYSIK_SetTetActive(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        int tetIndex,
+        int active);
+
+    PHYSIK_API void PHYSIK_DeactivateTet(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        int tetIndex);
+
+    PHYSIK_API int PHYSIK_GetActiveTetCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component);
+
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component,

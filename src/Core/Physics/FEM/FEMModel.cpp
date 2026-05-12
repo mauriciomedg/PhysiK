@@ -527,6 +527,11 @@ namespace PhysiK
     {
         for (const Tet& tet : tets)
         {
+            if (!tet.active)
+            {
+                continue;
+            }
+
             if (!HasValidNodes(tet, nodes) || tet.restVolume <= 0.0f)
             {
                 continue;
@@ -544,6 +549,11 @@ namespace PhysiK
     {
         for (const Tet& tet : tets)
         {
+            if (!tet.active)
+            {
+                continue;
+            }
+
             if (!HasValidNodes(tet, nodes) || tet.restVolume <= 0.0f)
             {
                 continue;

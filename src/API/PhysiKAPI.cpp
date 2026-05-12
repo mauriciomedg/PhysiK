@@ -253,6 +253,76 @@ extern "C"
         return static_cast<int>(tetMesh->tets.size());
     }
 
+    PHYSIK_API int PHYSIK_IsTetActive(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        int tetIndex)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr)
+        {
+            return 0;
+        }
+
+        const auto* tetMesh = dynamic_cast<const PhysiK::TetMeshComponent*>(
+            worldPtr->GetComponent(component));
+        if (tetMesh == nullptr)
+        {
+            return 0;
+        }
+
+        return tetMesh->IsTetActive(tetIndex) ? 1 : 0;
+    }
+
+    PHYSIK_API void PHYSIK_SetTetActive(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        int tetIndex,
+        int active)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr)
+        {
+            return;
+        }
+
+        auto* tetMesh = dynamic_cast<PhysiK::TetMeshComponent*>(worldPtr->GetComponent(component));
+        if (tetMesh == nullptr)
+        {
+            return;
+        }
+
+        tetMesh->SetTetActive(tetIndex, active != 0);
+    }
+
+    PHYSIK_API void PHYSIK_DeactivateTet(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component,
+        int tetIndex)
+    {
+        PHYSIK_SetTetActive(world, component, tetIndex, 0);
+    }
+
+    PHYSIK_API int PHYSIK_GetActiveTetCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr)
+        {
+            return 0;
+        }
+
+        const auto* tetMesh = dynamic_cast<const PhysiK::TetMeshComponent*>(
+            worldPtr->GetComponent(component));
+        if (tetMesh == nullptr)
+        {
+            return 0;
+        }
+
+        return tetMesh->GetActiveTetCount();
+    }
+
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component,

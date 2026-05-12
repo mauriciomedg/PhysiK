@@ -240,6 +240,30 @@ namespace
         return tet;
     }
 
+    std::vector<PhysiK::Node> CreateTwoTetNodes()
+    {
+        std::vector<PhysiK::Node> nodes(5);
+        nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+        nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
+        nodes[2].position = PhysiK::Vec3{0.0f, 1.0f, 0.0f};
+        nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.0f};
+        nodes[4].position = PhysiK::Vec3{0.0f, 0.0f, -1.0f};
+        return nodes;
+    }
+
+    PhysiK::Tet CreateLowerUnitTet(float youngModulus = 100.0f)
+    {
+        PhysiK::Tet tet;
+        tet.node0 = 0;
+        tet.node1 = 1;
+        tet.node2 = 2;
+        tet.node3 = 4;
+        tet.youngModulus = youngModulus;
+        tet.poissonRatio = 0.25f;
+        tet.damping = 0.0f;
+        return tet;
+    }
+
     void CreateSingleTet(PhysiK::WorldHandle world, int (&outNodes)[4])
     {
         outNodes[0] = AddNode(world, 0.0f, 0.0f, 0.0f);
@@ -285,6 +309,35 @@ namespace
                 &material,
                 0);
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+    }
+
+    PhysiK::ComponentHandle CreateTwoTetMesh(
+        PhysiK::WorldHandle world,
+        int (&outNodes)[5],
+        float youngModulus = 0.0f,
+        float density = 1.0f)
+    {
+        outNodes[0] = AddNode(world, 0.0f, 0.0f, 0.0f);
+        outNodes[1] = AddNode(world, 1.0f, 0.0f, 0.0f);
+        outNodes[2] = AddNode(world, 0.0f, 1.0f, 0.0f);
+        outNodes[3] = AddNode(world, 0.0f, 0.0f, 1.0f);
+        outNodes[4] = AddNode(world, 0.0f, 0.0f, -1.0f);
+
+        const int tetNodeIndices[] = {
+            outNodes[0], outNodes[1], outNodes[2], outNodes[3],
+            outNodes[0], outNodes[1], outNodes[2], outNodes[4]};
+        PhysikMaterialDesc material = MakeMaterialDesc(density, youngModulus, 0.3f, 0.0f);
+        const PhysiK::ComponentHandle tetMesh =
+            PHYSIK_CreateTetMeshComponent(
+                world,
+                outNodes,
+                5,
+                tetNodeIndices,
+                2,
+                &material,
+                0);
+        assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+        return tetMesh;
     }
 
     Point GetTetCentroid(PhysiK::WorldHandle world, const int (&nodes)[4])
@@ -1368,6 +1421,181 @@ void TetMeshComponentCachesFemSparsePattern()
     assert(component.GetFemSparseMatrix().blockCount == 5);
 }
 
+void TetActiveStateDefaultsAndNoOpsAreSafe()
+{
+    PhysiK::TetMeshComponent component;
+    component.tets.resize(2);
+
+    assert(component.IsTetActive(0));
+    assert(component.IsTetActive(1));
+    assert(!component.IsTetActive(-1));
+    assert(!component.IsTetActive(2));
+    assert(component.GetActiveTetCount() == 2);
+
+    component.DeactivateTet(0);
+    assert(!component.IsTetActive(0));
+    assert(component.IsTetActive(1));
+    assert(component.GetActiveTetCount() == 1);
+
+    component.DeactivateTet(0);
+    component.DeactivateTet(-1);
+    component.DeactivateTet(4);
+    assert(component.GetActiveTetCount() == 1);
+
+    component.SetTetActive(0, true);
+    assert(component.IsTetActive(0));
+    assert(component.GetActiveTetCount() == 2);
+}
+
+void TetActiveStateIsExposedThroughNativeApi()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[5] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateTwoTetMesh(world, nodes);
+
+    assert(PHYSIK_GetTetMeshTetCount(world, tetMesh) == 2);
+    assert(PHYSIK_GetActiveTetCount(world, tetMesh) == 2);
+    assert(PHYSIK_IsTetActive(world, tetMesh, 0) == 1);
+    assert(PHYSIK_IsTetActive(world, tetMesh, 1) == 1);
+    assert(PHYSIK_IsTetActive(world, tetMesh, 2) == 0);
+
+    PHYSIK_DeactivateTet(world, tetMesh, 1);
+    assert(PHYSIK_IsTetActive(world, tetMesh, 0) == 1);
+    assert(PHYSIK_IsTetActive(world, tetMesh, 1) == 0);
+    assert(PHYSIK_GetActiveTetCount(world, tetMesh) == 1);
+
+    PHYSIK_DeactivateTet(world, tetMesh, 1);
+    PHYSIK_DeactivateTet(world, tetMesh, -1);
+    PHYSIK_DeactivateTet(world, tetMesh, 3);
+    assert(PHYSIK_GetActiveTetCount(world, tetMesh) == 1);
+
+    PHYSIK_SetTetActive(world, tetMesh, 1, 1);
+    assert(PHYSIK_IsTetActive(world, tetMesh, 1) == 1);
+    assert(PHYSIK_GetActiveTetCount(world, tetMesh) == 2);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void InactiveTetsAreSkippedByFemForceAndStiffnessAssembly()
+{
+    std::vector<PhysiK::Node> nodes = CreateTwoTetNodes();
+    PhysiK::Tet activeTet = CreateUnitTet(200.0f);
+    PhysiK::Tet inactiveTet = CreateLowerUnitTet(200.0f);
+    PhysiK::FEMModel::InitializeTetRestData(activeTet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(inactiveTet, nodes);
+    inactiveTet.active = false;
+    nodes[4].position.z -= 0.25f;
+
+    for (PhysiK::FemModel model : {PhysiK::FemModel::Linear, PhysiK::FemModel::Corotational})
+    {
+        PhysiK::SolverData solverData;
+        const bool implemented = PhysiK::FEMModel::AccumulateForces(
+            model,
+            {activeTet, inactiveTet},
+            nodes,
+            solverData);
+
+        assert(implemented);
+        assert(LengthSquared(SumForcesForNode(solverData, 4)) < 0.000001f);
+        assert(FindBlock(solverData, 4, 4) == nullptr);
+        assert(FindBlock(solverData, 0, 4) == nullptr);
+        assert(!solverData.GetStiffnessBlocks().empty());
+    }
+}
+
+void DeactivatedTetsAreSkippedByLumpedMassAssembly()
+{
+    auto run = [](bool deactivateSecondTet)
+    {
+        PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+        assert(world != nullptr);
+
+        int nodes[5] = {};
+        const PhysiK::ComponentHandle tetMesh = CreateTwoTetMesh(world, nodes, 0.0f, 1.0f);
+        PHYSIK_SetGravity(world, 0.0f, 0.0f, 0.0f);
+        if (deactivateSecondTet)
+        {
+            PHYSIK_DeactivateTet(world, tetMesh, 1);
+            assert(PHYSIK_GetActiveTetCount(world, tetMesh) == 1);
+        }
+
+        PHYSIK_AddPointConnection(
+            world,
+            nodes[0],
+            nodes[1],
+            nodes[2],
+            nodes[3],
+            0.25f,
+            0.25f,
+            0.25f,
+            0.25f,
+            0.0f,
+            0.0f,
+            1.0f,
+            1.0f,
+            0.0f);
+        PHYSIK_Step(world, 0.1f);
+        const Point velocity = GetNodeVelocity(world, nodes[0]);
+        PHYSIK_DestroyWorld(world);
+        return velocity.z;
+    };
+
+    const float velocityWithBothTets = run(false);
+    const float velocityWithOneTet = run(true);
+
+    assert(velocityWithBothTets > 0.0f);
+    assert(velocityWithOneTet > velocityWithBothTets * 1.5f);
+}
+
+void DeactivatingTetDoesNotDirtySparsePattern()
+{
+    PhysiK::TetMeshComponent component;
+    component.tets.push_back(CreateUnitTet());
+    component.tets.push_back(CreateLowerUnitTet());
+    component.EnsureFemSparsePattern(5);
+
+    const std::vector<int> rowStart = component.GetFemSparseMatrix().rowStart;
+    const std::vector<int> colIndex = component.GetFemSparseMatrix().colIndex;
+    const std::size_t valueCount = component.GetFemSparseMatrix().values.size();
+    assert(!component.femSparsePatternDirty);
+
+    component.DeactivateTet(1);
+    assert(!component.femSparsePatternDirty);
+    component.EnsureFemSparsePattern(5);
+
+    assert(component.GetFemSparseMatrix().rowStart == rowStart);
+    assert(component.GetFemSparseMatrix().colIndex == colIndex);
+    assert(component.GetFemSparseMatrix().values.size() == valueCount);
+}
+
+void SmallTetMeshSimulatesAfterTetDeactivation()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[5] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateTwoTetMesh(world, nodes, 25.0f, 1.0f);
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_SetGravity(world, 0.0f, -9.81f, 0.0f);
+    PHYSIK_DeactivateTet(world, tetMesh, 1);
+
+    PHYSIK_Step(world, 0.02f);
+    const Point position = GetNodePosition(world, nodes[3]);
+    const Point velocity = GetNodeVelocity(world, nodes[3]);
+
+    assert(IsFinite(position.x));
+    assert(IsFinite(position.y));
+    assert(IsFinite(position.z));
+    assert(IsFinite(velocity.x));
+    assert(IsFinite(velocity.y));
+    assert(IsFinite(velocity.z));
+    assert(PHYSIK_GetActiveTetCount(world, tetMesh) == 1);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void TetMeshComponentDefaultFemModelIsLinear()
 {
     PhysiK::TetMeshComponent component;
@@ -1743,6 +1971,12 @@ int main()
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
     TetMeshComponentCachesFemSparsePattern();
+    TetActiveStateDefaultsAndNoOpsAreSafe();
+    TetActiveStateIsExposedThroughNativeApi();
+    InactiveTetsAreSkippedByFemForceAndStiffnessAssembly();
+    DeactivatedTetsAreSkippedByLumpedMassAssembly();
+    DeactivatingTetDoesNotDirtySparsePattern();
+    SmallTetMeshSimulatesAfterTetDeactivation();
     TetMeshComponentDefaultFemModelIsLinear();
     TetMeshComponentStoresSelectedFemModel();
     FemModelLinearRouteUsesExistingAssembly();

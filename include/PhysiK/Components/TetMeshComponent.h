@@ -83,6 +83,11 @@ namespace PhysiK
 
         void EnsureFemSparsePattern(int worldNodeCount);
 
+        bool IsTetActive(int tetIndex) const;
+        void SetTetActive(int tetIndex, bool active);
+        void DeactivateTet(int tetIndex);
+        int GetActiveTetCount() const;
+
         const SparseBlockMatrix& GetFemSparseMatrix() const
         {
             return femSparseMatrix;
