@@ -6,6 +6,7 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
+#include "PhysiK/Math/SparseBlockMatrix.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/PhysicsData/Material.h"
 #include "PhysiK/PhysicsData/Tet.h"
@@ -61,6 +62,8 @@ namespace PhysiK
         Material material;
         FemModel selectedFemModel = FemModel::Linear;
         FEMModel femModel;
+        SparseBlockMatrix femSparseMatrix;
+        bool femSparsePatternDirty = true;
 
         void SetMaterial(const Material& value);
         void SetFemModel(FemModel value)
@@ -71,6 +74,18 @@ namespace PhysiK
         FemModel GetFemModel() const
         {
             return selectedFemModel;
+        }
+
+        void MarkFemSparsePatternDirty()
+        {
+            femSparsePatternDirty = true;
+        }
+
+        void EnsureFemSparsePattern(int worldNodeCount);
+
+        const SparseBlockMatrix& GetFemSparseMatrix() const
+        {
+            return femSparseMatrix;
         }
 
         void UpdateSystem(

@@ -28,6 +28,7 @@ namespace PhysiK
             tet.damping = component.material.damping;
             FEMModel::InitializeTetRestData(tet, world.GetNodes());
             component.tets.push_back(tet);
+            component.MarkFemSparsePatternDirty();
         }
 
         void AddLumpedMassToSolverData(
@@ -73,6 +74,27 @@ namespace PhysiK
                 AddLumpedMassToSolverData(world, solverData, tet.node2, nodalMass);
                 AddLumpedMassToSolverData(world, solverData, tet.node3, nodalMass);
             }
+        }
+
+        std::vector<std::pair<int, int>> BuildSparsePatternFromTetConnectivity(
+            const std::vector<Tet>& tets)
+        {
+            std::vector<std::pair<int, int>> blockCoordinates;
+            blockCoordinates.reserve(tets.size() * 16u);
+
+            for (const Tet& tet : tets)
+            {
+                const int nodes[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+                for (int row = 0; row < 4; ++row)
+                {
+                    for (int column = 0; column < 4; ++column)
+                    {
+                        blockCoordinates.push_back({nodes[row], nodes[column]});
+                    }
+                }
+            }
+
+            return blockCoordinates;
         }
     }
 
@@ -221,12 +243,52 @@ namespace PhysiK
         }
     }
 
+    void TetMeshComponent::EnsureFemSparsePattern(int worldNodeCount)
+    {
+        if (!femSparsePatternDirty && femSparseMatrix.blockCount == worldNodeCount)
+        {
+            return;
+        }
+
+        femSparseMatrix.BuildPattern(
+            worldNodeCount,
+            BuildSparsePatternFromTetConnectivity(tets));
+        femSparsePatternDirty = false;
+    }
+
     void TetMeshComponent::UpdateSystem(
         World& world,
         SolverData& solverData,
         float dt)
     {
         AssembleLumpedMass(*this, world, solverData);
-        femModel.UpdateSystem(world, *this, solverData, dt);
+        EnsureFemSparsePattern(static_cast<int>(world.GetNodes().size()));
+
+        SolverData femSolverData;
+        femModel.UpdateSystem(world, *this, femSolverData, dt);
+
+        for (const SolverData::NodeForce& force : femSolverData.GetNodeForces())
+        {
+            solverData.AddNodeForce(force.node, force.force);
+        }
+
+        femSparseMatrix.ClearValues();
+        for (const SolverData::StiffnessBlock& block : femSolverData.GetStiffnessBlocks())
+        {
+            femSparseMatrix.AddBlock(block.nodeA, block.nodeB, block.block);
+        }
+
+        for (int rowBlock = 0; rowBlock < femSparseMatrix.blockCount; ++rowBlock)
+        {
+            const int rowBegin = femSparseMatrix.rowStart[static_cast<std::size_t>(rowBlock)];
+            const int rowEnd = femSparseMatrix.rowStart[static_cast<std::size_t>(rowBlock + 1)];
+            for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
+            {
+                solverData.AddStiffnessBlock(
+                    rowBlock,
+                    femSparseMatrix.colIndex[static_cast<std::size_t>(blockIndex)],
+                    femSparseMatrix.values[static_cast<std::size_t>(blockIndex)]);
+            }
+        }
     }
 }

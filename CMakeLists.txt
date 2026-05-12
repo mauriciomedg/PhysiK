@@ -24,6 +24,7 @@ target_sources(
         include/PhysiK/Math/AABB.h
         include/PhysiK/Math/Mat3.h
         include/PhysiK/Math/Quaternion.h
+        include/PhysiK/Math/SparseBlockMatrix.h
         include/PhysiK/Math/Transform.h
         include/PhysiK/Math/Vec3.h
         include/PhysiK/Math/Vec4.h
@@ -63,6 +64,7 @@ target_sources(
         src/Core/PhysicsConnections/RigidBodyConnection.cpp
         src/Core/PhysicsConnections/RigidBodyOrientationConnection.cpp
         src/Core/Solvers/Linear/DenseLinearSolver.cpp
+        src/Math/SparseBlockMatrix.cpp
         src/Core/World/World.cpp
 )
 
@@ -72,6 +74,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Math/AABB.h
     include/PhysiK/Math/Mat3.h
     include/PhysiK/Math/Quaternion.h
+    include/PhysiK/Math/SparseBlockMatrix.h
     include/PhysiK/Math/Transform.h
     include/PhysiK/Math/Vec3.h
     include/PhysiK/Math/Vec4.h

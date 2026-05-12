@@ -2,6 +2,7 @@
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
+#include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <cassert>
 #include <cmath>
@@ -141,6 +142,40 @@ namespace
         }
 
         return sourceColumn.z;
+    }
+
+    PhysiK::Mat3 DiagonalBlock(float value)
+    {
+        return PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{value, 0.0f, 0.0f},
+            PhysiK::Vec3{0.0f, value, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, value});
+    }
+
+    bool HasSparseBlock(const PhysiK::SparseBlockMatrix& matrix, int rowBlock, int colBlock)
+    {
+        return matrix.FindBlockIndex(rowBlock, colBlock) >= 0;
+    }
+
+    std::vector<std::pair<int, int>> BuildSparsePatternFromTetConnectivity(
+        const std::vector<PhysiK::Tet>& tets)
+    {
+        std::vector<std::pair<int, int>> blockCoordinates;
+        blockCoordinates.reserve(tets.size() * 16u);
+
+        for (const PhysiK::Tet& tet : tets)
+        {
+            const int nodes[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            for (int row = 0; row < 4; ++row)
+            {
+                for (int column = 0; column < 4; ++column)
+                {
+                    blockCoordinates.push_back({nodes[row], nodes[column]});
+                }
+            }
+        }
+
+        return blockCoordinates;
     }
 
     PhysiK::Vec3 SumForcesForNode(const PhysiK::SolverData& solverData, int node)
@@ -1224,6 +1259,115 @@ void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
     PHYSIK_DestroyWorld(world);
 }
 
+void SparseBlockMatrixStoresAndMultipliesBlocks()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(2, {{0, 0}, {0, 1}, {1, 1}});
+    assert(matrix.blockCount == 2);
+    assert(matrix.values.size() == 3);
+
+    assert(matrix.AddBlock(0, 0, DiagonalBlock(2.0f)));
+    assert(matrix.AddBlock(0, 1, DiagonalBlock(3.0f)));
+    assert(matrix.AddBlock(1, 1, DiagonalBlock(4.0f)));
+    assert(!matrix.AddBlock(1, 0, DiagonalBlock(5.0f)));
+
+    std::vector<float> input = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    std::vector<float> output;
+    matrix.Multiply(input, output);
+
+    assert(output.size() == 6);
+    assert(NearlyEqual(output[0], 14.0f));
+    assert(NearlyEqual(output[1], 19.0f));
+    assert(NearlyEqual(output[2], 24.0f));
+    assert(NearlyEqual(output[3], 16.0f));
+    assert(NearlyEqual(output[4], 20.0f));
+    assert(NearlyEqual(output[5], 24.0f));
+}
+
+void SparseBlockMatrixAddBlockAccumulatesContributions()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    assert(matrix.AddBlock(0, 0, DiagonalBlock(2.0f)));
+    assert(matrix.AddBlock(0, 0, DiagonalBlock(3.0f)));
+
+    const int blockIndex = matrix.FindBlockIndex(0, 0);
+    assert(blockIndex >= 0);
+    assert(NearlyEqual(GetMat3Value(matrix.values[static_cast<std::size_t>(blockIndex)], 0, 0), 5.0f));
+    assert(NearlyEqual(GetMat3Value(matrix.values[static_cast<std::size_t>(blockIndex)], 1, 1), 5.0f));
+    assert(NearlyEqual(GetMat3Value(matrix.values[static_cast<std::size_t>(blockIndex)], 2, 2), 5.0f));
+
+    matrix.ClearValues();
+    assert(NearlyEqual(GetMat3Value(matrix.values[static_cast<std::size_t>(blockIndex)], 0, 0), 0.0f));
+
+    assert(matrix.AddBlock(0, 0, DiagonalBlock(7.0f)));
+    assert(NearlyEqual(GetMat3Value(matrix.values[static_cast<std::size_t>(blockIndex)], 2, 2), 7.0f));
+}
+
+void SparseBlockMatrixSingleTetPatternContainsAllCouplings()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    PhysiK::Tet tet = CreateUnitTet();
+    matrix.BuildPattern(4, BuildSparsePatternFromTetConnectivity({tet}));
+
+    assert(matrix.blockCount == 4);
+    assert(matrix.values.size() == 16);
+    for (int row = 0; row < 4; ++row)
+    {
+        assert(matrix.rowStart[static_cast<std::size_t>(row + 1)] -
+            matrix.rowStart[static_cast<std::size_t>(row)] == 4);
+        for (int column = 0; column < 4; ++column)
+        {
+            assert(HasSparseBlock(matrix, row, column));
+        }
+    }
+}
+
+void SparseBlockMatrixAdjacentTetsReuseSharedBlocks()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    PhysiK::Tet tetA;
+    tetA.node0 = 0;
+    tetA.node1 = 1;
+    tetA.node2 = 2;
+    tetA.node3 = 3;
+    PhysiK::Tet tetB;
+    tetB.node0 = 1;
+    tetB.node1 = 2;
+    tetB.node2 = 3;
+    tetB.node3 = 4;
+
+    matrix.BuildPattern(5, BuildSparsePatternFromTetConnectivity({tetA, tetB}));
+
+    assert(matrix.blockCount == 5);
+    assert(matrix.values.size() == 23);
+    assert(HasSparseBlock(matrix, 1, 2));
+    assert(HasSparseBlock(matrix, 2, 1));
+    assert(HasSparseBlock(matrix, 4, 4));
+    assert(!HasSparseBlock(matrix, 0, 4));
+}
+
+void TetMeshComponentCachesFemSparsePattern()
+{
+    PhysiK::TetMeshComponent component;
+    PhysiK::Tet tet = CreateUnitTet();
+    component.tets.push_back(tet);
+    component.EnsureFemSparsePattern(4);
+
+    assert(!component.femSparsePatternDirty);
+    assert(component.GetFemSparseMatrix().blockCount == 4);
+    assert(component.GetFemSparseMatrix().values.size() == 16);
+
+    component.EnsureFemSparsePattern(4);
+    assert(component.GetFemSparseMatrix().values.size() == 16);
+
+    component.MarkFemSparsePatternDirty();
+    assert(component.femSparsePatternDirty);
+    component.EnsureFemSparsePattern(5);
+    assert(!component.femSparsePatternDirty);
+    assert(component.GetFemSparseMatrix().blockCount == 5);
+}
+
 void TetMeshComponentDefaultFemModelIsLinear()
 {
     PhysiK::TetMeshComponent component;
@@ -1594,6 +1738,11 @@ int main()
     PointConnectionBarycentricAssemblyDistributesForcesAndStiffness();
     ImplicitAnchoredTetPointConnectionsRemainStableUnderGravity();
     TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
+    SparseBlockMatrixStoresAndMultipliesBlocks();
+    SparseBlockMatrixAddBlockAccumulatesContributions();
+    SparseBlockMatrixSingleTetPatternContainsAllCouplings();
+    SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
+    TetMeshComponentCachesFemSparsePattern();
     TetMeshComponentDefaultFemModelIsLinear();
     TetMeshComponentStoresSelectedFemModel();
     FemModelLinearRouteUsesExistingAssembly();
