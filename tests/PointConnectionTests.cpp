@@ -1481,6 +1481,22 @@ void ConjugateGradientSolvesCoupledSparseSystem()
     }
 }
 
+void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
+{
+    std::vector<PhysiK::Node> nodes(1);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+    nodes[0].fixed = true;
+
+    PhysiK::SolverData solverData;
+    solverData.AddNodeMass(0, 1.0f);
+    solverData.AddNodeForce(0, PhysiK::Vec3{1.0f, 0.0f, 0.0f});
+
+    assert(!solverData.PrecomputeImplicitSolve(nodes, 0.01f));
+    assert(!solverData.SolveImplicitLinearSystem());
+    assert(solverData.GetDeltaVelocity().empty());
+    assert(solverData.GetDynamicBlockForNode(0) < 0);
+}
+
 void ImplicitEulerLinearTetUsesSparseCgPath()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -2131,6 +2147,7 @@ int main()
     TetMeshComponentCachesFemSparsePattern();
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
+    SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();
     MultiTetImplicitEulerSparseCgSmokeTest();

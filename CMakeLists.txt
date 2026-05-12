@@ -66,6 +66,7 @@ target_sources(
         src/Core/PhysicsConnections/RigidBodyOrientationConnection.cpp
         src/Core/Solvers/Linear/ConjugateGradientSolver.cpp
         src/Core/Solvers/Linear/DenseLinearSolver.cpp
+        src/Core/Solvers/SolverData.cpp
         src/Math/SparseBlockMatrix.cpp
         src/Core/World/World.cpp
 )
