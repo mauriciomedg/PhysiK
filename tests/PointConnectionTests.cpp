@@ -1,6 +1,7 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
+#include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
@@ -1421,6 +1422,163 @@ void TetMeshComponentCachesFemSparsePattern()
     assert(component.GetFemSparseMatrix().blockCount == 5);
 }
 
+void ConjugateGradientSolvesDiagonalSparseSystem()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(
+        0,
+        0,
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{4.0f, 0.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 9.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, 16.0f}));
+
+    const std::vector<float> rhs = {4.0f, 18.0f, 48.0f};
+    std::vector<float> solution;
+    PhysiK::ConjugateGradientSettings settings;
+    settings.maxIterations = 16;
+    settings.tolerance = 1.0e-6f;
+    settings.useJacobiPreconditioner = true;
+
+    const PhysiK::ConjugateGradientResult result =
+        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+
+    assert(result.converged);
+    assert(solution.size() == 3);
+    assert(NearlyEqual(solution[0], 1.0f, 0.0001f));
+    assert(NearlyEqual(solution[1], 2.0f, 0.0001f));
+    assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
+}
+
+void ConjugateGradientSolvesCoupledSparseSystem()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(2, {{0, 0}, {0, 1}, {1, 0}, {1, 1}});
+    matrix.AddBlock(0, 0, DiagonalBlock(4.0f));
+    matrix.AddBlock(0, 1, DiagonalBlock(-1.0f));
+    matrix.AddBlock(1, 0, DiagonalBlock(-1.0f));
+    matrix.AddBlock(1, 1, DiagonalBlock(3.0f));
+
+    const std::vector<float> expected = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    std::vector<float> rhs;
+    matrix.Multiply(expected, rhs);
+
+    std::vector<float> solution;
+    PhysiK::ConjugateGradientSettings settings;
+    settings.maxIterations = 32;
+    settings.tolerance = 1.0e-6f;
+    settings.useJacobiPreconditioner = true;
+
+    const PhysiK::ConjugateGradientResult result =
+        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+
+    assert(result.converged);
+    assert(solution.size() == expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i)
+    {
+        assert(NearlyEqual(solution[i], expected[i], 0.0001f));
+    }
+}
+
+void ImplicitEulerLinearTetUsesSparseCgPath()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetWithMaterial(world, nodes, 100.0f, 0.0f, 1.0f);
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_SetGravity(world, 0.0f, -9.81f, 0.0f);
+
+    PHYSIK_Step(world, 0.01f);
+    const Point velocity = GetNodeVelocity(world, nodes[3]);
+    const Point position = GetNodePosition(world, nodes[3]);
+
+    assert(IsFinite(velocity.x));
+    assert(IsFinite(velocity.y));
+    assert(IsFinite(velocity.z));
+    assert(IsFinite(position.x));
+    assert(IsFinite(position.y));
+    assert(IsFinite(position.z));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void ImplicitEulerCorotationalTetUsesSparseCgPath()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int node0 = AddNode(world, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddNode(world, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddNode(world, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(world, 0.0f, 0.0f, 1.0f);
+    const int nodes[] = {node0, node1, node2, node3};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
+    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 100.0f, 0.3f, 0.0f);
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(world, nodes, 4, tetNodeIndices, 1, &material, 1);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_SetGravity(world, 0.0f, -9.81f, 0.0f);
+    PHYSIK_Step(world, 0.01f);
+
+    const Point velocity = GetNodeVelocity(world, node3);
+    const Point position = GetNodePosition(world, node3);
+    assert(IsFinite(velocity.x));
+    assert(IsFinite(velocity.y));
+    assert(IsFinite(velocity.z));
+    assert(IsFinite(position.x));
+    assert(IsFinite(position.y));
+    assert(IsFinite(position.z));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void MultiTetImplicitEulerSparseCgSmokeTest()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const int nodes[] = {
+        AddNode(world, 0.0f, 0.0f, 0.0f),
+        AddNode(world, 1.0f, 0.0f, 0.0f),
+        AddNode(world, 0.0f, 1.0f, 0.0f),
+        AddNode(world, 0.0f, 0.0f, 1.0f),
+        AddNode(world, 1.0f, 1.0f, 1.0f),
+        AddNode(world, 1.0f, 0.0f, 1.0f),
+        AddNode(world, 0.0f, 1.0f, 1.0f)};
+    const int tetNodeIndices[] = {
+        nodes[0], nodes[1], nodes[2], nodes[3],
+        nodes[1], nodes[2], nodes[3], nodes[4],
+        nodes[1], nodes[3], nodes[4], nodes[5],
+        nodes[2], nodes[3], nodes[4], nodes[6]};
+    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 75.0f, 0.3f, 0.0f);
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(world, nodes, 7, tetNodeIndices, 4, &material, 0);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_SetGravity(world, 0.0f, -9.81f, 0.0f);
+    PHYSIK_Step(world, 0.01f);
+
+    for (int node : nodes)
+    {
+        const Point position = GetNodePosition(world, node);
+        const Point velocity = GetNodeVelocity(world, node);
+        assert(IsFinite(position.x));
+        assert(IsFinite(position.y));
+        assert(IsFinite(position.z));
+        assert(IsFinite(velocity.x));
+        assert(IsFinite(velocity.y));
+        assert(IsFinite(velocity.z));
+    }
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void TetActiveStateDefaultsAndNoOpsAreSafe()
 {
     PhysiK::TetMeshComponent component;
@@ -1971,6 +2129,11 @@ int main()
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
     TetMeshComponentCachesFemSparsePattern();
+    ConjugateGradientSolvesDiagonalSparseSystem();
+    ConjugateGradientSolvesCoupledSparseSystem();
+    ImplicitEulerLinearTetUsesSparseCgPath();
+    ImplicitEulerCorotationalTetUsesSparseCgPath();
+    MultiTetImplicitEulerSparseCgSmokeTest();
     TetActiveStateDefaultsAndNoOpsAreSafe();
     TetActiveStateIsExposedThroughNativeApi();
     InactiveTetsAreSkippedByFemForceAndStiffnessAssembly();
