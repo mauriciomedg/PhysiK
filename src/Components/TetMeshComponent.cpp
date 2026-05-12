@@ -28,6 +28,7 @@ namespace PhysiK
             tet.damping = component.material.damping;
             FEMModel::InitializeTetRestData(tet, world.GetNodes());
             component.tets.push_back(tet);
+            component.MarkFemSparsePatternDirty();
         }
 
         void AddLumpedMassToSolverData(
@@ -221,12 +222,50 @@ namespace PhysiK
         }
     }
 
+    void TetMeshComponent::EnsureFemSparsePattern(int worldNodeCount)
+    {
+        if (!femSparsePatternDirty && femSparseMatrix.nodeCount == worldNodeCount)
+        {
+            return;
+        }
+
+        femSparseMatrix.BuildFromTetConnectivity(worldNodeCount, tets);
+        femSparsePatternDirty = false;
+    }
+
     void TetMeshComponent::UpdateSystem(
         World& world,
         SolverData& solverData,
         float dt)
     {
         AssembleLumpedMass(*this, world, solverData);
-        femModel.UpdateSystem(world, *this, solverData, dt);
+        EnsureFemSparsePattern(static_cast<int>(world.GetNodes().size()));
+
+        SolverData femSolverData;
+        femModel.UpdateSystem(world, *this, femSolverData, dt);
+
+        for (const SolverData::NodeForce& force : femSolverData.GetNodeForces())
+        {
+            solverData.AddNodeForce(force.node, force.force);
+        }
+
+        femSparseMatrix.ClearValues();
+        for (const SolverData::StiffnessBlock& block : femSolverData.GetStiffnessBlocks())
+        {
+            femSparseMatrix.AddBlock(block.nodeA, block.nodeB, block.block);
+        }
+
+        for (int rowNode = 0; rowNode < femSparseMatrix.nodeCount; ++rowNode)
+        {
+            const int rowBegin = femSparseMatrix.rowStart[static_cast<std::size_t>(rowNode)];
+            const int rowEnd = femSparseMatrix.rowStart[static_cast<std::size_t>(rowNode + 1)];
+            for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
+            {
+                solverData.AddStiffnessBlock(
+                    rowNode,
+                    femSparseMatrix.colIndex[static_cast<std::size_t>(blockIndex)],
+                    femSparseMatrix.values[static_cast<std::size_t>(blockIndex)]);
+            }
+        }
     }
 }

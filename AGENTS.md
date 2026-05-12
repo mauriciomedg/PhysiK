@@ -1421,6 +1421,45 @@ Safety requirements:
 
 ---
 
+# Sparse FEM Matrix Infrastructure
+
+FEM stiffness assembly uses a cached block sparse pattern built from TetMeshComponent tet connectivity.
+
+SparseBlockMatrix stores 3x3 node blocks in compressed-row form:
+
+- nodeCount
+- rowStart
+- colIndex
+- values
+
+The cached FEM pattern contains only persistent tet-topology couplings:
+
+for each tet, include every block pair among its four nodes.
+
+Transient connections must not permanently grow the FEM sparse pattern.
+
+TetMeshComponent owns the cached FEM sparse pattern because it owns the tet topology.
+
+SolverData still owns the assembled per-substep numerical contributions consumed by the solver.
+
+Per substep:
+
+- TetMeshComponent reuses the cached pattern when topology is unchanged.
+- Matrix values are cleared.
+- Linear or Corotational FEM stiffness blocks are accumulated into SparseBlockMatrix.
+- Accumulated sparse blocks are emitted into SolverData for the current solver path.
+
+The sparse matrix supports:
+
+- ClearValues
+- AddBlock
+- AddMassToDiagonal
+- Multiply
+
+World nodes must not store sparse matrix data or solver-specific caches.
+
+---
+
 # FEM Lumped Mass
 
 TetMeshComponent computes simple lumped nodal mass after tet rest data is initialized.
