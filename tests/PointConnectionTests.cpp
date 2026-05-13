@@ -576,6 +576,102 @@ void SphereContactCreatesTransientConnectionAndMovesTet()
     PHYSIK_DestroyWorld(world);
 }
 
+void CollisionSphereConnectionSettingsHaveDefaults()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.5f);
+
+    float stiffness = -1.0f;
+    float damping = -1.0f;
+    PHYSIK_GetCollisionSphereConnectionSettings(world, sphere, &stiffness, &damping);
+
+    assert(NearlyEqual(stiffness, 1000.0f));
+    assert(NearlyEqual(damping, 10.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereConnectionSettingsCanBeUpdatedAndClamped()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.5f);
+
+    PHYSIK_SetCollisionSphereConnectionSettings(world, sphere, 2500.0f, 12.5f);
+
+    float stiffness = 0.0f;
+    float damping = 0.0f;
+    PHYSIK_GetCollisionSphereConnectionSettings(world, sphere, &stiffness, &damping);
+    assert(NearlyEqual(stiffness, 2500.0f));
+    assert(NearlyEqual(damping, 12.5f));
+
+    PHYSIK_SetCollisionSphereConnectionSettings(world, sphere, -10.0f, -2.0f);
+    PHYSIK_GetCollisionSphereConnectionSettings(world, sphere, &stiffness, &damping);
+    assert(NearlyEqual(stiffness, 0.0f));
+    assert(NearlyEqual(damping, 0.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereConnectionSettingsAffectGeneratedConnections()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTet(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.25f, 0.25f, 0.25f, 0.75f);
+    PHYSIK_SetCollisionSphereConnectionSettings(world, sphere, 0.0f, 0.0f);
+
+    const Point before = GetTetCentroid(world, nodes);
+    PHYSIK_Step(world, 0.1f);
+    const Point after = GetTetCentroid(world, nodes);
+
+    assert(DistanceSquared(before, after) < 0.000001f);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereConnectionSettingsCAPIHandlesInvalidInputs()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.5f);
+
+    float stiffness = -1.0f;
+    float damping = -1.0f;
+
+    PHYSIK_SetCollisionSphereConnectionSettings(nullptr, sphere, 10.0f, 1.0f);
+    PHYSIK_SetCollisionSphereConnectionSettings(world, PhysiK::ComponentHandle{}, 10.0f, 1.0f);
+    PHYSIK_SetCollisionSphereConnectionSettings(world, tetMesh, 10.0f, 1.0f);
+
+    PHYSIK_GetCollisionSphereConnectionSettings(nullptr, sphere, &stiffness, &damping);
+    assert(NearlyEqual(stiffness, -1.0f));
+    assert(NearlyEqual(damping, -1.0f));
+
+    PHYSIK_GetCollisionSphereConnectionSettings(world, tetMesh, &stiffness, &damping);
+    assert(NearlyEqual(stiffness, -1.0f));
+    assert(NearlyEqual(damping, -1.0f));
+
+    PHYSIK_GetCollisionSphereConnectionSettings(world, sphere, &stiffness, nullptr);
+    assert(NearlyEqual(stiffness, 1000.0f));
+
+    PHYSIK_GetCollisionSphereConnectionSettings(world, sphere, nullptr, &damping);
+    assert(NearlyEqual(damping, 10.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void MultipleForceSourcesCoexist()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -2302,6 +2398,10 @@ int main()
     AddNodeCreatesDynamicGeometryNode();
     SetNodeFixedControlsDynamicState();
     SphereContactCreatesTransientConnectionAndMovesTet();
+    CollisionSphereConnectionSettingsHaveDefaults();
+    CollisionSphereConnectionSettingsCanBeUpdatedAndClamped();
+    CollisionSphereConnectionSettingsAffectGeneratedConnections();
+    CollisionSphereConnectionSettingsCAPIHandlesInvalidInputs();
     MultipleForceSourcesCoexist();
     ExternalLogicHookRunsOnceBeforeSubsteps();
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();

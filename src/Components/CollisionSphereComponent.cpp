@@ -31,6 +31,16 @@ namespace PhysiK
 
             return Vec3{0.0f, 0.0f, 1.0f};
         }
+
+        float SanitizeConnectionValue(float value)
+        {
+            if (!std::isfinite(value))
+            {
+                return 0.0f;
+            }
+
+            return std::max(0.0f, value);
+        }
     }
 
     std::unique_ptr<CollisionSphereComponent> CollisionSphereComponent::Create(
@@ -41,6 +51,32 @@ namespace PhysiK
         component->transform.position = position;
         component->radius = std::max(0.0f, radius);
         return component;
+    }
+
+    void CollisionSphereComponent::SetConnectionSettings(float stiffness, float damping)
+    {
+        SetConnectionStiffness(stiffness);
+        SetConnectionDamping(damping);
+    }
+
+    void CollisionSphereComponent::SetConnectionStiffness(float stiffness)
+    {
+        contactStiffness = SanitizeConnectionValue(stiffness);
+    }
+
+    float CollisionSphereComponent::GetConnectionStiffness() const
+    {
+        return contactStiffness;
+    }
+
+    void CollisionSphereComponent::SetConnectionDamping(float damping)
+    {
+        contactDamping = SanitizeConnectionValue(damping);
+    }
+
+    float CollisionSphereComponent::GetConnectionDamping() const
+    {
+        return contactDamping;
     }
 
     void CollisionSphereComponent::QueryContacts(
@@ -110,8 +146,8 @@ namespace PhysiK
                 contact.worldPoint = point;
                 contact.normal = normal;
                 contact.penetrationDepth = radius - distance;
-                contact.stiffness = contactStiffness;
-                contact.damping = contactDamping;
+                contact.stiffness = GetConnectionStiffness();
+                contact.damping = GetConnectionDamping();
                 outContacts.push_back(contact);
             }
         }

@@ -80,6 +80,19 @@ namespace
         sphere->QueryOverlaps(*world, overlaps);
         return overlaps;
     }
+
+    PhysiK::CollisionSphereComponent* AsCollisionSphere(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle sphereComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::CollisionSphereComponent*>(
+            world->GetComponent(sphereComponent));
+    }
 }
 
 extern "C"
@@ -232,6 +245,46 @@ extern "C"
         }
 
         return PhysiK::ComponentHandle{};
+    }
+
+    PHYSIK_API void PHYSIK_SetCollisionSphereConnectionSettings(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent,
+        float stiffness,
+        float damping)
+    {
+        PhysiK::CollisionSphereComponent* sphere =
+            AsCollisionSphere(AsWorld(world), sphereComponent);
+        if (sphere == nullptr)
+        {
+            return;
+        }
+
+        sphere->SetConnectionSettings(stiffness, damping);
+    }
+
+    PHYSIK_API void PHYSIK_GetCollisionSphereConnectionSettings(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent,
+        float* outStiffness,
+        float* outDamping)
+    {
+        const PhysiK::CollisionSphereComponent* sphere =
+            AsCollisionSphere(AsWorld(world), sphereComponent);
+        if (sphere == nullptr)
+        {
+            return;
+        }
+
+        if (outStiffness != nullptr)
+        {
+            *outStiffness = sphere->GetConnectionStiffness();
+        }
+
+        if (outDamping != nullptr)
+        {
+            *outDamping = sphere->GetConnectionDamping();
+        }
     }
 
     PHYSIK_API void PHYSIK_SetTetMeshMaterial(
