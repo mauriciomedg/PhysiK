@@ -20,6 +20,37 @@ struct PhysikMaterialDesc
     float damping;
 };
 
+enum PhysikOverlapGeometryType
+{
+    PHYSIK_OverlapGeometry_Unknown = 0,
+    PHYSIK_OverlapGeometry_Tetrahedron = 1,
+    PHYSIK_OverlapGeometry_Triangle = 2,
+    PHYSIK_OverlapGeometry_Sphere = 3,
+    PHYSIK_OverlapGeometry_Node = 4
+};
+
+struct PhysikCollisionSphereOverlap
+{
+    int geometryType;
+
+    PhysiK::ComponentHandle component;
+    int primitiveIndex;
+
+    int node0;
+    int node1;
+    int node2;
+    int node3;
+
+    int overlappedNodeMask;
+    int overlappedNodeCount;
+
+    float sphereCenterX;
+    float sphereCenterY;
+    float sphereCenterZ;
+    float sphereRadius;
+    float minDistance;
+};
+
 extern "C"
 {
     PHYSIK_API PhysiK::WorldHandle PHYSIK_CreateWorld();
@@ -106,6 +137,16 @@ extern "C"
     PHYSIK_API int PHYSIK_GetActiveTetCount(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component);
+
+    PHYSIK_API int PHYSIK_GetCollisionSphereOverlapCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent);
+
+    PHYSIK_API int PHYSIK_GetCollisionSphereOverlaps(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent,
+        PhysikCollisionSphereOverlap* outOverlaps,
+        int maxOverlaps);
 
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
         PhysiK::WorldHandle world,

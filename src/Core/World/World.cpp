@@ -212,6 +212,19 @@ namespace PhysiK
         return components;
     }
 
+    ComponentHandle World::GetComponentHandleByIndex(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(components.size()) ||
+            components[static_cast<std::size_t>(index)] == nullptr)
+        {
+            return ComponentHandle{};
+        }
+
+        return ComponentHandle{
+            static_cast<std::uint32_t>(index),
+            componentGenerations[static_cast<std::size_t>(index)]};
+    }
+
     int World::GetTransientConnectionCount() const
     {
         return static_cast<int>(transientConnections.size());

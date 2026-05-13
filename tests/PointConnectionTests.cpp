@@ -312,6 +312,30 @@ namespace
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
     }
 
+    PhysiK::ComponentHandle CreateSingleTetMesh(
+        PhysiK::WorldHandle world,
+        int (&outNodes)[4])
+    {
+        outNodes[0] = AddNode(world, 0.0f, 0.0f, 0.0f);
+        outNodes[1] = AddNode(world, 1.0f, 0.0f, 0.0f);
+        outNodes[2] = AddNode(world, 0.0f, 1.0f, 0.0f);
+        outNodes[3] = AddNode(world, 0.0f, 0.0f, 1.0f);
+
+        const int tetNodeIndices[] = {outNodes[0], outNodes[1], outNodes[2], outNodes[3]};
+        PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 25.0f, 0.3f, 0.0f);
+        const PhysiK::ComponentHandle tetMesh =
+            PHYSIK_CreateTetMeshComponent(
+                world,
+                outNodes,
+                4,
+                tetNodeIndices,
+                1,
+                &material,
+                0);
+        assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+        return tetMesh;
+    }
+
     PhysiK::ComponentHandle CreateTwoTetMesh(
         PhysiK::WorldHandle world,
         int (&outNodes)[5],
@@ -1313,6 +1337,163 @@ void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
     PHYSIK_DestroyWorld(world);
 }
 
+void CollisionSphereOverlapQueryOverlapsOneTetNode()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
+
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, sphere) == 1);
+    PhysikCollisionSphereOverlap overlaps[1] = {};
+    assert(PHYSIK_GetCollisionSphereOverlaps(world, sphere, overlaps, 1) == 1);
+    assert(overlaps[0].geometryType == PHYSIK_OverlapGeometry_Tetrahedron);
+    assert(overlaps[0].component.index == tetMesh.index);
+    assert(overlaps[0].component.generation == tetMesh.generation);
+    assert(overlaps[0].primitiveIndex == 0);
+    assert(overlaps[0].node0 == nodes[0]);
+    assert(overlaps[0].node1 == nodes[1]);
+    assert(overlaps[0].node2 == nodes[2]);
+    assert(overlaps[0].node3 == nodes[3]);
+    assert(overlaps[0].overlappedNodeMask == 1);
+    assert(overlaps[0].overlappedNodeCount == 1);
+    assert(NearlyEqual(overlaps[0].sphereCenterX, 0.0f));
+    assert(NearlyEqual(overlaps[0].sphereRadius, 0.05f));
+    assert(NearlyEqual(overlaps[0].minDistance, 0.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereOverlapQueryReturnsZeroWhenNoNodesOverlap()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 10.0f, 10.0f, 10.0f, 0.5f);
+
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, sphere) == 0);
+    PhysikCollisionSphereOverlap overlaps[1] = {};
+    assert(PHYSIK_GetCollisionSphereOverlaps(world, sphere, overlaps, 1) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereOverlapQueryIgnoresInactiveTets()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[5] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateTwoTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, -1.0f, 0.05f);
+
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, sphere) == 1);
+    PHYSIK_DeactivateTet(world, tetMesh, 1);
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, sphere) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereOverlapQueryIgnoresDestroyedTetMesh()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
+
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, sphere) == 1);
+    PHYSIK_DestroyComponent(world, tetMesh);
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, sphere) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereOverlapQueryIgnoresZeroRadiusSphere()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.0f);
+
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, sphere) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereOverlapQueryReportsMaskAndCount()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.5f, 0.0f, 0.0f, 0.51f);
+
+    PhysikCollisionSphereOverlap overlaps[1] = {};
+    assert(PHYSIK_GetCollisionSphereOverlaps(world, sphere, overlaps, 1) == 1);
+    assert(overlaps[0].overlappedNodeMask == 3);
+    assert(overlaps[0].overlappedNodeCount == 2);
+    assert(NearlyEqual(overlaps[0].minDistance, 0.5f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereOverlapQueryCountAndFillAreConsistent()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[5] = {};
+    CreateTwoTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
+
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, sphere) == 2);
+    PhysikCollisionSphereOverlap oneOverlap[1] = {};
+    assert(PHYSIK_GetCollisionSphereOverlaps(world, sphere, oneOverlap, 1) == 1);
+    PhysikCollisionSphereOverlap overlaps[2] = {};
+    assert(PHYSIK_GetCollisionSphereOverlaps(world, sphere, overlaps, 2) == 2);
+    assert(overlaps[0].primitiveIndex != overlaps[1].primitiveIndex);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereOverlapQueryInvalidInputsReturnZero()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
+    PhysikCollisionSphereOverlap overlaps[1] = {};
+
+    assert(PHYSIK_GetCollisionSphereOverlapCount(nullptr, sphere) == 0);
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, PhysiK::ComponentHandle{}) == 0);
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, tetMesh) == 0);
+    assert(PHYSIK_GetCollisionSphereOverlaps(nullptr, sphere, overlaps, 1) == 0);
+    assert(PHYSIK_GetCollisionSphereOverlaps(world, sphere, nullptr, 1) == 0);
+    assert(PHYSIK_GetCollisionSphereOverlaps(world, sphere, overlaps, 0) == 0);
+    assert(PHYSIK_GetCollisionSphereOverlaps(world, tetMesh, overlaps, 1) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void SparseBlockMatrixStoresAndMultipliesBlocks()
 {
     PhysiK::SparseBlockMatrix matrix;
@@ -2140,6 +2321,14 @@ int main()
     PointConnectionBarycentricAssemblyDistributesForcesAndStiffness();
     ImplicitAnchoredTetPointConnectionsRemainStableUnderGravity();
     TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
+    CollisionSphereOverlapQueryOverlapsOneTetNode();
+    CollisionSphereOverlapQueryReturnsZeroWhenNoNodesOverlap();
+    CollisionSphereOverlapQueryIgnoresInactiveTets();
+    CollisionSphereOverlapQueryIgnoresDestroyedTetMesh();
+    CollisionSphereOverlapQueryIgnoresZeroRadiusSphere();
+    CollisionSphereOverlapQueryReportsMaskAndCount();
+    CollisionSphereOverlapQueryCountAndFillAreConsistent();
+    CollisionSphereOverlapQueryInvalidInputsReturnZero();
     SparseBlockMatrixStoresAndMultipliesBlocks();
     SparseBlockMatrixAddBlockAccumulatesContributions();
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();

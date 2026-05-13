@@ -5,7 +5,9 @@
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
 
+#include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -36,6 +38,47 @@ namespace
         default:
             return PhysiK::FemModel::Linear;
         }
+    }
+
+    PhysikCollisionSphereOverlap ToApiOverlap(const PhysiK::CollisionSphereOverlap& overlap)
+    {
+        PhysikCollisionSphereOverlap apiOverlap;
+        apiOverlap.geometryType = static_cast<int>(overlap.geometryType);
+        apiOverlap.component = overlap.component;
+        apiOverlap.primitiveIndex = overlap.primitiveIndex;
+        apiOverlap.node0 = overlap.node0;
+        apiOverlap.node1 = overlap.node1;
+        apiOverlap.node2 = overlap.node2;
+        apiOverlap.node3 = overlap.node3;
+        apiOverlap.overlappedNodeMask = overlap.overlappedNodeMask;
+        apiOverlap.overlappedNodeCount = overlap.overlappedNodeCount;
+        apiOverlap.sphereCenterX = overlap.sphereCenter.x;
+        apiOverlap.sphereCenterY = overlap.sphereCenter.y;
+        apiOverlap.sphereCenterZ = overlap.sphereCenter.z;
+        apiOverlap.sphereRadius = overlap.sphereRadius;
+        apiOverlap.minDistance = overlap.minDistance;
+        return apiOverlap;
+    }
+
+    std::vector<PhysiK::CollisionSphereOverlap> QueryCollisionSphereOverlaps(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle sphereComponent)
+    {
+        std::vector<PhysiK::CollisionSphereOverlap> overlaps;
+        if (world == nullptr)
+        {
+            return overlaps;
+        }
+
+        const auto* sphere = dynamic_cast<const PhysiK::CollisionSphereComponent*>(
+            world->GetComponent(sphereComponent));
+        if (sphere == nullptr)
+        {
+            return overlaps;
+        }
+
+        sphere->QueryOverlaps(*world, overlaps);
+        return overlaps;
     }
 }
 
@@ -321,6 +364,37 @@ extern "C"
         }
 
         return tetMesh->GetActiveTetCount();
+    }
+
+    PHYSIK_API int PHYSIK_GetCollisionSphereOverlapCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent)
+    {
+        const std::vector<PhysiK::CollisionSphereOverlap> overlaps =
+            QueryCollisionSphereOverlaps(AsWorld(world), sphereComponent);
+        return static_cast<int>(overlaps.size());
+    }
+
+    PHYSIK_API int PHYSIK_GetCollisionSphereOverlaps(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent,
+        PhysikCollisionSphereOverlap* outOverlaps,
+        int maxOverlaps)
+    {
+        if (outOverlaps == nullptr || maxOverlaps <= 0)
+        {
+            return 0;
+        }
+
+        const std::vector<PhysiK::CollisionSphereOverlap> overlaps =
+            QueryCollisionSphereOverlaps(AsWorld(world), sphereComponent);
+        const int writeCount = std::min(maxOverlaps, static_cast<int>(overlaps.size()));
+        for (int i = 0; i < writeCount; ++i)
+        {
+            outOverlaps[i] = ToApiOverlap(overlaps[static_cast<std::size_t>(i)]);
+        }
+
+        return writeCount;
     }
 
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
