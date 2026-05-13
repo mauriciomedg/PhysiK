@@ -12,6 +12,15 @@ namespace PhysiK
 {
     namespace
     {
+        bool HasValidTetNodes(const Tet& tet, const World& world)
+        {
+            const int nodeCount = static_cast<int>(world.GetNodes().size());
+            return tet.node0 >= 0 && tet.node0 < nodeCount &&
+                tet.node1 >= 0 && tet.node1 < nodeCount &&
+                tet.node2 >= 0 && tet.node2 < nodeCount &&
+                tet.node3 >= 0 && tet.node3 < nodeCount;
+        }
+
         Vec3 NormalizeOrFallback(const Vec3& value)
         {
             const float length = value.Length();
@@ -68,6 +77,11 @@ namespace PhysiK
                     continue;
                 }
 
+                if (!HasValidTetNodes(tet, world))
+                {
+                    continue;
+                }
+
                 const Node& node0 = world.GetNode(tet.node0);
                 const Node& node1 = world.GetNode(tet.node1);
                 const Node& node2 = world.GetNode(tet.node2);
@@ -98,6 +112,84 @@ namespace PhysiK
                 contact.penetrationDepth = radius - distance;
                 contact.stiffness = contactStiffness;
                 contact.damping = contactDamping;
+                outContacts.push_back(contact);
+            }
+        }
+    }
+
+    void CollisionSphereComponent::QueryTouchedTets(
+        World& world,
+        std::vector<SphereTetContact>& outContacts) const
+    {
+        if (!active || radius <= 0.0f)
+        {
+            return;
+        }
+
+        const Vec3 sphereCenter = transform.position;
+        const float radiusSquared = radius * radius;
+        const std::vector<std::unique_ptr<Component>>& components = world.GetComponents();
+
+        for (int componentIndex = 0; componentIndex < static_cast<int>(components.size()); ++componentIndex)
+        {
+            const std::unique_ptr<Component>& component =
+                components[static_cast<std::size_t>(componentIndex)];
+            const auto* tetMesh = dynamic_cast<const TetMeshComponent*>(component.get());
+            if (tetMesh == nullptr || !tetMesh->active)
+            {
+                continue;
+            }
+
+            for (int tetIndex = 0; tetIndex < static_cast<int>(tetMesh->tets.size()); ++tetIndex)
+            {
+                const Tet& tet = tetMesh->tets[static_cast<std::size_t>(tetIndex)];
+                if (!tet.active || !HasValidTetNodes(tet, world))
+                {
+                    continue;
+                }
+
+                const int nodes[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+                int contactedNodeMask = 0;
+                int contactedNodeCount = 0;
+                float minNodeDistance = 0.0f;
+                bool hasDistance = false;
+
+                for (int localNode = 0; localNode < 4; ++localNode)
+                {
+                    const Vec3 difference =
+                        world.GetNode(nodes[localNode]).position - sphereCenter;
+                    const float distanceSquared = difference.LengthSquared();
+                    const float distance = std::sqrt(std::max(0.0f, distanceSquared));
+                    if (!hasDistance || distance < minNodeDistance)
+                    {
+                        minNodeDistance = distance;
+                        hasDistance = true;
+                    }
+
+                    if (distanceSquared <= radiusSquared)
+                    {
+                        contactedNodeMask |= (1 << localNode);
+                        ++contactedNodeCount;
+                    }
+                }
+
+                if (contactedNodeCount <= 0)
+                {
+                    continue;
+                }
+
+                SphereTetContact contact;
+                contact.tetMeshComponent = world.GetComponentHandleByIndex(componentIndex);
+                contact.tetIndex = tetIndex;
+                contact.node0 = tet.node0;
+                contact.node1 = tet.node1;
+                contact.node2 = tet.node2;
+                contact.node3 = tet.node3;
+                contact.contactedNodeMask = contactedNodeMask;
+                contact.contactedNodeCount = contactedNodeCount;
+                contact.sphereCenter = sphereCenter;
+                contact.sphereRadius = radius;
+                contact.minNodeDistance = minNodeDistance;
                 outContacts.push_back(contact);
             }
         }

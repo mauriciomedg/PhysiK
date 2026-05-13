@@ -312,6 +312,30 @@ namespace
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
     }
 
+    PhysiK::ComponentHandle CreateSingleTetMesh(
+        PhysiK::WorldHandle world,
+        int (&outNodes)[4])
+    {
+        outNodes[0] = AddNode(world, 0.0f, 0.0f, 0.0f);
+        outNodes[1] = AddNode(world, 1.0f, 0.0f, 0.0f);
+        outNodes[2] = AddNode(world, 0.0f, 1.0f, 0.0f);
+        outNodes[3] = AddNode(world, 0.0f, 0.0f, 1.0f);
+
+        const int tetNodeIndices[] = {outNodes[0], outNodes[1], outNodes[2], outNodes[3]};
+        PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 25.0f, 0.3f, 0.0f);
+        const PhysiK::ComponentHandle tetMesh =
+            PHYSIK_CreateTetMeshComponent(
+                world,
+                outNodes,
+                4,
+                tetNodeIndices,
+                1,
+                &material,
+                0);
+        assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+        return tetMesh;
+    }
+
     PhysiK::ComponentHandle CreateTwoTetMesh(
         PhysiK::WorldHandle world,
         int (&outNodes)[5],
@@ -1313,6 +1337,162 @@ void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
     PHYSIK_DestroyWorld(world);
 }
 
+void SphereTetContactQueryTouchesOneNode()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
+
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, sphere) == 1);
+    PhysikSphereTetContact contacts[1] = {};
+    assert(PHYSIK_GetCollisionSphereTouchedTets(world, sphere, contacts, 1) == 1);
+    assert(contacts[0].tetMeshComponent.index == tetMesh.index);
+    assert(contacts[0].tetMeshComponent.generation == tetMesh.generation);
+    assert(contacts[0].tetIndex == 0);
+    assert(contacts[0].node0 == nodes[0]);
+    assert(contacts[0].node1 == nodes[1]);
+    assert(contacts[0].node2 == nodes[2]);
+    assert(contacts[0].node3 == nodes[3]);
+    assert(contacts[0].contactedNodeMask == 1);
+    assert(contacts[0].contactedNodeCount == 1);
+    assert(NearlyEqual(contacts[0].sphereCenterX, 0.0f));
+    assert(NearlyEqual(contacts[0].sphereRadius, 0.05f));
+    assert(NearlyEqual(contacts[0].minNodeDistance, 0.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void SphereTetContactQueryReturnsZeroWhenNoNodesTouched()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 10.0f, 10.0f, 10.0f, 0.5f);
+
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, sphere) == 0);
+    PhysikSphereTetContact contacts[1] = {};
+    assert(PHYSIK_GetCollisionSphereTouchedTets(world, sphere, contacts, 1) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void SphereTetContactQueryIgnoresInactiveTets()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[5] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateTwoTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, -1.0f, 0.05f);
+
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, sphere) == 1);
+    PHYSIK_DeactivateTet(world, tetMesh, 1);
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, sphere) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void SphereTetContactQueryIgnoresDestroyedTetMesh()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
+
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, sphere) == 1);
+    PHYSIK_DestroyComponent(world, tetMesh);
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, sphere) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void SphereTetContactQueryIgnoresZeroRadiusSphere()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.0f);
+
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, sphere) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void SphereTetContactQueryReportsMaskAndCount()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.5f, 0.0f, 0.0f, 0.51f);
+
+    PhysikSphereTetContact contacts[1] = {};
+    assert(PHYSIK_GetCollisionSphereTouchedTets(world, sphere, contacts, 1) == 1);
+    assert(contacts[0].contactedNodeMask == 3);
+    assert(contacts[0].contactedNodeCount == 2);
+    assert(NearlyEqual(contacts[0].minNodeDistance, 0.5f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void SphereTetContactQueryCountAndFillAreConsistent()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[5] = {};
+    CreateTwoTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
+
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, sphere) == 2);
+    PhysikSphereTetContact oneContact[1] = {};
+    assert(PHYSIK_GetCollisionSphereTouchedTets(world, sphere, oneContact, 1) == 1);
+    PhysikSphereTetContact contacts[2] = {};
+    assert(PHYSIK_GetCollisionSphereTouchedTets(world, sphere, contacts, 2) == 2);
+    assert(contacts[0].tetIndex != contacts[1].tetIndex);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void SphereTetContactQueryInvalidInputsReturnZero()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
+    PhysikSphereTetContact contacts[1] = {};
+
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(nullptr, sphere) == 0);
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, PhysiK::ComponentHandle{}) == 0);
+    assert(PHYSIK_GetCollisionSphereTouchedTetCount(world, tetMesh) == 0);
+    assert(PHYSIK_GetCollisionSphereTouchedTets(nullptr, sphere, contacts, 1) == 0);
+    assert(PHYSIK_GetCollisionSphereTouchedTets(world, sphere, nullptr, 1) == 0);
+    assert(PHYSIK_GetCollisionSphereTouchedTets(world, sphere, contacts, 0) == 0);
+    assert(PHYSIK_GetCollisionSphereTouchedTets(world, tetMesh, contacts, 1) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void SparseBlockMatrixStoresAndMultipliesBlocks()
 {
     PhysiK::SparseBlockMatrix matrix;
@@ -2140,6 +2320,14 @@ int main()
     PointConnectionBarycentricAssemblyDistributesForcesAndStiffness();
     ImplicitAnchoredTetPointConnectionsRemainStableUnderGravity();
     TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
+    SphereTetContactQueryTouchesOneNode();
+    SphereTetContactQueryReturnsZeroWhenNoNodesTouched();
+    SphereTetContactQueryIgnoresInactiveTets();
+    SphereTetContactQueryIgnoresDestroyedTetMesh();
+    SphereTetContactQueryIgnoresZeroRadiusSphere();
+    SphereTetContactQueryReportsMaskAndCount();
+    SphereTetContactQueryCountAndFillAreConsistent();
+    SphereTetContactQueryInvalidInputsReturnZero();
     SparseBlockMatrixStoresAndMultipliesBlocks();
     SparseBlockMatrixAddBlockAccumulatesContributions();
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();

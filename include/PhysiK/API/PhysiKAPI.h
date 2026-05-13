@@ -20,6 +20,26 @@ struct PhysikMaterialDesc
     float damping;
 };
 
+struct PhysikSphereTetContact
+{
+    PhysiK::ComponentHandle tetMeshComponent;
+    int tetIndex;
+
+    int node0;
+    int node1;
+    int node2;
+    int node3;
+
+    int contactedNodeMask;
+    int contactedNodeCount;
+
+    float sphereCenterX;
+    float sphereCenterY;
+    float sphereCenterZ;
+    float sphereRadius;
+    float minNodeDistance;
+};
+
 extern "C"
 {
     PHYSIK_API PhysiK::WorldHandle PHYSIK_CreateWorld();
@@ -106,6 +126,16 @@ extern "C"
     PHYSIK_API int PHYSIK_GetActiveTetCount(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component);
+
+    PHYSIK_API int PHYSIK_GetCollisionSphereTouchedTetCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent);
+
+    PHYSIK_API int PHYSIK_GetCollisionSphereTouchedTets(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent,
+        PhysikSphereTetContact* outContacts,
+        int maxContacts);
 
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
         PhysiK::WorldHandle world,

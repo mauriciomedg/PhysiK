@@ -53,6 +53,7 @@ namespace PhysiK
         void SetNodeFixed(int nodeIndex, bool fixed);
         bool IsNodeFixed(int nodeIndex) const;
         const std::vector<std::unique_ptr<Component>>& GetComponents() const;
+        ComponentHandle GetComponentHandleByIndex(int index) const;
 
         int GetTransientConnectionCount() const;
         bool HasValidNodeIndices(const PointConnection& connection) const;

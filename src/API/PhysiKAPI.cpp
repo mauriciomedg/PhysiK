@@ -5,7 +5,9 @@
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
 
+#include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -36,6 +38,46 @@ namespace
         default:
             return PhysiK::FemModel::Linear;
         }
+    }
+
+    PhysikSphereTetContact ToApiContact(const PhysiK::SphereTetContact& contact)
+    {
+        PhysikSphereTetContact apiContact;
+        apiContact.tetMeshComponent = contact.tetMeshComponent;
+        apiContact.tetIndex = contact.tetIndex;
+        apiContact.node0 = contact.node0;
+        apiContact.node1 = contact.node1;
+        apiContact.node2 = contact.node2;
+        apiContact.node3 = contact.node3;
+        apiContact.contactedNodeMask = contact.contactedNodeMask;
+        apiContact.contactedNodeCount = contact.contactedNodeCount;
+        apiContact.sphereCenterX = contact.sphereCenter.x;
+        apiContact.sphereCenterY = contact.sphereCenter.y;
+        apiContact.sphereCenterZ = contact.sphereCenter.z;
+        apiContact.sphereRadius = contact.sphereRadius;
+        apiContact.minNodeDistance = contact.minNodeDistance;
+        return apiContact;
+    }
+
+    std::vector<PhysiK::SphereTetContact> QuerySphereTouchedTets(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle sphereComponent)
+    {
+        std::vector<PhysiK::SphereTetContact> contacts;
+        if (world == nullptr)
+        {
+            return contacts;
+        }
+
+        const auto* sphere = dynamic_cast<const PhysiK::CollisionSphereComponent*>(
+            world->GetComponent(sphereComponent));
+        if (sphere == nullptr)
+        {
+            return contacts;
+        }
+
+        sphere->QueryTouchedTets(*world, contacts);
+        return contacts;
     }
 }
 
@@ -321,6 +363,37 @@ extern "C"
         }
 
         return tetMesh->GetActiveTetCount();
+    }
+
+    PHYSIK_API int PHYSIK_GetCollisionSphereTouchedTetCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent)
+    {
+        const std::vector<PhysiK::SphereTetContact> contacts =
+            QuerySphereTouchedTets(AsWorld(world), sphereComponent);
+        return static_cast<int>(contacts.size());
+    }
+
+    PHYSIK_API int PHYSIK_GetCollisionSphereTouchedTets(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent,
+        PhysikSphereTetContact* outContacts,
+        int maxContacts)
+    {
+        if (outContacts == nullptr || maxContacts <= 0)
+        {
+            return 0;
+        }
+
+        const std::vector<PhysiK::SphereTetContact> contacts =
+            QuerySphereTouchedTets(AsWorld(world), sphereComponent);
+        const int writeCount = std::min(maxContacts, static_cast<int>(contacts.size()));
+        for (int i = 0; i < writeCount; ++i)
+        {
+            outContacts[i] = ToApiContact(contacts[static_cast<std::size_t>(i)]);
+        }
+
+        return writeCount;
     }
 
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
