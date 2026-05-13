@@ -117,9 +117,9 @@ namespace PhysiK
         }
     }
 
-    void CollisionSphereComponent::QueryOverlappingTets(
+    void CollisionSphereComponent::QueryOverlaps(
         World& world,
-        std::vector<SphereTetOverlap>& outOverlaps) const
+        std::vector<CollisionSphereOverlap>& outOverlaps) const
     {
         if (!active || radius <= 0.0f)
         {
@@ -178,9 +178,10 @@ namespace PhysiK
                     continue;
                 }
 
-                SphereTetOverlap overlap;
-                overlap.tetMeshComponent = world.GetComponentHandleByIndex(componentIndex);
-                overlap.tetIndex = tetIndex;
+                CollisionSphereOverlap overlap;
+                overlap.geometryType = OverlapGeometryType::Tetrahedron;
+                overlap.component = world.GetComponentHandleByIndex(componentIndex);
+                overlap.primitiveIndex = tetIndex;
                 overlap.node0 = tet.node0;
                 overlap.node1 = tet.node1;
                 overlap.node2 = tet.node2;
@@ -189,7 +190,7 @@ namespace PhysiK
                 overlap.overlappedNodeCount = overlappedNodeCount;
                 overlap.sphereCenter = sphereCenter;
                 overlap.sphereRadius = radius;
-                overlap.minNodeDistance = minNodeDistance;
+                overlap.minDistance = minNodeDistance;
                 outOverlaps.push_back(overlap);
             }
         }

@@ -40,11 +40,12 @@ namespace
         }
     }
 
-    PhysikSphereTetOverlap ToApiOverlap(const PhysiK::SphereTetOverlap& overlap)
+    PhysikCollisionSphereOverlap ToApiOverlap(const PhysiK::CollisionSphereOverlap& overlap)
     {
-        PhysikSphereTetOverlap apiOverlap;
-        apiOverlap.tetMeshComponent = overlap.tetMeshComponent;
-        apiOverlap.tetIndex = overlap.tetIndex;
+        PhysikCollisionSphereOverlap apiOverlap;
+        apiOverlap.geometryType = static_cast<int>(overlap.geometryType);
+        apiOverlap.component = overlap.component;
+        apiOverlap.primitiveIndex = overlap.primitiveIndex;
         apiOverlap.node0 = overlap.node0;
         apiOverlap.node1 = overlap.node1;
         apiOverlap.node2 = overlap.node2;
@@ -55,15 +56,15 @@ namespace
         apiOverlap.sphereCenterY = overlap.sphereCenter.y;
         apiOverlap.sphereCenterZ = overlap.sphereCenter.z;
         apiOverlap.sphereRadius = overlap.sphereRadius;
-        apiOverlap.minNodeDistance = overlap.minNodeDistance;
+        apiOverlap.minDistance = overlap.minDistance;
         return apiOverlap;
     }
 
-    std::vector<PhysiK::SphereTetOverlap> QuerySphereTetOverlaps(
+    std::vector<PhysiK::CollisionSphereOverlap> QueryCollisionSphereOverlaps(
         PhysiK::World* world,
         PhysiK::ComponentHandle sphereComponent)
     {
-        std::vector<PhysiK::SphereTetOverlap> overlaps;
+        std::vector<PhysiK::CollisionSphereOverlap> overlaps;
         if (world == nullptr)
         {
             return overlaps;
@@ -76,7 +77,7 @@ namespace
             return overlaps;
         }
 
-        sphere->QueryOverlappingTets(*world, overlaps);
+        sphere->QueryOverlaps(*world, overlaps);
         return overlaps;
     }
 }
@@ -369,15 +370,15 @@ extern "C"
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle sphereComponent)
     {
-        const std::vector<PhysiK::SphereTetOverlap> overlaps =
-            QuerySphereTetOverlaps(AsWorld(world), sphereComponent);
+        const std::vector<PhysiK::CollisionSphereOverlap> overlaps =
+            QueryCollisionSphereOverlaps(AsWorld(world), sphereComponent);
         return static_cast<int>(overlaps.size());
     }
 
     PHYSIK_API int PHYSIK_GetCollisionSphereOverlaps(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle sphereComponent,
-        PhysikSphereTetOverlap* outOverlaps,
+        PhysikCollisionSphereOverlap* outOverlaps,
         int maxOverlaps)
     {
         if (outOverlaps == nullptr || maxOverlaps <= 0)
@@ -385,8 +386,8 @@ extern "C"
             return 0;
         }
 
-        const std::vector<PhysiK::SphereTetOverlap> overlaps =
-            QuerySphereTetOverlaps(AsWorld(world), sphereComponent);
+        const std::vector<PhysiK::CollisionSphereOverlap> overlaps =
+            QueryCollisionSphereOverlaps(AsWorld(world), sphereComponent);
         const int writeCount = std::min(maxOverlaps, static_cast<int>(overlaps.size()));
         for (int i = 0; i < writeCount; ++i)
         {

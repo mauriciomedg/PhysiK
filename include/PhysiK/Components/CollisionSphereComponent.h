@@ -9,10 +9,21 @@
 
 namespace PhysiK
 {
-    struct SphereTetOverlap
+    enum class OverlapGeometryType
     {
-        ComponentHandle tetMeshComponent;
-        int tetIndex = -1;
+        Unknown = 0,
+        Tetrahedron = 1,
+        Triangle = 2,
+        Sphere = 3,
+        Node = 4
+    };
+
+    struct CollisionSphereOverlap
+    {
+        OverlapGeometryType geometryType = OverlapGeometryType::Unknown;
+
+        ComponentHandle component;
+        int primitiveIndex = -1;
 
         int node0 = -1;
         int node1 = -1;
@@ -24,7 +35,7 @@ namespace PhysiK
 
         Vec3 sphereCenter;
         float sphereRadius = 0.0f;
-        float minNodeDistance = 0.0f;
+        float minDistance = 0.0f;
     };
 
     class CollisionSphereComponent : public CollisionComponent
@@ -41,8 +52,8 @@ namespace PhysiK
             CollisionDetectionEngine& collisionDetectionEngine,
             std::vector<Contact>& outContacts) override;
 
-        void QueryOverlappingTets(
+        void QueryOverlaps(
             World& world,
-            std::vector<SphereTetOverlap>& outOverlaps) const;
+            std::vector<CollisionSphereOverlap>& outOverlaps) const;
     };
 }
