@@ -44,7 +44,7 @@ namespace PhysiK
 
         LinearSolver& DefaultLinearSolver()
         {
-            static ConjugateGradientLinearSolver solver;
+            static CurrentLinearSolver solver;
             return solver;
         }
     }

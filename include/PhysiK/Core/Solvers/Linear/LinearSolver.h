@@ -33,7 +33,7 @@ namespace PhysiK
             const LinearSolveSettings& settings) = 0;
     };
 
-    class PHYSIK_API ConjugateGradientLinearSolver final : public LinearSolver
+    class PHYSIK_API CurrentLinearSolver final : public LinearSolver
     {
     public:
         LinearSolveResult Solve(

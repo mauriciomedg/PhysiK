@@ -6,7 +6,7 @@
 
 namespace PhysiK
 {
-    LinearSolveResult ConjugateGradientLinearSolver::Solve(
+    LinearSolveResult CurrentLinearSolver::Solve(
         const SparseBlockMatrix& matrix,
         const std::vector<float>& rhs,
         std::vector<float>& solution,

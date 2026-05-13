@@ -1759,7 +1759,7 @@ void ConjugateGradientSolvesCoupledSparseSystem()
     }
 }
 
-void LinearSolverInterfaceUsesConjugateGradientBackend()
+void CurrentLinearSolverSolvesKnownSparseSystem()
 {
     PhysiK::SparseBlockMatrix matrix;
     matrix.BuildPattern(1, {{0, 0}});
@@ -1774,7 +1774,7 @@ void LinearSolverInterfaceUsesConjugateGradientBackend()
     const std::vector<float> rhs = {2.0f, 6.0f, 12.0f};
     std::vector<float> solution;
 
-    PhysiK::ConjugateGradientLinearSolver solver;
+    PhysiK::CurrentLinearSolver solver;
     PhysiK::LinearSolveSettings settings;
     settings.maxIterations = 16;
     settings.tolerance = 1.0e-6f;
@@ -2468,7 +2468,7 @@ int main()
     TetMeshComponentCachesFemSparsePattern();
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
-    LinearSolverInterfaceUsesConjugateGradientBackend();
+    CurrentLinearSolverSolvesKnownSparseSystem();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();
