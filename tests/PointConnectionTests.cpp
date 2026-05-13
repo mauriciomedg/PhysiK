@@ -4,6 +4,7 @@
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 #include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
+#include "PhysiK/Math/CSRMatrix.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <cassert>
@@ -1679,6 +1680,68 @@ void SparseBlockMatrixAdjacentTetsReuseSharedBlocks()
     assert(!HasSparseBlock(matrix, 0, 4));
 }
 
+void CSRMatrixIdentityMultiplyReturnsInput()
+{
+    PhysiK::CSRMatrix matrix;
+    matrix.rowCount = 3;
+    matrix.colCount = 3;
+    matrix.rowOffsets = {0, 1, 2, 3};
+    matrix.columnIndices = {0, 1, 2};
+    matrix.values = {1.0, 1.0, 1.0};
+
+    std::vector<double> output;
+    matrix.Multiply({2.0, -3.0, 4.5}, output);
+
+    assert(matrix.IsValid());
+    assert(output.size() == 3);
+    assert(NearlyEqual(static_cast<float>(output[0]), 2.0f));
+    assert(NearlyEqual(static_cast<float>(output[1]), -3.0f));
+    assert(NearlyEqual(static_cast<float>(output[2]), 4.5f));
+}
+
+void CSRMatrixSimple2x2Multiply()
+{
+    PhysiK::CSRMatrix matrix;
+    matrix.rowCount = 2;
+    matrix.colCount = 2;
+    matrix.rowOffsets = {0, 2, 4};
+    matrix.columnIndices = {0, 1, 0, 1};
+    matrix.values = {2.0, 3.0, 4.0, 5.0};
+
+    std::vector<double> output;
+    matrix.Multiply({7.0, 11.0}, output);
+
+    assert(matrix.IsValid());
+    assert(output.size() == 2);
+    assert(NearlyEqual(static_cast<float>(output[0]), 47.0f));
+    assert(NearlyEqual(static_cast<float>(output[1]), 83.0f));
+}
+
+void CSRMatrixValidationRejectsInvalidData()
+{
+    PhysiK::CSRMatrix matrix;
+    matrix.rowCount = 2;
+    matrix.colCount = 2;
+    matrix.rowOffsets = {0, 2};
+    matrix.columnIndices = {0, 1};
+    matrix.values = {1.0, 2.0};
+    assert(!matrix.IsValid());
+
+    matrix.rowOffsets = {1, 2, 2};
+    assert(!matrix.IsValid());
+
+    matrix.rowOffsets = {0, 2, 1};
+    assert(!matrix.IsValid());
+
+    matrix.rowOffsets = {0, 2, 2};
+    matrix.columnIndices = {0, 2};
+    assert(!matrix.IsValid());
+
+    matrix.columnIndices = {0, 1};
+    matrix.values = {1.0};
+    assert(!matrix.IsValid());
+}
+
 void TetMeshComponentCachesFemSparsePattern()
 {
     PhysiK::TetMeshComponent component;
@@ -2465,6 +2528,9 @@ int main()
     SparseBlockMatrixAddBlockAccumulatesContributions();
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
+    CSRMatrixIdentityMultiplyReturnsInput();
+    CSRMatrixSimple2x2Multiply();
+    CSRMatrixValidationRejectsInvalidData();
     TetMeshComponentCachesFemSparsePattern();
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
