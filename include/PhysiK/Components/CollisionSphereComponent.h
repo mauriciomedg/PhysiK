@@ -9,7 +9,7 @@
 
 namespace PhysiK
 {
-    struct SphereTetContact
+    struct SphereTetOverlap
     {
         ComponentHandle tetMeshComponent;
         int tetIndex = -1;
@@ -19,8 +19,8 @@ namespace PhysiK
         int node2 = -1;
         int node3 = -1;
 
-        int contactedNodeMask = 0;
-        int contactedNodeCount = 0;
+        int overlappedNodeMask = 0;
+        int overlappedNodeCount = 0;
 
         Vec3 sphereCenter;
         float sphereRadius = 0.0f;
@@ -41,8 +41,8 @@ namespace PhysiK
             CollisionDetectionEngine& collisionDetectionEngine,
             std::vector<Contact>& outContacts) override;
 
-        void QueryTouchedTets(
+        void QueryOverlappingTets(
             World& world,
-            std::vector<SphereTetContact>& outContacts) const;
+            std::vector<SphereTetOverlap>& outOverlaps) const;
     };
 }

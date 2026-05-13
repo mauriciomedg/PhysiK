@@ -20,7 +20,7 @@ struct PhysikMaterialDesc
     float damping;
 };
 
-struct PhysikSphereTetContact
+struct PhysikSphereTetOverlap
 {
     PhysiK::ComponentHandle tetMeshComponent;
     int tetIndex;
@@ -30,8 +30,8 @@ struct PhysikSphereTetContact
     int node2;
     int node3;
 
-    int contactedNodeMask;
-    int contactedNodeCount;
+    int overlappedNodeMask;
+    int overlappedNodeCount;
 
     float sphereCenterX;
     float sphereCenterY;
@@ -127,15 +127,15 @@ extern "C"
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component);
 
-    PHYSIK_API int PHYSIK_GetCollisionSphereTouchedTetCount(
+    PHYSIK_API int PHYSIK_GetCollisionSphereOverlapCount(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle sphereComponent);
 
-    PHYSIK_API int PHYSIK_GetCollisionSphereTouchedTets(
+    PHYSIK_API int PHYSIK_GetCollisionSphereOverlaps(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle sphereComponent,
-        PhysikSphereTetContact* outContacts,
-        int maxContacts);
+        PhysikSphereTetOverlap* outOverlaps,
+        int maxOverlaps);
 
     PHYSIK_API void PHYSIK_SetCollisionComponentKinematicTarget(
         PhysiK::WorldHandle world,

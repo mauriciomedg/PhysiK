@@ -117,9 +117,9 @@ namespace PhysiK
         }
     }
 
-    void CollisionSphereComponent::QueryTouchedTets(
+    void CollisionSphereComponent::QueryOverlappingTets(
         World& world,
-        std::vector<SphereTetContact>& outContacts) const
+        std::vector<SphereTetOverlap>& outOverlaps) const
     {
         if (!active || radius <= 0.0f)
         {
@@ -149,8 +149,8 @@ namespace PhysiK
                 }
 
                 const int nodes[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
-                int contactedNodeMask = 0;
-                int contactedNodeCount = 0;
+                int overlappedNodeMask = 0;
+                int overlappedNodeCount = 0;
                 float minNodeDistance = 0.0f;
                 bool hasDistance = false;
 
@@ -168,29 +168,29 @@ namespace PhysiK
 
                     if (distanceSquared <= radiusSquared)
                     {
-                        contactedNodeMask |= (1 << localNode);
-                        ++contactedNodeCount;
+                        overlappedNodeMask |= (1 << localNode);
+                        ++overlappedNodeCount;
                     }
                 }
 
-                if (contactedNodeCount <= 0)
+                if (overlappedNodeCount <= 0)
                 {
                     continue;
                 }
 
-                SphereTetContact contact;
-                contact.tetMeshComponent = world.GetComponentHandleByIndex(componentIndex);
-                contact.tetIndex = tetIndex;
-                contact.node0 = tet.node0;
-                contact.node1 = tet.node1;
-                contact.node2 = tet.node2;
-                contact.node3 = tet.node3;
-                contact.contactedNodeMask = contactedNodeMask;
-                contact.contactedNodeCount = contactedNodeCount;
-                contact.sphereCenter = sphereCenter;
-                contact.sphereRadius = radius;
-                contact.minNodeDistance = minNodeDistance;
-                outContacts.push_back(contact);
+                SphereTetOverlap overlap;
+                overlap.tetMeshComponent = world.GetComponentHandleByIndex(componentIndex);
+                overlap.tetIndex = tetIndex;
+                overlap.node0 = tet.node0;
+                overlap.node1 = tet.node1;
+                overlap.node2 = tet.node2;
+                overlap.node3 = tet.node3;
+                overlap.overlappedNodeMask = overlappedNodeMask;
+                overlap.overlappedNodeCount = overlappedNodeCount;
+                overlap.sphereCenter = sphereCenter;
+                overlap.sphereRadius = radius;
+                overlap.minNodeDistance = minNodeDistance;
+                outOverlaps.push_back(overlap);
             }
         }
     }

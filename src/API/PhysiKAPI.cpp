@@ -40,44 +40,44 @@ namespace
         }
     }
 
-    PhysikSphereTetContact ToApiContact(const PhysiK::SphereTetContact& contact)
+    PhysikSphereTetOverlap ToApiOverlap(const PhysiK::SphereTetOverlap& overlap)
     {
-        PhysikSphereTetContact apiContact;
-        apiContact.tetMeshComponent = contact.tetMeshComponent;
-        apiContact.tetIndex = contact.tetIndex;
-        apiContact.node0 = contact.node0;
-        apiContact.node1 = contact.node1;
-        apiContact.node2 = contact.node2;
-        apiContact.node3 = contact.node3;
-        apiContact.contactedNodeMask = contact.contactedNodeMask;
-        apiContact.contactedNodeCount = contact.contactedNodeCount;
-        apiContact.sphereCenterX = contact.sphereCenter.x;
-        apiContact.sphereCenterY = contact.sphereCenter.y;
-        apiContact.sphereCenterZ = contact.sphereCenter.z;
-        apiContact.sphereRadius = contact.sphereRadius;
-        apiContact.minNodeDistance = contact.minNodeDistance;
-        return apiContact;
+        PhysikSphereTetOverlap apiOverlap;
+        apiOverlap.tetMeshComponent = overlap.tetMeshComponent;
+        apiOverlap.tetIndex = overlap.tetIndex;
+        apiOverlap.node0 = overlap.node0;
+        apiOverlap.node1 = overlap.node1;
+        apiOverlap.node2 = overlap.node2;
+        apiOverlap.node3 = overlap.node3;
+        apiOverlap.overlappedNodeMask = overlap.overlappedNodeMask;
+        apiOverlap.overlappedNodeCount = overlap.overlappedNodeCount;
+        apiOverlap.sphereCenterX = overlap.sphereCenter.x;
+        apiOverlap.sphereCenterY = overlap.sphereCenter.y;
+        apiOverlap.sphereCenterZ = overlap.sphereCenter.z;
+        apiOverlap.sphereRadius = overlap.sphereRadius;
+        apiOverlap.minNodeDistance = overlap.minNodeDistance;
+        return apiOverlap;
     }
 
-    std::vector<PhysiK::SphereTetContact> QuerySphereTouchedTets(
+    std::vector<PhysiK::SphereTetOverlap> QuerySphereTetOverlaps(
         PhysiK::World* world,
         PhysiK::ComponentHandle sphereComponent)
     {
-        std::vector<PhysiK::SphereTetContact> contacts;
+        std::vector<PhysiK::SphereTetOverlap> overlaps;
         if (world == nullptr)
         {
-            return contacts;
+            return overlaps;
         }
 
         const auto* sphere = dynamic_cast<const PhysiK::CollisionSphereComponent*>(
             world->GetComponent(sphereComponent));
         if (sphere == nullptr)
         {
-            return contacts;
+            return overlaps;
         }
 
-        sphere->QueryTouchedTets(*world, contacts);
-        return contacts;
+        sphere->QueryOverlappingTets(*world, overlaps);
+        return overlaps;
     }
 }
 
@@ -365,32 +365,32 @@ extern "C"
         return tetMesh->GetActiveTetCount();
     }
 
-    PHYSIK_API int PHYSIK_GetCollisionSphereTouchedTetCount(
+    PHYSIK_API int PHYSIK_GetCollisionSphereOverlapCount(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle sphereComponent)
     {
-        const std::vector<PhysiK::SphereTetContact> contacts =
-            QuerySphereTouchedTets(AsWorld(world), sphereComponent);
-        return static_cast<int>(contacts.size());
+        const std::vector<PhysiK::SphereTetOverlap> overlaps =
+            QuerySphereTetOverlaps(AsWorld(world), sphereComponent);
+        return static_cast<int>(overlaps.size());
     }
 
-    PHYSIK_API int PHYSIK_GetCollisionSphereTouchedTets(
+    PHYSIK_API int PHYSIK_GetCollisionSphereOverlaps(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle sphereComponent,
-        PhysikSphereTetContact* outContacts,
-        int maxContacts)
+        PhysikSphereTetOverlap* outOverlaps,
+        int maxOverlaps)
     {
-        if (outContacts == nullptr || maxContacts <= 0)
+        if (outOverlaps == nullptr || maxOverlaps <= 0)
         {
             return 0;
         }
 
-        const std::vector<PhysiK::SphereTetContact> contacts =
-            QuerySphereTouchedTets(AsWorld(world), sphereComponent);
-        const int writeCount = std::min(maxContacts, static_cast<int>(contacts.size()));
+        const std::vector<PhysiK::SphereTetOverlap> overlaps =
+            QuerySphereTetOverlaps(AsWorld(world), sphereComponent);
+        const int writeCount = std::min(maxOverlaps, static_cast<int>(overlaps.size()));
         for (int i = 0; i < writeCount; ++i)
         {
-            outContacts[i] = ToApiContact(contacts[static_cast<std::size_t>(i)]);
+            outOverlaps[i] = ToApiOverlap(overlaps[static_cast<std::size_t>(i)]);
         }
 
         return writeCount;
