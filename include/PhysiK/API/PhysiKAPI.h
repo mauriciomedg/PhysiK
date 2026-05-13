@@ -106,6 +106,18 @@ extern "C"
         float z,
         float radius);
 
+    PHYSIK_API void PHYSIK_SetCollisionSphereConnectionSettings(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent,
+        float stiffness,
+        float damping);
+
+    PHYSIK_API void PHYSIK_GetCollisionSphereConnectionSettings(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sphereComponent,
+        float* outStiffness,
+        float* outDamping);
+
     PHYSIK_API void PHYSIK_DestroyComponent(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component);

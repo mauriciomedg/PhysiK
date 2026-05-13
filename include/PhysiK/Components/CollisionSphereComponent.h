@@ -47,6 +47,12 @@ namespace PhysiK
 
         float radius = 0.5f;
 
+        void SetConnectionSettings(float stiffness, float damping);
+        void SetConnectionStiffness(float stiffness);
+        float GetConnectionStiffness() const;
+        void SetConnectionDamping(float damping);
+        float GetConnectionDamping() const;
+
         void QueryContacts(
             World& world,
             CollisionDetectionEngine& collisionDetectionEngine,
