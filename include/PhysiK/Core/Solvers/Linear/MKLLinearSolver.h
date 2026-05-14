@@ -6,6 +6,7 @@
 
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
+#include "PhysiK/Math/CSRMatrix.h"
 
 namespace PhysiK
 {
@@ -17,6 +18,12 @@ namespace PhysiK
             const std::vector<float>& rhs,
             std::vector<float>& solution,
             const LinearSolveSettings& settings) override;
+
+        LinearSolveResult SolveSPD(
+            const CSRMatrix& matrix,
+            const std::vector<double>& rhs,
+            std::vector<double>& solution,
+            const LinearSolveSettings& settings);
     };
 }
 

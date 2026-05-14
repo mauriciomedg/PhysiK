@@ -153,4 +153,22 @@ if(PHYSIK_BUILD_TESTS)
     endif()
 
     add_test(NAME PhysiKTests COMMAND PhysiKTests)
+
+    if(PHYSIK_ENABLE_MKL)
+        add_executable(PhysiKMKLTests tests/MKLLinearSolverTests.cpp)
+        target_link_libraries(PhysiKMKLTests PRIVATE PhysiK::PhysiK)
+        target_compile_features(PhysiKMKLTests PRIVATE cxx_std_17)
+
+        if(WIN32)
+            add_custom_command(
+                TARGET PhysiKMKLTests
+                POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:PhysiK>
+                    $<TARGET_FILE_DIR:PhysiKMKLTests>
+            )
+        endif()
+
+        add_test(NAME PhysiKMKLTests COMMAND PhysiKMKLTests)
+    endif()
 endif()
