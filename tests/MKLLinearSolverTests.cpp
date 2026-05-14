@@ -84,10 +84,51 @@ void MKLLinearSolverSolvesSmallSPD3x3System()
     AssertVectorNear(solution, expected);
 }
 
+void MKLBackendIsAvailableWhenCompiled()
+{
+    assert(PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::MKL));
+}
+
+void MKLBackendSolvesSparseBlockSystemWhenSelected()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(
+        0,
+        0,
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{2.0f, 0.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 3.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, 4.0f}));
+
+    const std::vector<float> rhs = {2.0f, 6.0f, 12.0f};
+    std::vector<float> solution;
+
+    PhysiK::LinearSolveSettings settings;
+    settings.maxIterations = 1;
+    settings.tolerance = 1.0e-6f;
+    settings.useJacobiPreconditioner = false;
+
+    const PhysiK::LinearSolveResult result =
+        PhysiK::GetLinearSolver(PhysiK::LinearSolverBackend::MKL).Solve(
+            matrix,
+            rhs,
+            solution,
+            settings);
+
+    assert(result.converged);
+    assert(solution.size() == rhs.size());
+    assert(NearlyEqual(solution[0], 1.0, 0.0001));
+    assert(NearlyEqual(solution[1], 2.0, 0.0001));
+    assert(NearlyEqual(solution[2], 3.0, 0.0001));
+}
+
 int main()
 {
     MKLLinearSolverSolvesDiagonal2x2System();
     MKLLinearSolverSolvesSmallSPD3x3System();
+    MKLBackendIsAvailableWhenCompiled();
+    MKLBackendSolvesSparseBlockSystemWhenSelected();
     return 0;
 }
 

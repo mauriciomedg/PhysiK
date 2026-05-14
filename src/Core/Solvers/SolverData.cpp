@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-#include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
-
 namespace PhysiK
 {
     namespace
@@ -42,11 +40,6 @@ namespace PhysiK
                 matrix.columns[2] * value);
         }
 
-        LinearSolver& DefaultLinearSolver()
-        {
-            static CurrentLinearSolver solver;
-            return solver;
-        }
     }
 
     void SolverData::Clear()
@@ -150,8 +143,18 @@ namespace PhysiK
         settings.useJacobiPreconditioner = true;
 
         const LinearSolveResult result =
-            DefaultLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
+            GetLinearSolver(linearSolverBackend).Solve(matrix, rhs, deltaVelocity, settings);
         return result.converged && deltaVelocity.size() == dimension;
+    }
+
+    void SolverData::SetLinearSolverBackend(LinearSolverBackend backend)
+    {
+        linearSolverBackend = backend;
+    }
+
+    LinearSolverBackend SolverData::GetLinearSolverBackend() const
+    {
+        return linearSolverBackend;
     }
 
     int SolverData::GetDynamicBlockForNode(int nodeIndex) const

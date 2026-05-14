@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "PhysiK/API/PhysiKAPI.h"
+#include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
 #include "PhysiK/Math/Mat3.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
 #include "PhysiK/Math/Vec3.h"
@@ -70,6 +71,8 @@ namespace PhysiK
 
         bool PrecomputeImplicitSolve(const std::vector<Node>& nodes, float dt);
         bool SolveImplicitLinearSystem();
+        void SetLinearSolverBackend(LinearSolverBackend backend);
+        LinearSolverBackend GetLinearSolverBackend() const;
 
         int GetDynamicBlockForNode(int nodeIndex) const;
         int GetDynamicBlockCount() const
@@ -107,5 +110,6 @@ namespace PhysiK
         std::vector<float> rhs;
         SparseBlockMatrix matrix;
         std::vector<float> deltaVelocity;
+        LinearSolverBackend linearSolverBackend = LinearSolverBackend::Current;
     };
 }

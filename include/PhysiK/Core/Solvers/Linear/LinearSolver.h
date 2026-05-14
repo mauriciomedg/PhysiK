@@ -7,6 +7,12 @@
 
 namespace PhysiK
 {
+    enum class LinearSolverBackend
+    {
+        Current,
+        MKL
+    };
+
     struct LinearSolveSettings
     {
         int maxIterations = 128;
@@ -42,4 +48,8 @@ namespace PhysiK
             std::vector<float>& solution,
             const LinearSolveSettings& settings) override;
     };
+
+    PHYSIK_API bool IsLinearSolverBackendAvailable(LinearSolverBackend backend);
+
+    PHYSIK_API LinearSolver& GetLinearSolver(LinearSolverBackend backend);
 }

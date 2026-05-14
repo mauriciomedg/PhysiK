@@ -1853,6 +1853,60 @@ void CurrentLinearSolverSolvesKnownSparseSystem()
     assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
 }
 
+void SolverDataDefaultLinearSolverBackendIsCurrent()
+{
+    PhysiK::SolverData solverData;
+
+    assert(solverData.GetLinearSolverBackend() == PhysiK::LinearSolverBackend::Current);
+}
+
+void LinearSolverBackendAvailabilityMatchesBuildFlags()
+{
+    assert(PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::Current));
+
+#if defined(PHYSIK_ENABLE_MKL)
+    assert(PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::MKL));
+#else
+    assert(!PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::MKL));
+#endif
+}
+
+void UnavailableMKLBackendFallsBackToCurrentLinearSolver()
+{
+#if !defined(PHYSIK_ENABLE_MKL)
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(
+        0,
+        0,
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{2.0f, 0.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 3.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, 4.0f}));
+
+    const std::vector<float> rhs = {2.0f, 6.0f, 12.0f};
+    std::vector<float> solution;
+
+    PhysiK::LinearSolveSettings settings;
+    settings.maxIterations = 16;
+    settings.tolerance = 1.0e-6f;
+    settings.useJacobiPreconditioner = true;
+
+    const PhysiK::LinearSolveResult result =
+        PhysiK::GetLinearSolver(PhysiK::LinearSolverBackend::MKL).Solve(
+            matrix,
+            rhs,
+            solution,
+            settings);
+
+    assert(result.converged);
+    assert(solution.size() == rhs.size());
+    assert(NearlyEqual(solution[0], 1.0f, 0.0001f));
+    assert(NearlyEqual(solution[1], 2.0f, 0.0001f));
+    assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
+#endif
+}
+
 void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
 {
     std::vector<PhysiK::Node> nodes(1);
@@ -2535,6 +2589,9 @@ int main()
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
     CurrentLinearSolverSolvesKnownSparseSystem();
+    SolverDataDefaultLinearSolverBackendIsCurrent();
+    LinearSolverBackendAvailabilityMatchesBuildFlags();
+    UnavailableMKLBackendFallsBackToCurrentLinearSolver();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();

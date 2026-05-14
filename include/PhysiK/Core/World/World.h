@@ -43,6 +43,8 @@ namespace PhysiK
         int GetSubstepCount() const;
         void SetSolverMode(SolverMode mode);
         SolverMode GetSolverMode() const;
+        void SetLinearSolverBackend(LinearSolverBackend backend);
+        LinearSolverBackend GetLinearSolverBackend() const;
         void SetGravity(const Vec3& value);
         const Vec3& GetGravity() const;
 
@@ -91,5 +93,6 @@ namespace PhysiK
         Vec3 gravity;
         int substepCount = 1;
         SolverMode solverMode = SolverMode::Explicit;
+        LinearSolverBackend linearSolverBackend = LinearSolverBackend::Current;
     };
 }
