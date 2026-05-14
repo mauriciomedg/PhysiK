@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(PhysiK VERSION 0.1.0 LANGUAGES CXX)
 
 option(PHYSIK_BUILD_TESTS "Build PhysiK tests" ON)
+option(PHYSIK_ENABLE_MKL "Enable optional Intel MKL linear solver support" OFF)
 
 add_library(PhysiK SHARED)
 add_library(PhysiK::PhysiK ALIAS PhysiK)
@@ -52,6 +53,7 @@ target_sources(
         include/PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h
         include/PhysiK/Core/Solvers/Linear/DenseLinearSolver.h
         include/PhysiK/Core/Solvers/Linear/LinearSolver.h
+        include/PhysiK/Core/Solvers/Linear/MKLLinearSolver.h
         include/PhysiK/Core/Solvers/SolverData.h
         include/PhysiK/Core/World/World.h
     PRIVATE
@@ -69,6 +71,7 @@ target_sources(
         src/Core/Solvers/Linear/ConjugateGradientSolver.cpp
         src/Core/Solvers/Linear/DenseLinearSolver.cpp
         src/Core/Solvers/Linear/LinearSolver.cpp
+        src/Core/Solvers/Linear/MKLLinearSolver.cpp
         src/Core/Solvers/SolverData.cpp
         src/Math/CSRMatrix.cpp
         src/Math/SparseBlockMatrix.cpp
@@ -106,11 +109,32 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h
     include/PhysiK/Core/Solvers/Linear/DenseLinearSolver.h
     include/PhysiK/Core/Solvers/Linear/LinearSolver.h
+    include/PhysiK/Core/Solvers/Linear/MKLLinearSolver.h
     include/PhysiK/Core/Solvers/SolverData.h
     include/PhysiK/Core/World/World.h
 )
 
 target_compile_definitions(PhysiK PRIVATE PHYSIK_BUILDING_DLL)
+
+if(PHYSIK_ENABLE_MKL)
+    find_package(MKL CONFIG QUIET)
+
+    if(NOT MKL_FOUND)
+        message(FATAL_ERROR
+            "PHYSIK_ENABLE_MKL is ON, but Intel MKL was not found. "
+            "Install Intel oneAPI MKL and set MKL_DIR or CMAKE_PREFIX_PATH "
+            "so CMake can locate MKLConfig.cmake.")
+    endif()
+
+    if(NOT TARGET MKL::MKL)
+        message(FATAL_ERROR
+            "PHYSIK_ENABLE_MKL is ON and MKL was found, but the expected "
+            "CMake target MKL::MKL is unavailable.")
+    endif()
+
+    target_compile_definitions(PhysiK PUBLIC PHYSIK_ENABLE_MKL)
+    target_link_libraries(PhysiK PRIVATE MKL::MKL)
+endif()
 
 if(PHYSIK_BUILD_TESTS)
     enable_testing()
