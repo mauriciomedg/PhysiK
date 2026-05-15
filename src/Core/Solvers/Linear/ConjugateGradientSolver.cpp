@@ -1,6 +1,9 @@
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 
 #include <algorithm>
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+#include <chrono>
+#endif
 #include <cmath>
 
 namespace PhysiK
@@ -9,6 +12,34 @@ namespace PhysiK
     {
         constexpr float DiagonalTolerance = 1.0e-8f;
         constexpr float DenominatorTolerance = 1.0e-12f;
+
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        using Clock = std::chrono::steady_clock;
+
+        ConjugateGradientProfileData profile;
+
+        double MillisecondsBetween(Clock::time_point start, Clock::time_point end)
+        {
+            return std::chrono::duration<double, std::milli>(end - start).count();
+        }
+
+        struct ProfileScope
+        {
+            Clock::time_point start;
+            const ConjugateGradientResult* result = nullptr;
+
+            ~ProfileScope()
+            {
+                profile.totalSolveMilliseconds = MillisecondsBetween(start, Clock::now());
+                if (result != nullptr)
+                {
+                    profile.iterations = result->iterations;
+                    profile.residualNorm = result->residualNorm;
+                    profile.converged = result->converged;
+                }
+            }
+        };
+#endif
 
         bool IsFinite(float value)
         {
@@ -30,6 +61,9 @@ namespace PhysiK
 
         float Dot(const std::vector<float>& a, const std::vector<float>& b)
         {
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            const Clock::time_point start = Clock::now();
+#endif
             float result = 0.0f;
             const std::size_t count = std::min(a.size(), b.size());
             for (std::size_t i = 0; i < count; ++i)
@@ -37,6 +71,9 @@ namespace PhysiK
                 result += a[i] * b[i];
             }
 
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            profile.dotProductMilliseconds += MillisecondsBetween(start, Clock::now());
+#endif
             return result;
         }
 
@@ -102,10 +139,16 @@ namespace PhysiK
             bool useJacobiPreconditioner,
             std::vector<float>& result)
         {
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            const Clock::time_point start = Clock::now();
+#endif
             result.resize(residual.size());
             if (!useJacobiPreconditioner)
             {
                 result = residual;
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+                profile.preconditionerApplyMilliseconds += MillisecondsBetween(start, Clock::now());
+#endif
                 return;
             }
 
@@ -113,8 +156,23 @@ namespace PhysiK
             {
                 result[i] = residual[i] * inverseDiagonal[i];
             }
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            profile.preconditionerApplyMilliseconds += MillisecondsBetween(start, Clock::now());
+#endif
         }
     }
+
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+    void ResetConjugateGradientProfile()
+    {
+        profile = ConjugateGradientProfileData{};
+    }
+
+    ConjugateGradientProfileData GetConjugateGradientProfile()
+    {
+        return profile;
+    }
+#endif
 
     ConjugateGradientResult SolveConjugateGradient(
         const SparseBlockMatrix& matrix,
@@ -122,7 +180,14 @@ namespace PhysiK
         std::vector<float>& solution,
         const ConjugateGradientSettings& settings)
     {
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        ResetConjugateGradientProfile();
+        const Clock::time_point totalStart = Clock::now();
+#endif
         ConjugateGradientResult result;
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        const ProfileScope profileScope{totalStart, &result};
+#endif
         const int blockCount = std::max(0, matrix.blockCount);
         const std::size_t dimension = static_cast<std::size_t>(blockCount * 3);
 
@@ -145,7 +210,13 @@ namespace PhysiK
         solution.assign(dimension, 0.0f);
 
         std::vector<float> matrixTimesSolution;
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        Clock::time_point timedStart = Clock::now();
+#endif
         matrix.Multiply(solution, matrixTimesSolution);
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        profile.sparseMatrixMultiplyMilliseconds += MillisecondsBetween(timedStart, Clock::now());
+#endif
         if (matrixTimesSolution.size() != dimension || !IsFinite(matrixTimesSolution))
         {
             solution.clear();
@@ -153,10 +224,16 @@ namespace PhysiK
         }
 
         std::vector<float> residual(dimension, 0.0f);
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        timedStart = Clock::now();
+#endif
         for (std::size_t i = 0; i < dimension; ++i)
         {
             residual[i] = rhs[i] - matrixTimesSolution[i];
         }
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        profile.vectorUpdateMilliseconds += MillisecondsBetween(timedStart, Clock::now());
+#endif
 
         result.residualNorm = Norm(residual);
         const float rhsNorm = std::max(1.0f, Norm(rhs));
@@ -167,7 +244,13 @@ namespace PhysiK
             return result;
         }
 
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        timedStart = Clock::now();
+#endif
         const std::vector<float> inverseDiagonal = BuildScalarJacobiInverse(matrix);
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        profile.preconditionerSetupMilliseconds += MillisecondsBetween(timedStart, Clock::now());
+#endif
         std::vector<float> preconditionedResidual;
         ApplyPreconditioner(
             residual,
@@ -191,7 +274,13 @@ namespace PhysiK
         std::vector<float> matrixTimesDirection;
         for (int iteration = 0; iteration < settings.maxIterations; ++iteration)
         {
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            timedStart = Clock::now();
+#endif
             matrix.Multiply(direction, matrixTimesDirection);
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            profile.sparseMatrixMultiplyMilliseconds += MillisecondsBetween(timedStart, Clock::now());
+#endif
             if (matrixTimesDirection.size() != dimension || !IsFinite(matrixTimesDirection))
             {
                 solution.clear();
@@ -215,11 +304,17 @@ namespace PhysiK
                 return result;
             }
 
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            timedStart = Clock::now();
+#endif
             for (std::size_t i = 0; i < dimension; ++i)
             {
                 solution[i] += alpha * direction[i];
                 residual[i] -= alpha * matrixTimesDirection[i];
             }
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            profile.vectorUpdateMilliseconds += MillisecondsBetween(timedStart, Clock::now());
+#endif
 
             result.iterations = iteration + 1;
             result.residualNorm = Norm(residual);
@@ -265,14 +360,26 @@ namespace PhysiK
                 return result;
             }
 
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            timedStart = Clock::now();
+#endif
             for (std::size_t i = 0; i < dimension; ++i)
             {
                 direction[i] = preconditionedResidual[i] + beta * direction[i];
             }
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            profile.vectorUpdateMilliseconds += MillisecondsBetween(timedStart, Clock::now());
+#endif
 
             residualDotPreconditioned = nextResidualDotPreconditioned;
         }
 
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        profile.totalSolveMilliseconds = MillisecondsBetween(totalStart, Clock::now());
+        profile.iterations = result.iterations;
+        profile.residualNorm = result.residualNorm;
+        profile.converged = result.converged;
+#endif
         return result;
     }
 }
