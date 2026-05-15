@@ -9,10 +9,21 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 namespace
 {
+    void Require(bool condition, const char* message)
+    {
+        if (!condition)
+        {
+            std::fprintf(stderr, "PointConnectionTests failed: %s\n", message);
+            std::exit(1);
+        }
+    }
+
     struct Point
     {
         float x = 0.0f;
@@ -1907,6 +1918,63 @@ void UnavailableMKLBackendFallsBackToCurrentLinearSolver()
 #endif
 }
 
+void WorldLinearSolverBackendApiDefaultsToCurrent()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for backend default API test");
+
+    Require(
+        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_CURRENT,
+        "world backend API default is not Current");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void WorldLinearSolverBackendApiStoresCurrent()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for backend Current API test");
+
+    PHYSIK_SetLinearSolverBackend(world, PHYSIK_LINEAR_SOLVER_CURRENT);
+    Require(
+        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_CURRENT,
+        "world backend API did not store Current");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void WorldLinearSolverBackendApiHandlesMKLByBuildFlag()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for backend MKL API test");
+
+    PHYSIK_SetLinearSolverBackend(world, PHYSIK_LINEAR_SOLVER_MKL);
+#if defined(PHYSIK_ENABLE_MKL)
+    Require(
+        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_MKL,
+        "world backend API did not store available MKL backend");
+#else
+    Require(
+        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_CURRENT,
+        "world backend API did not fall back to Current when MKL is unavailable");
+#endif
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void WorldLinearSolverBackendApiInvalidValueFallsBackToCurrent()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for invalid backend API test");
+
+    PHYSIK_SetLinearSolverBackend(world, 99);
+    Require(
+        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_CURRENT,
+        "world backend API did not fall back to Current for invalid value");
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
 {
     std::vector<PhysiK::Node> nodes(1);
@@ -2592,6 +2660,10 @@ int main()
     SolverDataDefaultLinearSolverBackendIsCurrent();
     LinearSolverBackendAvailabilityMatchesBuildFlags();
     UnavailableMKLBackendFallsBackToCurrentLinearSolver();
+    WorldLinearSolverBackendApiDefaultsToCurrent();
+    WorldLinearSolverBackendApiStoresCurrent();
+    WorldLinearSolverBackendApiHandlesMKLByBuildFlag();
+    WorldLinearSolverBackendApiInvalidValueFallsBackToCurrent();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();

@@ -154,7 +154,8 @@ namespace PhysiK
 
     void World::SetLinearSolverBackend(LinearSolverBackend backend)
     {
-        linearSolverBackend = backend;
+        linearSolverBackend =
+            IsLinearSolverBackendAvailable(backend) ? backend : LinearSolverBackend::Current;
     }
 
     LinearSolverBackend World::GetLinearSolverBackend() const

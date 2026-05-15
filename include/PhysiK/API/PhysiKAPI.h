@@ -29,6 +29,12 @@ enum PhysikOverlapGeometryType
     PHYSIK_OverlapGeometry_Node = 4
 };
 
+enum PhysikLinearSolverBackend
+{
+    PHYSIK_LINEAR_SOLVER_CURRENT = 0,
+    PHYSIK_LINEAR_SOLVER_MKL = 1
+};
+
 struct PhysikCollisionSphereOverlap
 {
     int geometryType;
@@ -59,6 +65,8 @@ extern "C"
     PHYSIK_API void PHYSIK_Step(PhysiK::WorldHandle world, float dt);
     PHYSIK_API void PHYSIK_SetSubstepCount(PhysiK::WorldHandle world, int substepCount);
     PHYSIK_API void PHYSIK_SetSolverMode(PhysiK::WorldHandle world, int mode);
+    PHYSIK_API void PHYSIK_SetLinearSolverBackend(PhysiK::WorldHandle world, int backend);
+    PHYSIK_API int PHYSIK_GetLinearSolverBackend(PhysiK::WorldHandle world);
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,

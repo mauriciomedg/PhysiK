@@ -40,6 +40,30 @@ namespace
         }
     }
 
+    PhysiK::LinearSolverBackend ToLinearSolverBackend(int value)
+    {
+        switch (value)
+        {
+        case PHYSIK_LINEAR_SOLVER_MKL:
+            return PhysiK::LinearSolverBackend::MKL;
+        case PHYSIK_LINEAR_SOLVER_CURRENT:
+        default:
+            return PhysiK::LinearSolverBackend::Current;
+        }
+    }
+
+    int ToApiLinearSolverBackend(PhysiK::LinearSolverBackend backend)
+    {
+        switch (backend)
+        {
+        case PhysiK::LinearSolverBackend::MKL:
+            return PHYSIK_LINEAR_SOLVER_MKL;
+        case PhysiK::LinearSolverBackend::Current:
+        default:
+            return PHYSIK_LINEAR_SOLVER_CURRENT;
+        }
+    }
+
     PhysikCollisionSphereOverlap ToApiOverlap(const PhysiK::CollisionSphereOverlap& overlap)
     {
         PhysikCollisionSphereOverlap apiOverlap;
@@ -130,6 +154,24 @@ extern "C"
             worldPtr->SetSolverMode(
                 mode == 1 ? PhysiK::SolverMode::ImplicitEuler : PhysiK::SolverMode::Explicit);
         }
+    }
+
+    PHYSIK_API void PHYSIK_SetLinearSolverBackend(PhysiK::WorldHandle world, int backend)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetLinearSolverBackend(ToLinearSolverBackend(backend));
+        }
+    }
+
+    PHYSIK_API int PHYSIK_GetLinearSolverBackend(PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return ToApiLinearSolverBackend(worldPtr->GetLinearSolverBackend());
+        }
+
+        return PHYSIK_LINEAR_SOLVER_CURRENT;
     }
 
     PHYSIK_API void PHYSIK_SetGravity(
