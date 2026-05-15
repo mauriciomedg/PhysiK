@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(PhysiK VERSION 0.1.0 LANGUAGES CXX)
 
 option(PHYSIK_BUILD_TESTS "Build PhysiK tests" ON)
+option(PHYSIK_BUILD_BENCHMARKS "Build PhysiK standalone benchmark executables" OFF)
 option(PHYSIK_ENABLE_MKL "Enable optional Intel MKL linear solver support" OFF)
 
 add_library(PhysiK SHARED)
@@ -276,6 +277,26 @@ if(PHYSIK_ENABLE_MKL)
             )
         endif()
     endfunction()
+endif()
+
+if(PHYSIK_BUILD_BENCHMARKS)
+    add_executable(PhysiKStressTest benchmarks/PhysiKStressTest.cpp)
+    target_link_libraries(PhysiKStressTest PRIVATE PhysiK::PhysiK)
+    target_compile_features(PhysiKStressTest PRIVATE cxx_std_17)
+
+    if(WIN32)
+        add_custom_command(
+            TARGET PhysiKStressTest
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:PhysiK>
+                $<TARGET_FILE_DIR:PhysiKStressTest>
+        )
+    endif()
+
+    if(PHYSIK_ENABLE_MKL)
+        physik_copy_runtime_dlls(PhysiKStressTest)
+    endif()
 endif()
 
 if(PHYSIK_BUILD_TESTS)
