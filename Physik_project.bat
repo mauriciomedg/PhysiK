@@ -47,7 +47,7 @@ echo ============================
 echo Configure MKL build
 echo ============================
 
-cmake -S . -B build-mkl -DPHYSIK_BUILD_TESTS=ON -DPHYSIK_ENABLE_MKL=ON
+cmake -S . -B build-mkl -DPHYSIK_BUILD_TESTS=ON -DPHYSIK_ENABLE_MKL=ON -PHYSIK_BUILD_BENCHMARKS=ON
 
 echo ============================
 echo Build MKL
