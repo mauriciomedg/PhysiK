@@ -6,8 +6,9 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
-#include <mkl_lapacke.h>
+#include <mkl_spblas.h>
 
 namespace PhysiK
 {
@@ -15,17 +16,47 @@ namespace PhysiK
     {
         using Clock = std::chrono::steady_clock;
 
+        constexpr float FloatDiagonalTolerance = 1.0e-8f;
+        constexpr float FloatDenominatorTolerance = 1.0e-12f;
+        constexpr double DoubleDiagonalTolerance = 1.0e-14;
+        constexpr double DoubleDenominatorTolerance = 1.0e-24;
+
+        struct FloatCSR
+        {
+            int dimension = 0;
+            std::vector<MKL_INT> rowOffsets;
+            std::vector<MKL_INT> columnIndices;
+            std::vector<float> values;
+        };
+
+        struct DoubleCSR
+        {
+            int dimension = 0;
+            std::vector<MKL_INT> rowOffsets;
+            std::vector<MKL_INT> columnIndices;
+            std::vector<double> values;
+        };
+
+        struct MKLTiming
+        {
+            double csrConversionMilliseconds = 0.0;
+            double handleCreationMilliseconds = 0.0;
+            double cgSolveMilliseconds = 0.0;
+            double handleDestructionMilliseconds = 0.0;
+            double totalMilliseconds = 0.0;
+        };
+
         double MillisecondsBetween(Clock::time_point start, Clock::time_point end)
         {
             return std::chrono::duration<double, std::milli>(end - start).count();
         }
 
-        bool IsFinite(double value)
+        bool IsFinite(float value)
         {
             return std::isfinite(value);
         }
 
-        bool IsFinite(float value)
+        bool IsFinite(double value)
         {
             return std::isfinite(value);
         }
@@ -72,6 +103,18 @@ namespace PhysiK
             return sourceColumn.z;
         }
 
+        float Dot(const std::vector<float>& a, const std::vector<float>& b)
+        {
+            float result = 0.0f;
+            const std::size_t count = std::min(a.size(), b.size());
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                result += a[i] * b[i];
+            }
+
+            return result;
+        }
+
         double Dot(const std::vector<double>& a, const std::vector<double>& b)
         {
             double result = 0.0;
@@ -82,6 +125,17 @@ namespace PhysiK
             }
 
             return result;
+        }
+
+        float Norm(const std::vector<float>& values)
+        {
+            const float squared = Dot(values, values);
+            if (!IsFinite(squared) || squared < 0.0f)
+            {
+                return 0.0f;
+            }
+
+            return std::sqrt(squared);
         }
 
         double Norm(const std::vector<double>& values)
@@ -95,14 +149,6 @@ namespace PhysiK
             return std::sqrt(squared);
         }
 
-        bool IsSquareSystem(const CSRMatrix& matrix, const std::vector<double>& rhs)
-        {
-            return matrix.IsValid() &&
-                matrix.rowCount == matrix.colCount &&
-                rhs.size() == static_cast<std::size_t>(std::max(0, matrix.rowCount)) &&
-                IsFinite(rhs);
-        }
-
         bool IsSquareSystem(const SparseBlockMatrix& matrix, const std::vector<float>& rhs)
         {
             const int blockCount = std::max(0, matrix.blockCount);
@@ -113,225 +159,603 @@ namespace PhysiK
                 IsFinite(rhs);
         }
 
-        std::vector<double> BuildDenseRowMajorMatrix(const CSRMatrix& matrix)
+        bool IsSquareSystem(const CSRMatrix& matrix, const std::vector<double>& rhs)
         {
-            const int dimension = std::max(0, matrix.rowCount);
-            const std::size_t denseSize =
-                static_cast<std::size_t>(dimension) * static_cast<std::size_t>(dimension);
-            std::vector<double> dense(denseSize, 0.0);
-
-            for (int row = 0; row < dimension; ++row)
-            {
-                const int rowBegin = matrix.rowOffsets[static_cast<std::size_t>(row)];
-                const int rowEnd = matrix.rowOffsets[static_cast<std::size_t>(row + 1)];
-                for (int valueIndex = rowBegin; valueIndex < rowEnd; ++valueIndex)
-                {
-                    const std::size_t index = static_cast<std::size_t>(valueIndex);
-                    const int column = matrix.columnIndices[index];
-                    dense[static_cast<std::size_t>(row) *
-                        static_cast<std::size_t>(dimension) +
-                        static_cast<std::size_t>(column)] += matrix.values[index];
-                }
-            }
-
-            return dense;
+            return matrix.IsValid() &&
+                matrix.rowCount == matrix.colCount &&
+                rhs.size() == static_cast<std::size_t>(std::max(0, matrix.rowCount)) &&
+                IsFinite(rhs) &&
+                IsFinite(matrix.values);
         }
 
-        std::vector<double> BuildDenseRowMajorMatrix(const SparseBlockMatrix& matrix)
+        FloatCSR BuildScalarCSR(const SparseBlockMatrix& matrix)
         {
-            const int dimension = std::max(0, matrix.blockCount) * 3;
-            const std::size_t denseSize =
-                static_cast<std::size_t>(dimension) * static_cast<std::size_t>(dimension);
-            std::vector<double> dense(denseSize, 0.0);
+            FloatCSR csr;
+            csr.dimension = std::max(0, matrix.blockCount) * 3;
+            csr.rowOffsets.reserve(static_cast<std::size_t>(csr.dimension + 1));
+            csr.columnIndices.reserve(matrix.values.size() * 9u);
+            csr.values.reserve(matrix.values.size() * 9u);
 
             for (int rowBlock = 0; rowBlock < matrix.blockCount; ++rowBlock)
             {
-                const int rowBegin = matrix.rowStart[static_cast<std::size_t>(rowBlock)];
-                const int rowEnd = matrix.rowStart[static_cast<std::size_t>(rowBlock + 1)];
-                for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
+                const int blockRowBegin = matrix.rowStart[static_cast<std::size_t>(rowBlock)];
+                const int blockRowEnd = matrix.rowStart[static_cast<std::size_t>(rowBlock + 1)];
+                for (int rowAxis = 0; rowAxis < 3; ++rowAxis)
                 {
-                    const int columnBlock = matrix.colIndex[static_cast<std::size_t>(blockIndex)];
-                    if (columnBlock < 0 || columnBlock >= matrix.blockCount)
+                    csr.rowOffsets.push_back(static_cast<MKL_INT>(csr.values.size()));
+                    for (int blockIndex = blockRowBegin; blockIndex < blockRowEnd; ++blockIndex)
                     {
-                        return {};
-                    }
+                        const int columnBlock = matrix.colIndex[static_cast<std::size_t>(blockIndex)];
+                        if (columnBlock < 0 || columnBlock >= matrix.blockCount)
+                        {
+                            csr.dimension = -1;
+                            return csr;
+                        }
 
-                    const Mat3& block = matrix.values[static_cast<std::size_t>(blockIndex)];
-                    for (int rowAxis = 0; rowAxis < 3; ++rowAxis)
-                    {
-                        const int row = rowBlock * 3 + rowAxis;
+                        const Mat3& block = matrix.values[static_cast<std::size_t>(blockIndex)];
                         for (int columnAxis = 0; columnAxis < 3; ++columnAxis)
                         {
                             const float value = GetBlockValue(block, rowAxis, columnAxis);
                             if (!IsFinite(value))
                             {
-                                return {};
+                                csr.dimension = -1;
+                                return csr;
                             }
 
-                            const int column = columnBlock * 3 + columnAxis;
-                            dense[static_cast<std::size_t>(row) *
-                                static_cast<std::size_t>(dimension) +
-                                static_cast<std::size_t>(column)] += value;
+                            if (value == 0.0f)
+                            {
+                                continue;
+                            }
+
+                            csr.columnIndices.push_back(
+                                static_cast<MKL_INT>(columnBlock * 3 + columnAxis));
+                            csr.values.push_back(value);
                         }
                     }
                 }
             }
 
-            return dense;
+            csr.rowOffsets.push_back(static_cast<MKL_INT>(csr.values.size()));
+            return csr;
         }
 
-        std::vector<double> ToDoubleVector(const std::vector<float>& values)
+        DoubleCSR BuildScalarCSR(const CSRMatrix& matrix)
         {
-            std::vector<double> result;
-            result.reserve(values.size());
-            for (float value : values)
+            DoubleCSR csr;
+            csr.dimension = std::max(0, matrix.rowCount);
+            csr.rowOffsets.reserve(static_cast<std::size_t>(csr.dimension + 1));
+            csr.columnIndices.reserve(matrix.values.size());
+            csr.values.reserve(matrix.values.size());
+
+            for (int row = 0; row < matrix.rowCount; ++row)
             {
-                result.push_back(static_cast<double>(value));
+                csr.rowOffsets.push_back(static_cast<MKL_INT>(csr.values.size()));
+                const int rowBegin = matrix.rowOffsets[static_cast<std::size_t>(row)];
+                const int rowEnd = matrix.rowOffsets[static_cast<std::size_t>(row + 1)];
+                for (int valueIndex = rowBegin; valueIndex < rowEnd; ++valueIndex)
+                {
+                    const std::size_t index = static_cast<std::size_t>(valueIndex);
+                    const double value = matrix.values[index];
+                    if (!IsFinite(value))
+                    {
+                        csr.dimension = -1;
+                        return csr;
+                    }
+
+                    if (value == 0.0)
+                    {
+                        continue;
+                    }
+
+                    csr.columnIndices.push_back(static_cast<MKL_INT>(matrix.columnIndices[index]));
+                    csr.values.push_back(value);
+                }
             }
 
-            return result;
+            csr.rowOffsets.push_back(static_cast<MKL_INT>(csr.values.size()));
+            return csr;
         }
 
-        void ToFloatVector(const std::vector<double>& values, std::vector<float>& result)
+        std::vector<float> BuildJacobiInverse(const FloatCSR& matrix)
         {
-            result.clear();
-            result.reserve(values.size());
-            for (double value : values)
+            std::vector<float> inverseDiagonal(
+                static_cast<std::size_t>(std::max(0, matrix.dimension)),
+                1.0f);
+
+            for (int row = 0; row < matrix.dimension; ++row)
             {
-                result.push_back(static_cast<float>(value));
+                const MKL_INT rowBegin = matrix.rowOffsets[static_cast<std::size_t>(row)];
+                const MKL_INT rowEnd = matrix.rowOffsets[static_cast<std::size_t>(row + 1)];
+                for (MKL_INT valueIndex = rowBegin; valueIndex < rowEnd; ++valueIndex)
+                {
+                    const std::size_t index = static_cast<std::size_t>(valueIndex);
+                    if (matrix.columnIndices[index] != row)
+                    {
+                        continue;
+                    }
+
+                    const float diagonal = matrix.values[index];
+                    if (IsFinite(diagonal) && std::abs(diagonal) > FloatDiagonalTolerance)
+                    {
+                        inverseDiagonal[static_cast<std::size_t>(row)] = 1.0f / diagonal;
+                    }
+                    break;
+                }
             }
+
+            return inverseDiagonal;
         }
 
-        double ComputeResidualNorm(
-            const CSRMatrix& matrix,
-            const std::vector<double>& rhs,
-            const std::vector<double>& solution)
+        std::vector<double> BuildJacobiInverse(const DoubleCSR& matrix)
         {
-            std::vector<double> product;
-            matrix.Multiply(solution, product);
-            if (product.size() != rhs.size())
+            std::vector<double> inverseDiagonal(
+                static_cast<std::size_t>(std::max(0, matrix.dimension)),
+                1.0);
+
+            for (int row = 0; row < matrix.dimension; ++row)
             {
-                return 0.0;
+                const MKL_INT rowBegin = matrix.rowOffsets[static_cast<std::size_t>(row)];
+                const MKL_INT rowEnd = matrix.rowOffsets[static_cast<std::size_t>(row + 1)];
+                for (MKL_INT valueIndex = rowBegin; valueIndex < rowEnd; ++valueIndex)
+                {
+                    const std::size_t index = static_cast<std::size_t>(valueIndex);
+                    if (matrix.columnIndices[index] != row)
+                    {
+                        continue;
+                    }
+
+                    const double diagonal = matrix.values[index];
+                    if (IsFinite(diagonal) && std::abs(diagonal) > DoubleDiagonalTolerance)
+                    {
+                        inverseDiagonal[static_cast<std::size_t>(row)] = 1.0 / diagonal;
+                    }
+                    break;
+                }
             }
 
-            std::vector<double> residual(rhs.size(), 0.0);
-            for (std::size_t i = 0; i < rhs.size(); ++i)
-            {
-                residual[i] = rhs[i] - product[i];
-            }
-
-            return Norm(residual);
+            return inverseDiagonal;
         }
 
-        double ComputeResidualNorm(
-            const SparseBlockMatrix& matrix,
+        void ApplyPreconditioner(
+            const std::vector<float>& residual,
+            const std::vector<float>& inverseDiagonal,
+            bool useJacobiPreconditioner,
+            std::vector<float>& result)
+        {
+            result.resize(residual.size());
+            if (!useJacobiPreconditioner)
+            {
+                result = residual;
+                return;
+            }
+
+            for (std::size_t i = 0; i < residual.size(); ++i)
+            {
+                result[i] = residual[i] * inverseDiagonal[i];
+            }
+        }
+
+        void ApplyPreconditioner(
+            const std::vector<double>& residual,
+            const std::vector<double>& inverseDiagonal,
+            bool useJacobiPreconditioner,
+            std::vector<double>& result)
+        {
+            result.resize(residual.size());
+            if (!useJacobiPreconditioner)
+            {
+                result = residual;
+                return;
+            }
+
+            for (std::size_t i = 0; i < residual.size(); ++i)
+            {
+                result[i] = residual[i] * inverseDiagonal[i];
+            }
+        }
+
+        bool Multiply(sparse_matrix_t handle, const std::vector<float>& input, std::vector<float>& output)
+        {
+            output.assign(input.size(), 0.0f);
+            matrix_descr descriptor;
+            descriptor.type = SPARSE_MATRIX_TYPE_GENERAL;
+            descriptor.mode = SPARSE_FILL_MODE_FULL;
+            descriptor.diag = SPARSE_DIAG_NON_UNIT;
+
+            const sparse_status_t status = mkl_sparse_s_mv(
+                SPARSE_OPERATION_NON_TRANSPOSE,
+                1.0f,
+                handle,
+                descriptor,
+                input.data(),
+                0.0f,
+                output.data());
+            return status == SPARSE_STATUS_SUCCESS && IsFinite(output);
+        }
+
+        bool Multiply(sparse_matrix_t handle, const std::vector<double>& input, std::vector<double>& output)
+        {
+            output.assign(input.size(), 0.0);
+            matrix_descr descriptor;
+            descriptor.type = SPARSE_MATRIX_TYPE_GENERAL;
+            descriptor.mode = SPARSE_FILL_MODE_FULL;
+            descriptor.diag = SPARSE_DIAG_NON_UNIT;
+
+            const sparse_status_t status = mkl_sparse_d_mv(
+                SPARSE_OPERATION_NON_TRANSPOSE,
+                1.0,
+                handle,
+                descriptor,
+                input.data(),
+                0.0,
+                output.data());
+            return status == SPARSE_STATUS_SUCCESS && IsFinite(output);
+        }
+
+        bool CreateSparseHandle(FloatCSR& matrix, sparse_matrix_t& handle)
+        {
+            if (matrix.dimension <= 0 ||
+                matrix.rowOffsets.size() != static_cast<std::size_t>(matrix.dimension + 1) ||
+                matrix.columnIndices.size() != matrix.values.size())
+            {
+                return false;
+            }
+
+            const sparse_status_t status = mkl_sparse_s_create_csr(
+                &handle,
+                SPARSE_INDEX_BASE_ZERO,
+                static_cast<MKL_INT>(matrix.dimension),
+                static_cast<MKL_INT>(matrix.dimension),
+                matrix.rowOffsets.data(),
+                matrix.rowOffsets.data() + 1,
+                matrix.columnIndices.data(),
+                matrix.values.data());
+            return status == SPARSE_STATUS_SUCCESS;
+        }
+
+        bool CreateSparseHandle(DoubleCSR& matrix, sparse_matrix_t& handle)
+        {
+            if (matrix.dimension <= 0 ||
+                matrix.rowOffsets.size() != static_cast<std::size_t>(matrix.dimension + 1) ||
+                matrix.columnIndices.size() != matrix.values.size())
+            {
+                return false;
+            }
+
+            const sparse_status_t status = mkl_sparse_d_create_csr(
+                &handle,
+                SPARSE_INDEX_BASE_ZERO,
+                static_cast<MKL_INT>(matrix.dimension),
+                static_cast<MKL_INT>(matrix.dimension),
+                matrix.rowOffsets.data(),
+                matrix.rowOffsets.data() + 1,
+                matrix.columnIndices.data(),
+                matrix.values.data());
+            return status == SPARSE_STATUS_SUCCESS;
+        }
+
+        LinearSolveResult SolveCG(
+            sparse_matrix_t handle,
+            const FloatCSR& matrix,
             const std::vector<float>& rhs,
-            const std::vector<float>& solution)
-        {
-            std::vector<float> product;
-            matrix.Multiply(solution, product);
-            if (product.size() != rhs.size())
-            {
-                return 0.0;
-            }
-
-            std::vector<double> residual(rhs.size(), 0.0);
-            for (std::size_t i = 0; i < rhs.size(); ++i)
-            {
-                residual[i] = static_cast<double>(rhs[i]) - static_cast<double>(product[i]);
-            }
-
-            return Norm(residual);
-        }
-
-        LinearSolveResult SolveDenseSPD(
-            std::vector<double>& dense,
-            const std::vector<double>& rhs,
-            std::vector<double>& solution,
-            const LinearSolveSettings& settings,
-            double* outSolveMilliseconds = nullptr)
+            std::vector<float>& solution,
+            const LinearSolveSettings& settings)
         {
             LinearSolveResult result;
+            const std::size_t dimension = static_cast<std::size_t>(std::max(0, matrix.dimension));
             solution.clear();
-
-            const int dimension = static_cast<int>(rhs.size());
             if (dimension == 0)
             {
                 result.converged = true;
                 return result;
             }
 
-            if (dense.size() != static_cast<std::size_t>(dimension * dimension))
+            if (rhs.size() != dimension ||
+                settings.maxIterations < 0 ||
+                !IsFinite(settings.tolerance) ||
+                !IsFinite(rhs))
             {
                 return result;
             }
 
-            solution = rhs;
-            const Clock::time_point solveStart = Clock::now();
-            const int info = LAPACKE_dposv(
-                LAPACK_ROW_MAJOR,
-                'U',
-                dimension,
-                1,
-                dense.data(),
-                dimension,
-                solution.data(),
-                1);
-            const Clock::time_point solveEnd = Clock::now();
-            if (outSolveMilliseconds != nullptr)
-            {
-                *outSolveMilliseconds = MillisecondsBetween(solveStart, solveEnd);
-            }
-
-            result.iterations = 1;
-            if (info != 0 || !IsFinite(solution))
+            solution.assign(dimension, 0.0f);
+            std::vector<float> matrixTimesSolution;
+            if (!Multiply(handle, solution, matrixTimesSolution))
             {
                 solution.clear();
-                result.converged = false;
                 return result;
             }
 
-            const double rhsNorm = std::max(1.0, Norm(rhs));
-            const double targetResidual = std::max(0.0f, settings.tolerance) * rhsNorm;
-            result.converged = true;
-            result.residualNorm = static_cast<float>(targetResidual);
+            std::vector<float> residual(dimension, 0.0f);
+            for (std::size_t i = 0; i < dimension; ++i)
+            {
+                residual[i] = rhs[i] - matrixTimesSolution[i];
+            }
+
+            result.residualNorm = Norm(residual);
+            const float rhsNorm = std::max(1.0f, Norm(rhs));
+            const float targetResidual = std::max(0.0f, settings.tolerance) * rhsNorm;
+            if (result.residualNorm <= targetResidual)
+            {
+                result.converged = true;
+                return result;
+            }
+
+            const std::vector<float> inverseDiagonal = BuildJacobiInverse(matrix);
+            std::vector<float> preconditionedResidual;
+            ApplyPreconditioner(residual, inverseDiagonal, settings.useJacobiPreconditioner, preconditionedResidual);
+            if (!IsFinite(preconditionedResidual))
+            {
+                solution.clear();
+                return result;
+            }
+
+            std::vector<float> direction = preconditionedResidual;
+            float residualDotPreconditioned = Dot(residual, preconditionedResidual);
+            if (!IsFinite(residualDotPreconditioned) || residualDotPreconditioned <= 0.0f)
+            {
+                solution.clear();
+                return result;
+            }
+
+            std::vector<float> matrixTimesDirection;
+            for (int iteration = 0; iteration < settings.maxIterations; ++iteration)
+            {
+                if (!Multiply(handle, direction, matrixTimesDirection))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                const float denominator = Dot(direction, matrixTimesDirection);
+                if (!IsFinite(denominator) || std::abs(denominator) <= FloatDenominatorTolerance)
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                const float alpha = residualDotPreconditioned / denominator;
+                if (!IsFinite(alpha))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                for (std::size_t i = 0; i < dimension; ++i)
+                {
+                    solution[i] += alpha * direction[i];
+                    residual[i] -= alpha * matrixTimesDirection[i];
+                }
+
+                result.iterations = iteration + 1;
+                result.residualNorm = Norm(residual);
+                if (!IsFinite(result.residualNorm))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                if (result.residualNorm <= targetResidual)
+                {
+                    result.converged = true;
+                    return result;
+                }
+
+                ApplyPreconditioner(residual, inverseDiagonal, settings.useJacobiPreconditioner, preconditionedResidual);
+                if (!IsFinite(preconditionedResidual))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                const float nextResidualDotPreconditioned = Dot(residual, preconditionedResidual);
+                if (!IsFinite(nextResidualDotPreconditioned) || nextResidualDotPreconditioned <= 0.0f)
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                const float beta = nextResidualDotPreconditioned / residualDotPreconditioned;
+                if (!IsFinite(beta))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                for (std::size_t i = 0; i < dimension; ++i)
+                {
+                    direction[i] = preconditionedResidual[i] + beta * direction[i];
+                }
+
+                residualDotPreconditioned = nextResidualDotPreconditioned;
+            }
+
             return result;
         }
 
-        void PrintMKLSolveTimings(
+        LinearSolveResult SolveCG(
+            sparse_matrix_t handle,
+            const DoubleCSR& matrix,
+            const std::vector<double>& rhs,
+            std::vector<double>& solution,
+            const LinearSolveSettings& settings)
+        {
+            LinearSolveResult result;
+            const std::size_t dimension = static_cast<std::size_t>(std::max(0, matrix.dimension));
+            solution.clear();
+            if (dimension == 0)
+            {
+                result.converged = true;
+                return result;
+            }
+
+            if (rhs.size() != dimension ||
+                settings.maxIterations < 0 ||
+                !IsFinite(settings.tolerance) ||
+                !IsFinite(rhs))
+            {
+                return result;
+            }
+
+            solution.assign(dimension, 0.0);
+            std::vector<double> matrixTimesSolution;
+            if (!Multiply(handle, solution, matrixTimesSolution))
+            {
+                solution.clear();
+                return result;
+            }
+
+            std::vector<double> residual(dimension, 0.0);
+            for (std::size_t i = 0; i < dimension; ++i)
+            {
+                residual[i] = rhs[i] - matrixTimesSolution[i];
+            }
+
+            double residualNorm = Norm(residual);
+            result.residualNorm = static_cast<float>(residualNorm);
+            const double rhsNorm = std::max(1.0, Norm(rhs));
+            const double targetResidual = std::max(0.0f, settings.tolerance) * rhsNorm;
+            if (residualNorm <= targetResidual)
+            {
+                result.converged = true;
+                return result;
+            }
+
+            const std::vector<double> inverseDiagonal = BuildJacobiInverse(matrix);
+            std::vector<double> preconditionedResidual;
+            ApplyPreconditioner(residual, inverseDiagonal, settings.useJacobiPreconditioner, preconditionedResidual);
+            if (!IsFinite(preconditionedResidual))
+            {
+                solution.clear();
+                return result;
+            }
+
+            std::vector<double> direction = preconditionedResidual;
+            double residualDotPreconditioned = Dot(residual, preconditionedResidual);
+            if (!IsFinite(residualDotPreconditioned) || residualDotPreconditioned <= 0.0)
+            {
+                solution.clear();
+                return result;
+            }
+
+            std::vector<double> matrixTimesDirection;
+            for (int iteration = 0; iteration < settings.maxIterations; ++iteration)
+            {
+                if (!Multiply(handle, direction, matrixTimesDirection))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                const double denominator = Dot(direction, matrixTimesDirection);
+                if (!IsFinite(denominator) || std::abs(denominator) <= DoubleDenominatorTolerance)
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                const double alpha = residualDotPreconditioned / denominator;
+                if (!IsFinite(alpha))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                for (std::size_t i = 0; i < dimension; ++i)
+                {
+                    solution[i] += alpha * direction[i];
+                    residual[i] -= alpha * matrixTimesDirection[i];
+                }
+
+                result.iterations = iteration + 1;
+                residualNorm = Norm(residual);
+                result.residualNorm = static_cast<float>(residualNorm);
+                if (!IsFinite(residualNorm))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                if (residualNorm <= targetResidual)
+                {
+                    result.converged = true;
+                    return result;
+                }
+
+                ApplyPreconditioner(residual, inverseDiagonal, settings.useJacobiPreconditioner, preconditionedResidual);
+                if (!IsFinite(preconditionedResidual))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                const double nextResidualDotPreconditioned = Dot(residual, preconditionedResidual);
+                if (!IsFinite(nextResidualDotPreconditioned) || nextResidualDotPreconditioned <= 0.0)
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                const double beta = nextResidualDotPreconditioned / residualDotPreconditioned;
+                if (!IsFinite(beta))
+                {
+                    solution.clear();
+                    result.converged = false;
+                    return result;
+                }
+
+                for (std::size_t i = 0; i < dimension; ++i)
+                {
+                    direction[i] = preconditionedResidual[i] + beta * direction[i];
+                }
+
+                residualDotPreconditioned = nextResidualDotPreconditioned;
+            }
+
+            return result;
+        }
+
+        void PrintDiagnostics(
             const char* pathName,
             int dimension,
-            int blockCount,
-            std::size_t blockNonZeroCount,
-            std::size_t storedScalarEntryCount,
-            double conversionMilliseconds,
-            double handleCreationMilliseconds,
-            double solveMilliseconds,
-            double handleDestructionMilliseconds,
-            double totalMilliseconds)
+            std::size_t nonZeroCount,
+            const LinearSolveResult& result,
+            const MKLTiming& timing)
         {
             std::printf(
                 "MKLLinearSolver diagnostics [%s]\n"
                 "  dimension: %d\n"
-                "  block count: %d\n"
-                "  block nonzeros: %zu\n"
-                "  stored scalar entries: %zu\n"
-                "  SparseBlockMatrix to CSR conversion time: 0.000 ms (not used by current dense path)\n"
-                "  SparseBlockMatrix to dense conversion time: %.3f ms\n"
-                "  MKL handle creation time: %.3f ms\n"
-                "  MKL solve time: %.3f ms\n"
-                "  MKL handle destruction time: %.3f ms\n"
+                "  CSR nonzeros: %zu\n"
+                "  CSR conversion time: %.3f ms\n"
+                "  MKL sparse handle creation time: %.3f ms\n"
+                "  MKL CG solve time: %.3f ms\n"
+                "  MKL sparse handle destruction time: %.3f ms\n"
+                "  iterations: %d\n"
+                "  residual norm: %.8g\n"
                 "  total Solve() time: %.3f ms\n",
                 pathName,
                 dimension,
-                blockCount,
-                blockNonZeroCount,
-                storedScalarEntryCount,
-                conversionMilliseconds,
-                handleCreationMilliseconds,
-                solveMilliseconds,
-                handleDestructionMilliseconds,
-                totalMilliseconds);
+                nonZeroCount,
+                timing.csrConversionMilliseconds,
+                timing.handleCreationMilliseconds,
+                timing.cgSolveMilliseconds,
+                timing.handleDestructionMilliseconds,
+                result.iterations,
+                result.residualNorm,
+                timing.totalMilliseconds);
         }
     }
 
@@ -344,62 +768,48 @@ namespace PhysiK
         const Clock::time_point totalStart = Clock::now();
         solution.clear();
         LinearSolveResult result;
+        MKLTiming timing;
         if (!IsSquareSystem(matrix, rhs))
         {
             return result;
         }
 
-        const int dimension = std::max(0, matrix.blockCount) * 3;
-        const std::size_t blockNonZeroCount = matrix.values.size();
-        const std::size_t storedScalarEntryCount = blockNonZeroCount * 9u;
-
         const Clock::time_point conversionStart = Clock::now();
-        std::vector<double> dense = BuildDenseRowMajorMatrix(matrix);
+        FloatCSR csr = BuildScalarCSR(matrix);
         const Clock::time_point conversionEnd = Clock::now();
-        const std::vector<double> doubleRhs = ToDoubleVector(rhs);
-        std::vector<double> doubleSolution;
-        double solveMilliseconds = 0.0;
-        result = SolveDenseSPD(dense, doubleRhs, doubleSolution, settings, &solveMilliseconds);
-        if (!result.converged)
+        timing.csrConversionMilliseconds = MillisecondsBetween(conversionStart, conversionEnd);
+        if (csr.dimension == 0)
         {
-            const Clock::time_point totalEnd = Clock::now();
-            PrintMKLSolveTimings(
-                "SparseBlockMatrix dense LAPACKE dposv",
-                dimension,
-                matrix.blockCount,
-                blockNonZeroCount,
-                storedScalarEntryCount,
-                MillisecondsBetween(conversionStart, conversionEnd),
-                0.0,
-                solveMilliseconds,
-                0.0,
-                MillisecondsBetween(totalStart, totalEnd));
+            result.converged = true;
+            timing.totalMilliseconds = MillisecondsBetween(totalStart, Clock::now());
+            PrintDiagnostics("SparseBlockMatrix MKL sparse CG", csr.dimension, csr.values.size(), result, timing);
             return result;
         }
 
-        ToFloatVector(doubleSolution, solution);
-        result.residualNorm = static_cast<float>(ComputeResidualNorm(matrix, rhs, solution));
-        const double rhsNorm = std::max(1.0, Norm(doubleRhs));
-        const double targetResidual = std::max(0.0f, settings.tolerance) * rhsNorm;
-        result.converged = result.residualNorm <= static_cast<float>(targetResidual);
-        if (!result.converged)
+        sparse_matrix_t handle = nullptr;
+        const Clock::time_point handleStart = Clock::now();
+        const bool handleCreated = CreateSparseHandle(csr, handle);
+        const Clock::time_point handleEnd = Clock::now();
+        timing.handleCreationMilliseconds = MillisecondsBetween(handleStart, handleEnd);
+        if (!handleCreated)
         {
-            solution.clear();
+            timing.totalMilliseconds = MillisecondsBetween(totalStart, Clock::now());
+            PrintDiagnostics("SparseBlockMatrix MKL sparse CG", csr.dimension, csr.values.size(), result, timing);
+            return result;
         }
 
-        const Clock::time_point totalEnd = Clock::now();
-        PrintMKLSolveTimings(
-            "SparseBlockMatrix dense LAPACKE dposv",
-            dimension,
-            matrix.blockCount,
-            blockNonZeroCount,
-            storedScalarEntryCount,
-            MillisecondsBetween(conversionStart, conversionEnd),
-            0.0,
-            solveMilliseconds,
-            0.0,
-            MillisecondsBetween(totalStart, totalEnd));
+        const Clock::time_point solveStart = Clock::now();
+        result = SolveCG(handle, csr, rhs, solution, settings);
+        const Clock::time_point solveEnd = Clock::now();
+        timing.cgSolveMilliseconds = MillisecondsBetween(solveStart, solveEnd);
 
+        const Clock::time_point destroyStart = Clock::now();
+        mkl_sparse_destroy(handle);
+        const Clock::time_point destroyEnd = Clock::now();
+        timing.handleDestructionMilliseconds = MillisecondsBetween(destroyStart, destroyEnd);
+        timing.totalMilliseconds = MillisecondsBetween(totalStart, destroyEnd);
+
+        PrintDiagnostics("SparseBlockMatrix MKL sparse CG", csr.dimension, csr.values.size(), result, timing);
         return result;
     }
 
@@ -409,44 +819,51 @@ namespace PhysiK
         std::vector<double>& solution,
         const LinearSolveSettings& settings)
     {
-        LinearSolveResult result;
+        const Clock::time_point totalStart = Clock::now();
         solution.clear();
-
-        if (!IsSquareSystem(matrix, rhs) || !IsFinite(matrix.values))
+        LinearSolveResult result;
+        MKLTiming timing;
+        if (!IsSquareSystem(matrix, rhs))
         {
             return result;
         }
 
-        const int dimension = matrix.rowCount;
-        if (dimension == 0)
+        const Clock::time_point conversionStart = Clock::now();
+        DoubleCSR csr = BuildScalarCSR(matrix);
+        const Clock::time_point conversionEnd = Clock::now();
+        timing.csrConversionMilliseconds = MillisecondsBetween(conversionStart, conversionEnd);
+        if (csr.dimension == 0)
         {
             result.converged = true;
+            timing.totalMilliseconds = MillisecondsBetween(totalStart, Clock::now());
+            PrintDiagnostics("CSRMatrix MKL sparse CG", csr.dimension, csr.values.size(), result, timing);
             return result;
         }
 
-        const Clock::time_point totalStart = Clock::now();
-        const Clock::time_point conversionStart = Clock::now();
-        std::vector<double> dense = BuildDenseRowMajorMatrix(matrix);
-        const Clock::time_point conversionEnd = Clock::now();
-        double solveMilliseconds = 0.0;
-        result = SolveDenseSPD(dense, rhs, solution, settings, &solveMilliseconds);
+        sparse_matrix_t handle = nullptr;
+        const Clock::time_point handleStart = Clock::now();
+        const bool handleCreated = CreateSparseHandle(csr, handle);
+        const Clock::time_point handleEnd = Clock::now();
+        timing.handleCreationMilliseconds = MillisecondsBetween(handleStart, handleEnd);
+        if (!handleCreated)
+        {
+            timing.totalMilliseconds = MillisecondsBetween(totalStart, Clock::now());
+            PrintDiagnostics("CSRMatrix MKL sparse CG", csr.dimension, csr.values.size(), result, timing);
+            return result;
+        }
 
-        result.residualNorm = static_cast<float>(ComputeResidualNorm(matrix, rhs, solution));
-        const double rhsNorm = std::max(1.0, Norm(rhs));
-        const double targetResidual = std::max(0.0f, settings.tolerance) * rhsNorm;
-        result.converged = result.residualNorm <= static_cast<float>(targetResidual);
-        const Clock::time_point totalEnd = Clock::now();
-        PrintMKLSolveTimings(
-            "CSRMatrix dense LAPACKE dposv",
-            matrix.rowCount,
-            matrix.rowCount,
-            matrix.values.size(),
-            matrix.values.size(),
-            MillisecondsBetween(conversionStart, conversionEnd),
-            0.0,
-            solveMilliseconds,
-            0.0,
-            MillisecondsBetween(totalStart, totalEnd));
+        const Clock::time_point solveStart = Clock::now();
+        result = SolveCG(handle, csr, rhs, solution, settings);
+        const Clock::time_point solveEnd = Clock::now();
+        timing.cgSolveMilliseconds = MillisecondsBetween(solveStart, solveEnd);
+
+        const Clock::time_point destroyStart = Clock::now();
+        mkl_sparse_destroy(handle);
+        const Clock::time_point destroyEnd = Clock::now();
+        timing.handleDestructionMilliseconds = MillisecondsBetween(destroyStart, destroyEnd);
+        timing.totalMilliseconds = MillisecondsBetween(totalStart, destroyEnd);
+
+        PrintDiagnostics("CSRMatrix MKL sparse CG", csr.dimension, csr.values.size(), result, timing);
         return result;
     }
 }

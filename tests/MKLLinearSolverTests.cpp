@@ -40,7 +40,7 @@ namespace
     PhysiK::LinearSolveSettings MakeTinySolveSettings()
     {
         PhysiK::LinearSolveSettings settings;
-        settings.maxIterations = 1;
+        settings.maxIterations = 32;
         settings.tolerance = 1.0e-10f;
         settings.useJacobiPreconditioner = false;
         return settings;
@@ -139,7 +139,7 @@ void MKLBackendSolvesSparseBlockSystemWhenSelected()
     std::vector<float> solution;
 
     PhysiK::LinearSolveSettings settings;
-    settings.maxIterations = 1;
+    settings.maxIterations = 32;
     settings.tolerance = 1.0e-6f;
     settings.useJacobiPreconditioner = false;
 
