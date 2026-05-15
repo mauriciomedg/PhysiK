@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-#include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
-
 namespace PhysiK
 {
     namespace
@@ -41,6 +39,7 @@ namespace PhysiK
                 matrix.columns[1] * value,
                 matrix.columns[2] * value);
         }
+
     }
 
     void SolverData::Clear()
@@ -138,14 +137,14 @@ namespace PhysiK
             return false;
         }
 
-        ConjugateGradientSettings cgSettings;
-        cgSettings.maxIterations = std::max(128, dynamicBlockCount * 12);
-        cgSettings.tolerance = 1.0e-5f;
-        cgSettings.useJacobiPreconditioner = true;
+        LinearSolveSettings settings;
+        settings.maxIterations = std::max(128, dynamicBlockCount * 12);
+        settings.tolerance = 1.0e-5f;
+        settings.useJacobiPreconditioner = true;
 
-        const ConjugateGradientResult cgResult =
-            SolveConjugateGradient(matrix, rhs, deltaVelocity, cgSettings);
-        return cgResult.converged && deltaVelocity.size() == dimension;
+        const LinearSolveResult result =
+            GetCurrentLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
+        return result.converged && deltaVelocity.size() == dimension;
     }
 
     int SolverData::GetDynamicBlockForNode(int nodeIndex) const

@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(PhysiK VERSION 0.1.0 LANGUAGES CXX)
 
 option(PHYSIK_BUILD_TESTS "Build PhysiK tests" ON)
+option(PHYSIK_BUILD_BENCHMARKS "Build PhysiK standalone benchmark executables" OFF)
 
 add_library(PhysiK SHARED)
 add_library(PhysiK::PhysiK ALIAS PhysiK)
@@ -50,6 +51,7 @@ target_sources(
         include/PhysiK/Core/PhysicsConnections/RigidBodyOrientationConnection.h
         include/PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h
         include/PhysiK/Core/Solvers/Linear/DenseLinearSolver.h
+        include/PhysiK/Core/Solvers/Linear/LinearSolver.h
         include/PhysiK/Core/Solvers/SolverData.h
         include/PhysiK/Core/World/World.h
     PRIVATE
@@ -66,6 +68,7 @@ target_sources(
         src/Core/PhysicsConnections/RigidBodyOrientationConnection.cpp
         src/Core/Solvers/Linear/ConjugateGradientSolver.cpp
         src/Core/Solvers/Linear/DenseLinearSolver.cpp
+        src/Core/Solvers/Linear/LinearSolver.cpp
         src/Core/Solvers/SolverData.cpp
         src/Math/SparseBlockMatrix.cpp
         src/Core/World/World.cpp
@@ -100,11 +103,29 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Core/PhysicsConnections/RigidBodyOrientationConnection.h
     include/PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h
     include/PhysiK/Core/Solvers/Linear/DenseLinearSolver.h
+    include/PhysiK/Core/Solvers/Linear/LinearSolver.h
     include/PhysiK/Core/Solvers/SolverData.h
     include/PhysiK/Core/World/World.h
 )
 
 target_compile_definitions(PhysiK PRIVATE PHYSIK_BUILDING_DLL)
+
+if(PHYSIK_BUILD_BENCHMARKS)
+    add_executable(PhysiKStressTest benchmarks/PhysiKStressTest.cpp)
+    target_link_libraries(PhysiKStressTest PRIVATE PhysiK::PhysiK)
+    target_compile_features(PhysiKStressTest PRIVATE cxx_std_17)
+
+    if(WIN32)
+        add_custom_command(
+            TARGET PhysiKStressTest
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:PhysiK>
+                $<TARGET_FILE_DIR:PhysiKStressTest>
+        )
+    endif()
+
+endif()
 
 if(PHYSIK_BUILD_TESTS)
     enable_testing()

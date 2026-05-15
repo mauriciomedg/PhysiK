@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "PhysiK/API/PhysiKAPI.h"
+#include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
 #include "PhysiK/Math/Mat3.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
 #include "PhysiK/Math/Vec3.h"

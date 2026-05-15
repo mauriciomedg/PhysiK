@@ -19,11 +19,16 @@ mono_crash.*
 
 # CMake
 /build/
+/build-mkl/
 /out/
+.vs/
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 compile_commands.json
+*.sln
+*.vcxproj
+*.vcxproj.filters
 
 # Build results
 [Dd]ebug/

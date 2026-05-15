@@ -2,15 +2,27 @@
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
+#include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <cassert>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 namespace
 {
+    void Require(bool condition, const char* message)
+    {
+        if (!condition)
+        {
+            std::fprintf(stderr, "PointConnectionTests failed: %s\n", message);
+            std::exit(1);
+        }
+    }
+
     struct Point
     {
         float x = 0.0f;
@@ -1758,6 +1770,37 @@ void ConjugateGradientSolvesCoupledSparseSystem()
     }
 }
 
+void CurrentLinearSolverSolvesKnownSparseSystem()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(
+        0,
+        0,
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{2.0f, 0.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 3.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, 4.0f}));
+
+    const std::vector<float> rhs = {2.0f, 6.0f, 12.0f};
+    std::vector<float> solution;
+
+    PhysiK::CurrentLinearSolver solver;
+    PhysiK::LinearSolveSettings settings;
+    settings.maxIterations = 16;
+    settings.tolerance = 1.0e-6f;
+    settings.useJacobiPreconditioner = true;
+
+    const PhysiK::LinearSolveResult result =
+        solver.Solve(matrix, rhs, solution, settings);
+
+    assert(result.converged);
+    assert(solution.size() == rhs.size());
+    assert(NearlyEqual(solution[0], 1.0f, 0.0001f));
+    assert(NearlyEqual(solution[1], 2.0f, 0.0001f));
+    assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
+}
+
 void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
 {
     std::vector<PhysiK::Node> nodes(1);
@@ -2436,6 +2479,7 @@ int main()
     TetMeshComponentCachesFemSparsePattern();
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
+    CurrentLinearSolverSolvesKnownSparseSystem();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();
