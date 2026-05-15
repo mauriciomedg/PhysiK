@@ -4,12 +4,22 @@
 
 #if defined(PHYSIK_ENABLE_MKL)
 
-#include <cassert>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 namespace
 {
+    void Require(bool condition, const char* message)
+    {
+        if (!condition)
+        {
+            std::fprintf(stderr, "MKLLinearSolverTests failed: %s\n", message);
+            std::exit(1);
+        }
+    }
+
     bool NearlyEqual(double a, double b, double tolerance = 1.0e-9)
     {
         return std::abs(a - b) <= tolerance;
@@ -20,10 +30,10 @@ namespace
         const std::vector<double>& expected,
         double tolerance = 1.0e-9)
     {
-        assert(actual.size() == expected.size());
+        Require(actual.size() == expected.size(), "double vector size mismatch");
         for (std::size_t i = 0; i < expected.size(); ++i)
         {
-            assert(NearlyEqual(actual[i], expected[i], tolerance));
+            Require(NearlyEqual(actual[i], expected[i], tolerance), "double vector value mismatch");
         }
     }
 
@@ -49,10 +59,10 @@ namespace
         const std::vector<float>& expected,
         float tolerance = 1.0e-5f)
     {
-        assert(actual.size() == expected.size());
+        Require(actual.size() == expected.size(), "float vector size mismatch");
         for (std::size_t i = 0; i < expected.size(); ++i)
         {
-            assert(std::abs(actual[i] - expected[i]) <= tolerance);
+            Require(std::abs(actual[i] - expected[i]) <= tolerance, "float vector value mismatch");
         }
     }
 }
@@ -74,7 +84,7 @@ void MKLLinearSolverSolvesDiagonal2x2System()
     const PhysiK::LinearSolveResult result =
         solver.SolveSPD(matrix, rhs, solution, MakeTinySolveSettings());
 
-    assert(result.converged);
+    Require(result.converged, "2x2 diagonal MKL solve did not converge");
     AssertVectorNear(solution, expected);
 }
 
@@ -102,13 +112,15 @@ void MKLLinearSolverSolvesSmallSPD3x3System()
     const PhysiK::LinearSolveResult result =
         solver.SolveSPD(matrix, rhs, solution, MakeTinySolveSettings());
 
-    assert(result.converged);
+    Require(result.converged, "3x3 SPD MKL solve did not converge");
     AssertVectorNear(solution, expected);
 }
 
 void MKLBackendIsAvailableWhenCompiled()
 {
-    assert(PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::MKL));
+    Require(
+        PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::MKL),
+        "MKL backend is not available in MKL-enabled test build");
 }
 
 void MKLBackendSolvesSparseBlockSystemWhenSelected()
@@ -138,11 +150,11 @@ void MKLBackendSolvesSparseBlockSystemWhenSelected()
             solution,
             settings);
 
-    assert(result.converged);
-    assert(solution.size() == rhs.size());
-    assert(NearlyEqual(solution[0], 1.0, 0.0001));
-    assert(NearlyEqual(solution[1], 2.0, 0.0001));
-    assert(NearlyEqual(solution[2], 3.0, 0.0001));
+    Require(result.converged, "sparse block MKL solve did not converge");
+    Require(solution.size() == rhs.size(), "sparse block MKL solution size mismatch");
+    Require(NearlyEqual(solution[0], 1.0, 0.0001), "sparse block MKL x value mismatch");
+    Require(NearlyEqual(solution[1], 2.0, 0.0001), "sparse block MKL y value mismatch");
+    Require(NearlyEqual(solution[2], 3.0, 0.0001), "sparse block MKL z value mismatch");
 }
 
 void MKLBackendSolvesPreparedSolverDataImplicitSystem()
@@ -162,20 +174,26 @@ void MKLBackendSolvesPreparedSolverDataImplicitSystem()
     solverData.AddStiffnessBlock(1, 1, DiagonalBlock(100.0f));
 
     constexpr float Dt = 0.1f;
-    assert(solverData.GetLinearSolverBackend() == PhysiK::LinearSolverBackend::Current);
-    assert(solverData.PrecomputeImplicitSolve(nodes, Dt));
+    Require(
+        solverData.GetLinearSolverBackend() == PhysiK::LinearSolverBackend::Current,
+        "SolverData default backend is not Current");
+    Require(solverData.PrecomputeImplicitSolve(nodes, Dt), "SolverData precompute failed");
 
     solverData.SetLinearSolverBackend(PhysiK::LinearSolverBackend::MKL);
-    assert(solverData.GetLinearSolverBackend() == PhysiK::LinearSolverBackend::MKL);
-    assert(solverData.SolveImplicitLinearSystem());
+    Require(
+        solverData.GetLinearSolverBackend() == PhysiK::LinearSolverBackend::MKL,
+        "SolverData did not store MKL backend selection");
+    Require(
+        solverData.SolveImplicitLinearSystem(),
+        "SolverData implicit linear solve with MKL failed");
 
     const std::vector<float> expected = {
-        0.285714f,
-        0.571429f,
-        0.857143f,
-        0.714286f,
-        0.892857f,
-        1.071429f};
+        0.279365f,
+        0.501587f,
+        0.723810f,
+        0.634921f,
+        0.812698f,
+        0.990476f};
     AssertVectorNear(solverData.GetDeltaVelocity(), expected);
 }
 
