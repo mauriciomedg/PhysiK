@@ -3,10 +3,6 @@ setlocal
 
 cd /d E:\PhysiK
 
-echo ============================
-echo Init Intel oneAPI environment
-echo ============================
-
 call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" --force
 
 echo ============================
@@ -19,7 +15,7 @@ echo ============================
 echo Configure build
 echo ============================
 
-cmake -S . -B build -DPHYSIK_BUILD_TESTS=ON
+cmake -S . -B build -DPHYSIK_BUILD_TESTS=ON -DPHYSIK_BUILD_BENCHMARKS=ON
 
 echo ============================
 echo Build Release
