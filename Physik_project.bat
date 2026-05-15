@@ -25,6 +25,8 @@ if exist "%UNITY_ROOT%" (
     echo Skipping DLL copy.
 )
 
+cmake -S . -B build -DPHYSIK_BUILD_TESTS=ON -DPHYSIK_BUILD_BENCHMARKS=ON
+
 ctest --test-dir build -C %CONFIG% --output-on-failure
 
 pause

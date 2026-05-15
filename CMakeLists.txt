@@ -110,6 +110,10 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
 
 target_compile_definitions(PhysiK PRIVATE PHYSIK_BUILDING_DLL)
 
+if(PHYSIK_BUILD_TESTS OR PHYSIK_BUILD_BENCHMARKS)
+    target_compile_definitions(PhysiK PUBLIC PHYSIK_ENABLE_SOLVER_PROFILING)
+endif()
+
 if(PHYSIK_BUILD_BENCHMARKS)
     add_executable(PhysiKStressTest benchmarks/PhysiKStressTest.cpp)
     target_link_libraries(PhysiKStressTest PRIVATE PhysiK::PhysiK)
