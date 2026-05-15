@@ -58,7 +58,7 @@ namespace PhysiK
         const Clock::time_point totalStart = Clock::now();
 #endif
         const ConjugateGradientResult cgResult =
-            SolveConjugateGradient(matrix, rhs, solution, cgSettings);
+            SolveConjugateGradient(matrix, rhs, solution, scratch, cgSettings);
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         const double totalMilliseconds = MillisecondsBetween(totalStart, Clock::now());
         const ConjugateGradientProfileData cgProfile = GetConjugateGradientProfile();

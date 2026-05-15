@@ -21,6 +21,15 @@ namespace PhysiK
         bool converged = false;
     };
 
+    struct ConjugateGradientScratch
+    {
+        std::vector<float> residual;
+        std::vector<float> direction;
+        std::vector<float> matrixDirection;
+        std::vector<float> preconditionedResidual;
+        std::vector<float> inverseDiagonal;
+    };
+
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
     struct ConjugateGradientProfileData
     {
@@ -43,5 +52,12 @@ namespace PhysiK
         const SparseBlockMatrix& matrix,
         const std::vector<float>& rhs,
         std::vector<float>& solution,
+        const ConjugateGradientSettings& settings = ConjugateGradientSettings{});
+
+    PHYSIK_API ConjugateGradientResult SolveConjugateGradient(
+        const SparseBlockMatrix& matrix,
+        const std::vector<float>& rhs,
+        std::vector<float>& solution,
+        ConjugateGradientScratch& scratch,
         const ConjugateGradientSettings& settings = ConjugateGradientSettings{});
 }

@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "PhysiK/API/PhysiKAPI.h"
+#include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 namespace PhysiK
@@ -59,6 +60,9 @@ namespace PhysiK
             const std::vector<float>& rhs,
             std::vector<float>& solution,
             const LinearSolveSettings& settings) override;
+
+    private:
+        ConjugateGradientScratch scratch;
     };
 
     PHYSIK_API LinearSolver& GetCurrentLinearSolver();

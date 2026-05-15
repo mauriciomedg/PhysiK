@@ -41,6 +41,14 @@ namespace PhysiK
         };
 #endif
 
+        void ResizeScratchVector(std::vector<float>& values, std::size_t size)
+        {
+            if (values.size() != size)
+            {
+                values.resize(size);
+            }
+        }
+
         bool IsFinite(float value)
         {
             return std::isfinite(value);
@@ -104,11 +112,14 @@ namespace PhysiK
             return sourceColumn.z;
         }
 
-        std::vector<float> BuildScalarJacobiInverse(const SparseBlockMatrix& matrix)
+        void BuildScalarJacobiInverse(
+            const SparseBlockMatrix& matrix,
+            std::vector<float>& inverseDiagonal)
         {
             const std::size_t dimension =
                 static_cast<std::size_t>(std::max(0, matrix.blockCount) * 3);
-            std::vector<float> inverseDiagonal(dimension, 1.0f);
+            ResizeScratchVector(inverseDiagonal, dimension);
+            std::fill(inverseDiagonal.begin(), inverseDiagonal.end(), 1.0f);
 
             for (int block = 0; block < matrix.blockCount; ++block)
             {
@@ -129,8 +140,6 @@ namespace PhysiK
                     }
                 }
             }
-
-            return inverseDiagonal;
         }
 
         void ApplyPreconditioner(
@@ -142,10 +151,13 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
             const Clock::time_point start = Clock::now();
 #endif
-            result.resize(residual.size());
+            ResizeScratchVector(result, residual.size());
             if (!useJacobiPreconditioner)
             {
-                result = residual;
+                for (std::size_t i = 0; i < residual.size(); ++i)
+                {
+                    result[i] = residual[i];
+                }
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
                 profile.preconditionerApplyMilliseconds += MillisecondsBetween(start, Clock::now());
 #endif
@@ -180,6 +192,17 @@ namespace PhysiK
         std::vector<float>& solution,
         const ConjugateGradientSettings& settings)
     {
+        ConjugateGradientScratch scratch;
+        return SolveConjugateGradient(matrix, rhs, solution, scratch, settings);
+    }
+
+    ConjugateGradientResult SolveConjugateGradient(
+        const SparseBlockMatrix& matrix,
+        const std::vector<float>& rhs,
+        std::vector<float>& solution,
+        ConjugateGradientScratch& scratch,
+        const ConjugateGradientSettings& settings)
+    {
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         ResetConjugateGradientProfile();
         const Clock::time_point totalStart = Clock::now();
@@ -207,35 +230,38 @@ namespace PhysiK
             return result;
         }
 
-        solution.assign(dimension, 0.0f);
+        if (solution.size() != dimension)
+        {
+            solution.resize(dimension);
+        }
+        std::fill(solution.begin(), solution.end(), 0.0f);
 
-        std::vector<float> matrixTimesSolution;
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         Clock::time_point timedStart = Clock::now();
 #endif
-        matrix.Multiply(solution, matrixTimesSolution);
+        matrix.Multiply(solution, scratch.matrixDirection);
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         profile.sparseMatrixMultiplyMilliseconds += MillisecondsBetween(timedStart, Clock::now());
 #endif
-        if (matrixTimesSolution.size() != dimension || !IsFinite(matrixTimesSolution))
+        if (scratch.matrixDirection.size() != dimension || !IsFinite(scratch.matrixDirection))
         {
             solution.clear();
             return result;
         }
 
-        std::vector<float> residual(dimension, 0.0f);
+        ResizeScratchVector(scratch.residual, dimension);
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         timedStart = Clock::now();
 #endif
         for (std::size_t i = 0; i < dimension; ++i)
         {
-            residual[i] = rhs[i] - matrixTimesSolution[i];
+            scratch.residual[i] = rhs[i] - scratch.matrixDirection[i];
         }
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         profile.vectorUpdateMilliseconds += MillisecondsBetween(timedStart, Clock::now());
 #endif
 
-        result.residualNorm = Norm(residual);
+        result.residualNorm = Norm(scratch.residual);
         const float rhsNorm = std::max(1.0f, Norm(rhs));
         const float targetResidual = std::max(0.0f, settings.tolerance) * rhsNorm;
         if (result.residualNorm <= targetResidual)
@@ -247,48 +273,52 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         timedStart = Clock::now();
 #endif
-        const std::vector<float> inverseDiagonal = BuildScalarJacobiInverse(matrix);
+        BuildScalarJacobiInverse(matrix, scratch.inverseDiagonal);
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         profile.preconditionerSetupMilliseconds += MillisecondsBetween(timedStart, Clock::now());
 #endif
-        std::vector<float> preconditionedResidual;
         ApplyPreconditioner(
-            residual,
-            inverseDiagonal,
+            scratch.residual,
+            scratch.inverseDiagonal,
             settings.useJacobiPreconditioner,
-            preconditionedResidual);
-        if (!IsFinite(preconditionedResidual))
+            scratch.preconditionedResidual);
+        if (!IsFinite(scratch.preconditionedResidual))
         {
             solution.clear();
             return result;
         }
 
-        std::vector<float> direction = preconditionedResidual;
-        float residualDotPreconditioned = Dot(residual, preconditionedResidual);
+        ResizeScratchVector(scratch.direction, dimension);
+        for (std::size_t i = 0; i < dimension; ++i)
+        {
+            scratch.direction[i] = scratch.preconditionedResidual[i];
+        }
+
+        float residualDotPreconditioned =
+            Dot(scratch.residual, scratch.preconditionedResidual);
         if (!IsFinite(residualDotPreconditioned) || residualDotPreconditioned <= 0.0f)
         {
             solution.clear();
             return result;
         }
 
-        std::vector<float> matrixTimesDirection;
         for (int iteration = 0; iteration < settings.maxIterations; ++iteration)
         {
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
             timedStart = Clock::now();
 #endif
-            matrix.Multiply(direction, matrixTimesDirection);
+            matrix.Multiply(scratch.direction, scratch.matrixDirection);
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
             profile.sparseMatrixMultiplyMilliseconds += MillisecondsBetween(timedStart, Clock::now());
 #endif
-            if (matrixTimesDirection.size() != dimension || !IsFinite(matrixTimesDirection))
+            if (scratch.matrixDirection.size() != dimension || !IsFinite(scratch.matrixDirection))
             {
                 solution.clear();
                 result.converged = false;
                 return result;
             }
 
-            const float denominator = Dot(direction, matrixTimesDirection);
+            const float denominator = Dot(scratch.direction, scratch.matrixDirection);
             if (!IsFinite(denominator) || std::abs(denominator) <= DenominatorTolerance)
             {
                 solution.clear();
@@ -309,15 +339,15 @@ namespace PhysiK
 #endif
             for (std::size_t i = 0; i < dimension; ++i)
             {
-                solution[i] += alpha * direction[i];
-                residual[i] -= alpha * matrixTimesDirection[i];
+                solution[i] += alpha * scratch.direction[i];
+                scratch.residual[i] -= alpha * scratch.matrixDirection[i];
             }
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
             profile.vectorUpdateMilliseconds += MillisecondsBetween(timedStart, Clock::now());
 #endif
 
             result.iterations = iteration + 1;
-            result.residualNorm = Norm(residual);
+            result.residualNorm = Norm(scratch.residual);
             if (!IsFinite(result.residualNorm))
             {
                 solution.clear();
@@ -332,18 +362,19 @@ namespace PhysiK
             }
 
             ApplyPreconditioner(
-                residual,
-                inverseDiagonal,
+                scratch.residual,
+                scratch.inverseDiagonal,
                 settings.useJacobiPreconditioner,
-                preconditionedResidual);
-            if (!IsFinite(preconditionedResidual))
+                scratch.preconditionedResidual);
+            if (!IsFinite(scratch.preconditionedResidual))
             {
                 solution.clear();
                 result.converged = false;
                 return result;
             }
 
-            const float nextResidualDotPreconditioned = Dot(residual, preconditionedResidual);
+            const float nextResidualDotPreconditioned =
+                Dot(scratch.residual, scratch.preconditionedResidual);
             if (!IsFinite(nextResidualDotPreconditioned) ||
                 nextResidualDotPreconditioned <= 0.0f)
             {
@@ -365,7 +396,8 @@ namespace PhysiK
 #endif
             for (std::size_t i = 0; i < dimension; ++i)
             {
-                direction[i] = preconditionedResidual[i] + beta * direction[i];
+                scratch.direction[i] =
+                    scratch.preconditionedResidual[i] + beta * scratch.direction[i];
             }
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
             profile.vectorUpdateMilliseconds += MillisecondsBetween(timedStart, Clock::now());
