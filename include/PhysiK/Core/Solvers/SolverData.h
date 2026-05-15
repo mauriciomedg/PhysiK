@@ -71,8 +71,6 @@ namespace PhysiK
 
         bool PrecomputeImplicitSolve(const std::vector<Node>& nodes, float dt);
         bool SolveImplicitLinearSystem();
-        void SetLinearSolverBackend(LinearSolverBackend backend);
-        LinearSolverBackend GetLinearSolverBackend() const;
 
         int GetDynamicBlockForNode(int nodeIndex) const;
         int GetDynamicBlockCount() const
@@ -110,6 +108,5 @@ namespace PhysiK
         std::vector<float> rhs;
         SparseBlockMatrix matrix;
         std::vector<float> deltaVelocity;
-        LinearSolverBackend linearSolverBackend = LinearSolverBackend::Current;
     };
 }

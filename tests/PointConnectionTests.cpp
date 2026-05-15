@@ -4,7 +4,6 @@
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 #include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
-#include "PhysiK/Math/CSRMatrix.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <cassert>
@@ -1691,68 +1690,6 @@ void SparseBlockMatrixAdjacentTetsReuseSharedBlocks()
     assert(!HasSparseBlock(matrix, 0, 4));
 }
 
-void CSRMatrixIdentityMultiplyReturnsInput()
-{
-    PhysiK::CSRMatrix matrix;
-    matrix.rowCount = 3;
-    matrix.colCount = 3;
-    matrix.rowOffsets = {0, 1, 2, 3};
-    matrix.columnIndices = {0, 1, 2};
-    matrix.values = {1.0, 1.0, 1.0};
-
-    std::vector<double> output;
-    matrix.Multiply({2.0, -3.0, 4.5}, output);
-
-    assert(matrix.IsValid());
-    assert(output.size() == 3);
-    assert(NearlyEqual(static_cast<float>(output[0]), 2.0f));
-    assert(NearlyEqual(static_cast<float>(output[1]), -3.0f));
-    assert(NearlyEqual(static_cast<float>(output[2]), 4.5f));
-}
-
-void CSRMatrixSimple2x2Multiply()
-{
-    PhysiK::CSRMatrix matrix;
-    matrix.rowCount = 2;
-    matrix.colCount = 2;
-    matrix.rowOffsets = {0, 2, 4};
-    matrix.columnIndices = {0, 1, 0, 1};
-    matrix.values = {2.0, 3.0, 4.0, 5.0};
-
-    std::vector<double> output;
-    matrix.Multiply({7.0, 11.0}, output);
-
-    assert(matrix.IsValid());
-    assert(output.size() == 2);
-    assert(NearlyEqual(static_cast<float>(output[0]), 47.0f));
-    assert(NearlyEqual(static_cast<float>(output[1]), 83.0f));
-}
-
-void CSRMatrixValidationRejectsInvalidData()
-{
-    PhysiK::CSRMatrix matrix;
-    matrix.rowCount = 2;
-    matrix.colCount = 2;
-    matrix.rowOffsets = {0, 2};
-    matrix.columnIndices = {0, 1};
-    matrix.values = {1.0, 2.0};
-    assert(!matrix.IsValid());
-
-    matrix.rowOffsets = {1, 2, 2};
-    assert(!matrix.IsValid());
-
-    matrix.rowOffsets = {0, 2, 1};
-    assert(!matrix.IsValid());
-
-    matrix.rowOffsets = {0, 2, 2};
-    matrix.columnIndices = {0, 2};
-    assert(!matrix.IsValid());
-
-    matrix.columnIndices = {0, 1};
-    matrix.values = {1.0};
-    assert(!matrix.IsValid());
-}
-
 void TetMeshComponentCachesFemSparsePattern()
 {
     PhysiK::TetMeshComponent component;
@@ -1862,117 +1799,6 @@ void CurrentLinearSolverSolvesKnownSparseSystem()
     assert(NearlyEqual(solution[0], 1.0f, 0.0001f));
     assert(NearlyEqual(solution[1], 2.0f, 0.0001f));
     assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
-}
-
-void SolverDataDefaultLinearSolverBackendIsCurrent()
-{
-    PhysiK::SolverData solverData;
-
-    assert(solverData.GetLinearSolverBackend() == PhysiK::LinearSolverBackend::Current);
-}
-
-void LinearSolverBackendAvailabilityMatchesBuildFlags()
-{
-    assert(PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::Current));
-
-#if defined(PHYSIK_ENABLE_MKL)
-    assert(PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::MKL));
-#else
-    assert(!PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::MKL));
-#endif
-}
-
-void UnavailableMKLBackendFallsBackToCurrentLinearSolver()
-{
-#if !defined(PHYSIK_ENABLE_MKL)
-    PhysiK::SparseBlockMatrix matrix;
-    matrix.BuildPattern(1, {{0, 0}});
-    matrix.AddBlock(
-        0,
-        0,
-        PhysiK::Mat3::FromColumns(
-            PhysiK::Vec3{2.0f, 0.0f, 0.0f},
-            PhysiK::Vec3{0.0f, 3.0f, 0.0f},
-            PhysiK::Vec3{0.0f, 0.0f, 4.0f}));
-
-    const std::vector<float> rhs = {2.0f, 6.0f, 12.0f};
-    std::vector<float> solution;
-
-    PhysiK::LinearSolveSettings settings;
-    settings.maxIterations = 16;
-    settings.tolerance = 1.0e-6f;
-    settings.useJacobiPreconditioner = true;
-
-    const PhysiK::LinearSolveResult result =
-        PhysiK::GetLinearSolver(PhysiK::LinearSolverBackend::MKL).Solve(
-            matrix,
-            rhs,
-            solution,
-            settings);
-
-    assert(result.converged);
-    assert(solution.size() == rhs.size());
-    assert(NearlyEqual(solution[0], 1.0f, 0.0001f));
-    assert(NearlyEqual(solution[1], 2.0f, 0.0001f));
-    assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
-#endif
-}
-
-void WorldLinearSolverBackendApiDefaultsToCurrent()
-{
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    Require(world != nullptr, "world creation failed for backend default API test");
-
-    Require(
-        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_CURRENT,
-        "world backend API default is not Current");
-
-    PHYSIK_DestroyWorld(world);
-}
-
-void WorldLinearSolverBackendApiStoresCurrent()
-{
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    Require(world != nullptr, "world creation failed for backend Current API test");
-
-    PHYSIK_SetLinearSolverBackend(world, PHYSIK_LINEAR_SOLVER_CURRENT);
-    Require(
-        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_CURRENT,
-        "world backend API did not store Current");
-
-    PHYSIK_DestroyWorld(world);
-}
-
-void WorldLinearSolverBackendApiHandlesMKLByBuildFlag()
-{
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    Require(world != nullptr, "world creation failed for backend MKL API test");
-
-    PHYSIK_SetLinearSolverBackend(world, PHYSIK_LINEAR_SOLVER_MKL);
-#if defined(PHYSIK_ENABLE_MKL)
-    Require(
-        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_MKL,
-        "world backend API did not store available MKL backend");
-#else
-    Require(
-        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_CURRENT,
-        "world backend API did not fall back to Current when MKL is unavailable");
-#endif
-
-    PHYSIK_DestroyWorld(world);
-}
-
-void WorldLinearSolverBackendApiInvalidValueFallsBackToCurrent()
-{
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    Require(world != nullptr, "world creation failed for invalid backend API test");
-
-    PHYSIK_SetLinearSolverBackend(world, 99);
-    Require(
-        PHYSIK_GetLinearSolverBackend(world) == PHYSIK_LINEAR_SOLVER_CURRENT,
-        "world backend API did not fall back to Current for invalid value");
-
-    PHYSIK_DestroyWorld(world);
 }
 
 void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
@@ -2650,20 +2476,10 @@ int main()
     SparseBlockMatrixAddBlockAccumulatesContributions();
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
-    CSRMatrixIdentityMultiplyReturnsInput();
-    CSRMatrixSimple2x2Multiply();
-    CSRMatrixValidationRejectsInvalidData();
     TetMeshComponentCachesFemSparsePattern();
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
     CurrentLinearSolverSolvesKnownSparseSystem();
-    SolverDataDefaultLinearSolverBackendIsCurrent();
-    LinearSolverBackendAvailabilityMatchesBuildFlags();
-    UnavailableMKLBackendFallsBackToCurrentLinearSolver();
-    WorldLinearSolverBackendApiDefaultsToCurrent();
-    WorldLinearSolverBackendApiStoresCurrent();
-    WorldLinearSolverBackendApiHandlesMKLByBuildFlag();
-    WorldLinearSolverBackendApiInvalidValueFallsBackToCurrent();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();

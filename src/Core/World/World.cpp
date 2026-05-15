@@ -152,17 +152,6 @@ namespace PhysiK
         return solverMode;
     }
 
-    void World::SetLinearSolverBackend(LinearSolverBackend backend)
-    {
-        linearSolverBackend =
-            IsLinearSolverBackendAvailable(backend) ? backend : LinearSolverBackend::Current;
-    }
-
-    LinearSolverBackend World::GetLinearSolverBackend() const
-    {
-        return linearSolverBackend;
-    }
-
     void World::SetGravity(const Vec3& value)
     {
         gravity = value;
@@ -425,7 +414,6 @@ namespace PhysiK
     bool World::SolveImplicitLinearSystem(SolverData& solverData, float dt)
     {
         (void)dt;
-        solverData.SetLinearSolverBackend(linearSolverBackend);
         return solverData.SolveImplicitLinearSystem();
     }
 

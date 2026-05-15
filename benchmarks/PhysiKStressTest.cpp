@@ -117,7 +117,6 @@ namespace
 
     double SolveAndTime(
         const char* label,
-        PhysiK::LinearSolverBackend backend,
         const std::vector<PhysiK::Node>& nodes,
         PhysiK::SolverData solverData)
     {
@@ -127,7 +126,6 @@ namespace
             Fail("could not precompute implicit solve");
         }
 
-        solverData.SetLinearSolverBackend(backend);
         const auto start = std::chrono::steady_clock::now();
         const bool solved = solverData.SolveImplicitLinearSystem();
         const auto end = std::chrono::steady_clock::now();
@@ -176,35 +174,12 @@ int main(int argc, char** argv)
     const StressSystem system = BuildStructuredImplicitFemLikeSystem(width, height, depth);
     const double currentMs = SolveAndTime(
         "CurrentLinearSolver",
-        PhysiK::LinearSolverBackend::Current,
         system.nodes,
         system.solverData);
 
     if (currentMs < 0.0)
     {
         return 1;
-    }
-
-    if (PhysiK::IsLinearSolverBackendAvailable(PhysiK::LinearSolverBackend::MKL))
-    {
-        const double mklMs = SolveAndTime(
-            "MKLLinearSolver",
-            PhysiK::LinearSolverBackend::MKL,
-            system.nodes,
-            system.solverData);
-        if (mklMs < 0.0)
-        {
-            return 1;
-        }
-
-        if (mklMs > 0.0)
-        {
-            std::printf("Speed ratio Current/MKL: %.3f\n", currentMs / mklMs);
-        }
-    }
-    else
-    {
-        std::printf("MKLLinearSolver unavailable in this build; skipping MKL run.\n");
     }
 
     return 0;

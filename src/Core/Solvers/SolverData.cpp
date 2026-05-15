@@ -143,18 +143,8 @@ namespace PhysiK
         settings.useJacobiPreconditioner = true;
 
         const LinearSolveResult result =
-            GetLinearSolver(linearSolverBackend).Solve(matrix, rhs, deltaVelocity, settings);
+            GetCurrentLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
         return result.converged && deltaVelocity.size() == dimension;
-    }
-
-    void SolverData::SetLinearSolverBackend(LinearSolverBackend backend)
-    {
-        linearSolverBackend = backend;
-    }
-
-    LinearSolverBackend SolverData::GetLinearSolverBackend() const
-    {
-        return linearSolverBackend;
     }
 
     int SolverData::GetDynamicBlockForNode(int nodeIndex) const
