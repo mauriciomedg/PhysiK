@@ -29,7 +29,7 @@ echo ============================
 echo Configure normal build
 echo ============================
 
-cmake -S . -B build -DPHYSIK_BUILD_TESTS=ON -DPHYSIK_ENABLE_MKL=OFF
+cmake -S . -B build -DPHYSIK_BUILD_TESTS=ON
 
 echo ============================
 echo Build normal
@@ -47,7 +47,7 @@ echo ============================
 echo Configure MKL build
 echo ============================
 
-cmake -S . -B build-mkl -DPHYSIK_BUILD_TESTS=ON -DPHYSIK_ENABLE_MKL=ON -PHYSIK_BUILD_BENCHMARKS=ON
+cmake -S . -B build-mkl -DPHYSIK_BUILD_TESTS=ON -PHYSIK_BUILD_BENCHMARKS=ON
 
 echo ============================
 echo Build MKL
