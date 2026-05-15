@@ -3,7 +3,9 @@
 #if defined(PHYSIK_ENABLE_MKL)
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
 
 #include <mkl_lapacke.h>
 
@@ -11,6 +13,13 @@ namespace PhysiK
 {
     namespace
     {
+        using Clock = std::chrono::steady_clock;
+
+        double MillisecondsBetween(Clock::time_point start, Clock::time_point end)
+        {
+            return std::chrono::duration<double, std::milli>(end - start).count();
+        }
+
         bool IsFinite(double value)
         {
             return std::isfinite(value);
@@ -239,7 +248,8 @@ namespace PhysiK
             std::vector<double>& dense,
             const std::vector<double>& rhs,
             std::vector<double>& solution,
-            const LinearSolveSettings& settings)
+            const LinearSolveSettings& settings,
+            double* outSolveMilliseconds = nullptr)
         {
             LinearSolveResult result;
             solution.clear();
@@ -257,6 +267,7 @@ namespace PhysiK
             }
 
             solution = rhs;
+            const Clock::time_point solveStart = Clock::now();
             const int info = LAPACKE_dposv(
                 LAPACK_ROW_MAJOR,
                 'U',
@@ -266,6 +277,11 @@ namespace PhysiK
                 dimension,
                 solution.data(),
                 1);
+            const Clock::time_point solveEnd = Clock::now();
+            if (outSolveMilliseconds != nullptr)
+            {
+                *outSolveMilliseconds = MillisecondsBetween(solveStart, solveEnd);
+            }
 
             result.iterations = 1;
             if (info != 0 || !IsFinite(solution))
@@ -281,6 +297,42 @@ namespace PhysiK
             result.residualNorm = static_cast<float>(targetResidual);
             return result;
         }
+
+        void PrintMKLSolveTimings(
+            const char* pathName,
+            int dimension,
+            int blockCount,
+            std::size_t blockNonZeroCount,
+            std::size_t storedScalarEntryCount,
+            double conversionMilliseconds,
+            double handleCreationMilliseconds,
+            double solveMilliseconds,
+            double handleDestructionMilliseconds,
+            double totalMilliseconds)
+        {
+            std::printf(
+                "MKLLinearSolver diagnostics [%s]\n"
+                "  dimension: %d\n"
+                "  block count: %d\n"
+                "  block nonzeros: %zu\n"
+                "  stored scalar entries: %zu\n"
+                "  SparseBlockMatrix to CSR conversion time: 0.000 ms (not used by current dense path)\n"
+                "  SparseBlockMatrix to dense conversion time: %.3f ms\n"
+                "  MKL handle creation time: %.3f ms\n"
+                "  MKL solve time: %.3f ms\n"
+                "  MKL handle destruction time: %.3f ms\n"
+                "  total Solve() time: %.3f ms\n",
+                pathName,
+                dimension,
+                blockCount,
+                blockNonZeroCount,
+                storedScalarEntryCount,
+                conversionMilliseconds,
+                handleCreationMilliseconds,
+                solveMilliseconds,
+                handleDestructionMilliseconds,
+                totalMilliseconds);
+        }
     }
 
     LinearSolveResult MKLLinearSolver::Solve(
@@ -289,6 +341,7 @@ namespace PhysiK
         std::vector<float>& solution,
         const LinearSolveSettings& settings)
     {
+        const Clock::time_point totalStart = Clock::now();
         solution.clear();
         LinearSolveResult result;
         if (!IsSquareSystem(matrix, rhs))
@@ -296,12 +349,31 @@ namespace PhysiK
             return result;
         }
 
+        const int dimension = std::max(0, matrix.blockCount) * 3;
+        const std::size_t blockNonZeroCount = matrix.values.size();
+        const std::size_t storedScalarEntryCount = blockNonZeroCount * 9u;
+
+        const Clock::time_point conversionStart = Clock::now();
         std::vector<double> dense = BuildDenseRowMajorMatrix(matrix);
+        const Clock::time_point conversionEnd = Clock::now();
         const std::vector<double> doubleRhs = ToDoubleVector(rhs);
         std::vector<double> doubleSolution;
-        result = SolveDenseSPD(dense, doubleRhs, doubleSolution, settings);
+        double solveMilliseconds = 0.0;
+        result = SolveDenseSPD(dense, doubleRhs, doubleSolution, settings, &solveMilliseconds);
         if (!result.converged)
         {
+            const Clock::time_point totalEnd = Clock::now();
+            PrintMKLSolveTimings(
+                "SparseBlockMatrix dense LAPACKE dposv",
+                dimension,
+                matrix.blockCount,
+                blockNonZeroCount,
+                storedScalarEntryCount,
+                MillisecondsBetween(conversionStart, conversionEnd),
+                0.0,
+                solveMilliseconds,
+                0.0,
+                MillisecondsBetween(totalStart, totalEnd));
             return result;
         }
 
@@ -314,6 +386,19 @@ namespace PhysiK
         {
             solution.clear();
         }
+
+        const Clock::time_point totalEnd = Clock::now();
+        PrintMKLSolveTimings(
+            "SparseBlockMatrix dense LAPACKE dposv",
+            dimension,
+            matrix.blockCount,
+            blockNonZeroCount,
+            storedScalarEntryCount,
+            MillisecondsBetween(conversionStart, conversionEnd),
+            0.0,
+            solveMilliseconds,
+            0.0,
+            MillisecondsBetween(totalStart, totalEnd));
 
         return result;
     }
@@ -339,13 +424,29 @@ namespace PhysiK
             return result;
         }
 
+        const Clock::time_point totalStart = Clock::now();
+        const Clock::time_point conversionStart = Clock::now();
         std::vector<double> dense = BuildDenseRowMajorMatrix(matrix);
-        result = SolveDenseSPD(dense, rhs, solution, settings);
+        const Clock::time_point conversionEnd = Clock::now();
+        double solveMilliseconds = 0.0;
+        result = SolveDenseSPD(dense, rhs, solution, settings, &solveMilliseconds);
 
         result.residualNorm = static_cast<float>(ComputeResidualNorm(matrix, rhs, solution));
         const double rhsNorm = std::max(1.0, Norm(rhs));
         const double targetResidual = std::max(0.0f, settings.tolerance) * rhsNorm;
         result.converged = result.residualNorm <= static_cast<float>(targetResidual);
+        const Clock::time_point totalEnd = Clock::now();
+        PrintMKLSolveTimings(
+            "CSRMatrix dense LAPACKE dposv",
+            matrix.rowCount,
+            matrix.rowCount,
+            matrix.values.size(),
+            matrix.values.size(),
+            MillisecondsBetween(conversionStart, conversionEnd),
+            0.0,
+            solveMilliseconds,
+            0.0,
+            MillisecondsBetween(totalStart, totalEnd));
         return result;
     }
 }
