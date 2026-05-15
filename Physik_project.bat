@@ -44,36 +44,6 @@ echo ============================
 ctest --test-dir build -C Release --output-on-failure
 
 echo ============================
-echo Configure MKL build
-echo ============================
-
-cmake -S . -B build-mkl -DPHYSIK_BUILD_TESTS=ON -PHYSIK_BUILD_BENCHMARKS=ON
-
-echo ============================
-echo Build MKL
-echo ============================
-
-cmake --build build-mkl --config Release
-
-echo ============================
-echo Test MKL
-echo ============================
-
-ctest --test-dir build-mkl -C Release --output-on-failure
-
-echo ============================
-echo Build MKL Debug
-echo ============================
-
-cmake --build build-mkl --config Debug
-
-echo ============================
-echo Test MKL Debug
-echo ============================
-
-ctest --test-dir build-mkl -C Debug --output-on-failure
-
-echo ============================
 echo Done
 echo ============================
 
