@@ -1,40 +1,25 @@
 @echo off
 setlocal
 
-cd /d E:\PhysiK
+cd /d "%~dp0"
 
-echo ============================
-echo Init Intel oneAPI environment
-echo ============================
+set UNITY_PLUGIN_DIR=..\PhysiKUnity\Assets\Plugins
 
 call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" --force
 
-echo ============================
-echo Clean old build
-echo ============================
-
 if exist build rmdir /s /q build
 
-echo ============================
-echo Configure build
-echo ============================
-
 cmake -S . -B build -DPHYSIK_BUILD_TESTS=ON
-
-echo ============================
-echo Build Release
-echo ============================
-
 cmake --build build --config Release
 
-echo ============================
-echo Test Release
-echo ============================
+if not exist "%UNITY_PLUGIN_DIR%" mkdir "%UNITY_PLUGIN_DIR%"
+
+copy /Y "build\Release\Physik.dll" "%UNITY_PLUGIN_DIR%\Physik.dll"
+
+if exist "build\Release\Physik.pdb" (
+    copy /Y "build\Release\Physik.pdb" "%UNITY_PLUGIN_DIR%\Physik.pdb"
+)
 
 ctest --test-dir build -C Release --output-on-failure
-
-echo ============================
-echo Done
-echo ============================
 
 pause
