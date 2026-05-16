@@ -3,13 +3,18 @@ setlocal
 
 cd /d "%~dp0"
 
+set CONFIG=Release
+set ENABLE_PERF_LOGGING=ON
+
 set UNITY_ROOT=..\PhysiKUnity
 set UNITY_PLUGIN_DIR=%UNITY_ROOT%\Assets\Plugins
-set CONFIG=Release
 
 if exist build rmdir /s /q build
 
-cmake -S . -B build -DPHYSIK_BUILD_TESTS=ON
+cmake -S . -B build ^
+  -DPHYSIK_BUILD_TESTS=ON ^
+  -DPHYSIK_ENABLE_PERF_LOGGING=%ENABLE_PERF_LOGGING%
+
 cmake --build build --config %CONFIG%
 
 if exist "%UNITY_ROOT%" (
@@ -24,8 +29,6 @@ if exist "%UNITY_ROOT%" (
     echo Unity folder not found: %UNITY_ROOT%
     echo Skipping DLL copy.
 )
-
-cmake -S . -B build -DPHYSIK_BUILD_TESTS=ON -DPHYSIK_BUILD_BENCHMARKS=ON
 
 ctest --test-dir build -C %CONFIG% --output-on-failure
 
