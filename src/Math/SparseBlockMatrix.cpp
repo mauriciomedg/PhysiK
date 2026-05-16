@@ -1,11 +1,18 @@
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <algorithm>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
 namespace PhysiK
 {
     namespace
     {
+        constexpr int ParallelMultiplyMinBlockRows = 8192;
+        constexpr int MinimumRowsPerMultiplyWorker = 2048;
+        constexpr int MaxParallelMultiplyThreads = 4;
+
         Mat3 Add(const Mat3& a, const Mat3& b)
         {
             return Mat3::FromColumns(
@@ -18,6 +25,237 @@ namespace PhysiK
         {
             return rowBlock >= 0 && rowBlock < blockCount &&
                 colBlock >= 0 && colBlock < blockCount;
+        }
+
+        int GetMultiplyThreadCount(int blockCount)
+        {
+            if (blockCount < ParallelMultiplyMinBlockRows)
+            {
+                return 1;
+            }
+
+            const unsigned int hardwareThreads = std::thread::hardware_concurrency();
+            const int availableThreads =
+                hardwareThreads > 0u ? static_cast<int>(hardwareThreads) : 1;
+            const int usefulThreads =
+                std::max(1, blockCount / MinimumRowsPerMultiplyWorker);
+            return std::max(
+                1,
+                std::min({availableThreads, usefulThreads, MaxParallelMultiplyThreads}));
+        }
+
+        void MultiplyBlockRows(
+            int rowBeginBlock,
+            int rowEndBlock,
+            const float* inputValues,
+            float* outputValues,
+            const int* rowStarts,
+            const int* columnIndices,
+            const Mat3* blockValues)
+        {
+            for (int rowBlock = rowBeginBlock; rowBlock < rowEndBlock; ++rowBlock)
+            {
+                float rowX = 0.0f;
+                float rowY = 0.0f;
+                float rowZ = 0.0f;
+                const int rowBegin = rowStarts[rowBlock];
+                const int rowEnd = rowStarts[rowBlock + 1];
+                for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
+                {
+                    const int columnBase = columnIndices[blockIndex] * 3;
+                    const float x = inputValues[columnBase + 0];
+                    const float y = inputValues[columnBase + 1];
+                    const float z = inputValues[columnBase + 2];
+                    const Mat3& block = blockValues[blockIndex];
+                    const Vec3& column0 = block.columns[0];
+                    const Vec3& column1 = block.columns[1];
+                    const Vec3& column2 = block.columns[2];
+
+                    rowX += column0.x * x + column1.x * y + column2.x * z;
+                    rowY += column0.y * x + column1.y * y + column2.y * z;
+                    rowZ += column0.z * x + column1.z * y + column2.z * z;
+                }
+
+                const int rowBase = rowBlock * 3;
+                outputValues[rowBase + 0] = rowX;
+                outputValues[rowBase + 1] = rowY;
+                outputValues[rowBase + 2] = rowZ;
+            }
+        }
+
+        class MultiplyThreadPool
+        {
+        public:
+            explicit MultiplyThreadPool(int workerCount)
+            {
+                workers.reserve(static_cast<std::size_t>(std::max(0, workerCount)));
+                for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex)
+                {
+                    workers.emplace_back([this, workerIndex]() { WorkerLoop(workerIndex); });
+                }
+            }
+
+            ~MultiplyThreadPool()
+            {
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    stopping = true;
+                    ++generation;
+                }
+                workAvailable.notify_all();
+
+                for (std::thread& worker : workers)
+                {
+                    if (worker.joinable())
+                    {
+                        worker.join();
+                    }
+                }
+            }
+
+            int WorkerCapacity() const
+            {
+                return static_cast<int>(workers.size());
+            }
+
+            void Run(
+                int threadCount,
+                int blockCount,
+                const float* inputValues,
+                float* outputValues,
+                const int* rowStarts,
+                const int* columnIndices,
+                const Mat3* blockValues)
+            {
+                const int workerCount = std::min(threadCount - 1, WorkerCapacity());
+                if (workerCount <= 0)
+                {
+                    MultiplyBlockRows(
+                        0,
+                        blockCount,
+                        inputValues,
+                        outputValues,
+                        rowStarts,
+                        columnIndices,
+                        blockValues);
+                    return;
+                }
+
+                const int rowsPerThread = (blockCount + threadCount - 1) / threadCount;
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    taskBlockCount = blockCount;
+                    taskRowsPerThread = rowsPerThread;
+                    taskWorkerCount = workerCount;
+                    taskInputValues = inputValues;
+                    taskOutputValues = outputValues;
+                    taskRowStarts = rowStarts;
+                    taskColumnIndices = columnIndices;
+                    taskBlockValues = blockValues;
+                    remainingWorkers = workerCount;
+                    ++generation;
+                }
+                workAvailable.notify_all();
+
+                const int mainRowBegin = workerCount * rowsPerThread;
+                MultiplyBlockRows(
+                    mainRowBegin,
+                    blockCount,
+                    inputValues,
+                    outputValues,
+                    rowStarts,
+                    columnIndices,
+                    blockValues);
+
+                std::unique_lock<std::mutex> lock(mutex);
+                workFinished.wait(lock, [this]() { return remainingWorkers == 0; });
+            }
+
+        private:
+            void WorkerLoop(int workerIndex)
+            {
+                int observedGeneration = 0;
+                for (;;)
+                {
+                    int rowBegin = 0;
+                    int rowEnd = 0;
+                    const float* inputValues = nullptr;
+                    float* outputValues = nullptr;
+                    const int* rowStarts = nullptr;
+                    const int* columnIndices = nullptr;
+                    const Mat3* blockValues = nullptr;
+                    bool hasWork = false;
+
+                    {
+                        std::unique_lock<std::mutex> lock(mutex);
+                        workAvailable.wait(
+                            lock,
+                            [this, observedGeneration]()
+                            {
+                                return stopping || generation != observedGeneration;
+                            });
+
+                        if (stopping)
+                        {
+                            return;
+                        }
+
+                        observedGeneration = generation;
+                        hasWork = workerIndex < taskWorkerCount;
+                        if (hasWork)
+                        {
+                            rowBegin = workerIndex * taskRowsPerThread;
+                            rowEnd = std::min(taskBlockCount, rowBegin + taskRowsPerThread);
+                            inputValues = taskInputValues;
+                            outputValues = taskOutputValues;
+                            rowStarts = taskRowStarts;
+                            columnIndices = taskColumnIndices;
+                            blockValues = taskBlockValues;
+                        }
+                    }
+
+                    if (hasWork)
+                    {
+                        MultiplyBlockRows(
+                            rowBegin,
+                            rowEnd,
+                            inputValues,
+                            outputValues,
+                            rowStarts,
+                            columnIndices,
+                            blockValues);
+
+                        std::lock_guard<std::mutex> lock(mutex);
+                        --remainingWorkers;
+                        if (remainingWorkers == 0)
+                        {
+                            workFinished.notify_one();
+                        }
+                    }
+                }
+            }
+
+            std::vector<std::thread> workers;
+            std::mutex mutex;
+            std::condition_variable workAvailable;
+            std::condition_variable workFinished;
+            bool stopping = false;
+            int generation = 0;
+            int remainingWorkers = 0;
+            int taskBlockCount = 0;
+            int taskRowsPerThread = 0;
+            int taskWorkerCount = 0;
+            const float* taskInputValues = nullptr;
+            float* taskOutputValues = nullptr;
+            const int* taskRowStarts = nullptr;
+            const int* taskColumnIndices = nullptr;
+            const Mat3* taskBlockValues = nullptr;
+        };
+
+        MultiplyThreadPool& GetMultiplyThreadPool()
+        {
+            thread_local MultiplyThreadPool threadPool(MaxParallelMultiplyThreads - 1);
+            return threadPool;
         }
     }
 
@@ -110,34 +348,28 @@ namespace PhysiK
         const int* columnIndices = colIndex.data();
         const Mat3* blockValues = values.data();
 
-        for (int rowBlock = 0; rowBlock < blockCount; ++rowBlock)
+        const int threadCount = GetMultiplyThreadCount(blockCount);
+        if (threadCount <= 1)
         {
-            float rowX = 0.0f;
-            float rowY = 0.0f;
-            float rowZ = 0.0f;
-            const int rowBegin = rowStarts[rowBlock];
-            const int rowEnd = rowStarts[rowBlock + 1];
-            for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
-            {
-                const int columnBase = columnIndices[blockIndex] * 3;
-                const float x = inputValues[columnBase + 0];
-                const float y = inputValues[columnBase + 1];
-                const float z = inputValues[columnBase + 2];
-                const Mat3& block = blockValues[blockIndex];
-                const Vec3& column0 = block.columns[0];
-                const Vec3& column1 = block.columns[1];
-                const Vec3& column2 = block.columns[2];
-
-                rowX += column0.x * x + column1.x * y + column2.x * z;
-                rowY += column0.y * x + column1.y * y + column2.y * z;
-                rowZ += column0.z * x + column1.z * y + column2.z * z;
-            }
-
-            const int rowBase = rowBlock * 3;
-            outputValues[rowBase + 0] = rowX;
-            outputValues[rowBase + 1] = rowY;
-            outputValues[rowBase + 2] = rowZ;
+            MultiplyBlockRows(
+                0,
+                blockCount,
+                inputValues,
+                outputValues,
+                rowStarts,
+                columnIndices,
+                blockValues);
+            return;
         }
+
+        GetMultiplyThreadPool().Run(
+            threadCount,
+            blockCount,
+            inputValues,
+            outputValues,
+            rowStarts,
+            columnIndices,
+            blockValues);
     }
 
     int SparseBlockMatrix::FindBlockIndex(int rowBlock, int colBlock) const
