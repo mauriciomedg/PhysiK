@@ -39,6 +39,11 @@ namespace PhysiK
             const std::vector<float>& input,
             std::vector<float>& output,
             SparseBlockMatrixMultiplyMode mode) const;
+        void Multiply(
+            const std::vector<float>& input,
+            std::vector<float>& output,
+            SparseBlockMatrixMultiplyMode mode,
+            int workerCount) const;
 
         int FindBlockIndex(int rowBlock, int colBlock) const;
 

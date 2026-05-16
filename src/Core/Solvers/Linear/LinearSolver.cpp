@@ -53,6 +53,7 @@ namespace PhysiK
         cgSettings.tolerance = settings.tolerance;
         cgSettings.useJacobiPreconditioner = settings.useJacobiPreconditioner;
         cgSettings.multiplyMode = settings.multiplyMode;
+        cgSettings.multiplyWorkerCount = settings.multiplyWorkerCount;
 
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         ResetCurrentLinearSolverProfile();

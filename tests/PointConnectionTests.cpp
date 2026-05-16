@@ -1849,6 +1849,73 @@ void WorldMultiplyModeApiInvalidValueFallsBackToSerial()
     PHYSIK_DestroyWorld(world);
 }
 
+void WorldMultiplyWorkerCountApiHasSensibleDefault()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for worker count default test");
+
+    Require(
+        PHYSIK_GetMultiplyWorkerCount(world) >= 1,
+        "world multiply worker count default is invalid");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void WorldMultiplyWorkerCountApiStoresSelectedValue()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for worker count set/get test");
+
+    PHYSIK_SetMultiplyWorkerCount(world, 4);
+    Require(
+        PHYSIK_GetMultiplyWorkerCount(world) == 4,
+        "world multiply worker count did not store selected value");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void WorldMultiplyWorkerCountApiClampsInvalidValues()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for worker count clamp test");
+
+    PHYSIK_SetMultiplyWorkerCount(world, 0);
+    Require(
+        PHYSIK_GetMultiplyWorkerCount(world) == 1,
+        "world multiply worker count did not clamp zero to one");
+
+    PHYSIK_SetMultiplyWorkerCount(world, -12);
+    Require(
+        PHYSIK_GetMultiplyWorkerCount(world) == 1,
+        "world multiply worker count did not clamp negative values to one");
+
+    PHYSIK_SetMultiplyWorkerCount(world, 100000);
+    Require(
+        PHYSIK_GetMultiplyWorkerCount(world) == 64,
+        "world multiply worker count did not clamp absurdly high values");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void WorldMultiplyWorkerCountApiAppliesToSpinSolve()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for spin worker count solve test");
+
+    int nodes[4] = {};
+    CreateSingleTetWithMaterial(world, nodes, 100.0f, 0.0f, 1.0f);
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_SetMultiplyMode(world, PHYSIK_MULTIPLY_SPIN);
+    PHYSIK_SetMultiplyWorkerCount(world, 4);
+
+    PHYSIK_Step(world, 0.01f);
+    Require(
+        PhysiK::GetSparseBlockMatrixLastMultiplyThreadCount() == 4,
+        "spin solve did not use the API-selected worker count");
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
 {
     std::vector<PhysiK::Node> nodes(1);
@@ -2531,6 +2598,10 @@ int main()
     WorldMultiplyModeApiDefaultsToSerial();
     WorldMultiplyModeApiStoresSelectedModes();
     WorldMultiplyModeApiInvalidValueFallsBackToSerial();
+    WorldMultiplyWorkerCountApiHasSensibleDefault();
+    WorldMultiplyWorkerCountApiStoresSelectedValue();
+    WorldMultiplyWorkerCountApiClampsInvalidValues();
+    WorldMultiplyWorkerCountApiAppliesToSpinSolve();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();

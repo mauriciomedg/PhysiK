@@ -60,14 +60,17 @@ namespace PhysiK
 
         int GetMultiplyThreadCount(
             int blockCount,
-            SparseBlockMatrixMultiplyMode mode)
+            SparseBlockMatrixMultiplyMode mode,
+            int requestedThreadCount)
         {
             if (mode == SparseBlockMatrixMultiplyMode::Serial)
             {
                 return 1;
             }
 
-            const int configuredThreadCount = GetConfiguredMultiplyThreadCount();
+            const int configuredThreadCount = requestedThreadCount > 0 ?
+                ClampMultiplyThreadCount(requestedThreadCount) :
+                GetConfiguredMultiplyThreadCount();
             if (mode == SparseBlockMatrixMultiplyMode::SpinningWorkers)
             {
                 return configuredThreadCount;
@@ -562,6 +565,15 @@ namespace PhysiK
         std::vector<float>& output,
         SparseBlockMatrixMultiplyMode mode) const
     {
+        Multiply(input, output, mode, GetConfiguredMultiplyThreadCount());
+    }
+
+    void SparseBlockMatrix::Multiply(
+        const std::vector<float>& input,
+        std::vector<float>& output,
+        SparseBlockMatrixMultiplyMode mode,
+        int workerCount) const
+    {
         const std::size_t dimension = static_cast<std::size_t>(std::max(0, blockCount) * 3);
         if (input.size() < dimension || rowStart.size() != static_cast<std::size_t>(blockCount + 1))
         {
@@ -577,7 +589,7 @@ namespace PhysiK
         const int* columnIndices = colIndex.data();
         const Mat3* blockValues = values.data();
 
-        const int threadCount = GetMultiplyThreadCount(blockCount, mode);
+        const int threadCount = GetMultiplyThreadCount(blockCount, mode, workerCount);
         lastMultiplyThreadCount.store(threadCount, std::memory_order_relaxed);
         if (threadCount <= 1 || mode == SparseBlockMatrixMultiplyMode::Serial)
         {

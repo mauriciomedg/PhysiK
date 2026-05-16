@@ -21,7 +21,10 @@ namespace PhysiK
 
     }
 
-    World::World() = default;
+    World::World()
+        : multiplyWorkerCount(GetSparseBlockMatrixMultiplyWorkerCount())
+    {
+    }
 
     void World::Step(float frameDt)
     {
@@ -160,6 +163,16 @@ namespace PhysiK
     SparseBlockMatrixMultiplyMode World::GetMultiplyMode() const
     {
         return multiplyMode;
+    }
+
+    void World::SetMultiplyWorkerCount(int workerCount)
+    {
+        multiplyWorkerCount = std::max(1, std::min(workerCount, 64));
+    }
+
+    int World::GetMultiplyWorkerCount() const
+    {
+        return multiplyWorkerCount;
     }
 
     void World::SetGravity(const Vec3& value)
@@ -425,6 +438,7 @@ namespace PhysiK
     {
         (void)dt;
         solverData.SetMultiplyMode(multiplyMode);
+        solverData.SetMultiplyWorkerCount(multiplyWorkerCount);
         return solverData.SolveImplicitLinearSystem();
     }
 

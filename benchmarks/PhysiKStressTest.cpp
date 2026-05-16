@@ -176,11 +176,13 @@ namespace
         const std::vector<PhysiK::Node>& nodes,
         PhysiK::SolverData solverData,
         PhysiK::SparseBlockMatrixMultiplyMode multiplyMode,
+        int multiplyWorkerCount,
         double& outMilliseconds,
         double& outDeltaVelocityNorm)
     {
         constexpr float dt = 0.016f;
         solverData.SetMultiplyMode(multiplyMode);
+        solverData.SetMultiplyWorkerCount(multiplyWorkerCount);
         if (!solverData.PrecomputeImplicitSolve(nodes, dt))
         {
             Fail("could not precompute implicit solve");
@@ -319,7 +321,13 @@ int main(int argc, char** argv)
     {
         double milliseconds = 0.0;
         double norm = 0.0;
-        if (!SolveOnce(system.nodes, system.solverData, multiplyMode, milliseconds, norm))
+        if (!SolveOnce(
+            system.nodes,
+            system.solverData,
+            multiplyMode,
+            requestedWorkerCount,
+            milliseconds,
+            norm))
         {
             std::fprintf(stderr, "CurrentLinearSolver warmup did not converge\n");
             return 1;
@@ -336,7 +344,13 @@ int main(int argc, char** argv)
     {
         double milliseconds = 0.0;
         double norm = 0.0;
-        if (!SolveOnce(system.nodes, system.solverData, multiplyMode, milliseconds, norm))
+        if (!SolveOnce(
+            system.nodes,
+            system.solverData,
+            multiplyMode,
+            requestedWorkerCount,
+            milliseconds,
+            norm))
         {
             std::fprintf(stderr, "CurrentLinearSolver benchmark solve did not converge\n");
             return 1;

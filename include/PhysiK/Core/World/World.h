@@ -45,6 +45,8 @@ namespace PhysiK
         SolverMode GetSolverMode() const;
         void SetMultiplyMode(SparseBlockMatrixMultiplyMode mode);
         SparseBlockMatrixMultiplyMode GetMultiplyMode() const;
+        void SetMultiplyWorkerCount(int workerCount);
+        int GetMultiplyWorkerCount() const;
         void SetGravity(const Vec3& value);
         const Vec3& GetGravity() const;
 
@@ -94,5 +96,6 @@ namespace PhysiK
         int substepCount = 1;
         SolverMode solverMode = SolverMode::Explicit;
         SparseBlockMatrixMultiplyMode multiplyMode = SparseBlockMatrixMultiplyMode::Serial;
+        int multiplyWorkerCount = 1;
     };
 }

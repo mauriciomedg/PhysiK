@@ -68,6 +68,10 @@ extern "C"
     PHYSIK_API void PHYSIK_SetSolverMode(PhysiK::WorldHandle world, int mode);
     PHYSIK_API void PHYSIK_SetMultiplyMode(PhysiK::WorldHandle world, int mode);
     PHYSIK_API int PHYSIK_GetMultiplyMode(PhysiK::WorldHandle world);
+    PHYSIK_API void PHYSIK_SetMultiplyWorkerCount(
+        PhysiK::WorldHandle world,
+        int workerCount);
+    PHYSIK_API int PHYSIK_GetMultiplyWorkerCount(PhysiK::WorldHandle world);
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,

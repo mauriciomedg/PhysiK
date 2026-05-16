@@ -14,6 +14,7 @@ namespace PhysiK
         float tolerance = 1.0e-5f;
         bool useJacobiPreconditioner = true;
         SparseBlockMatrixMultiplyMode multiplyMode = SparseBlockMatrixMultiplyMode::Serial;
+        int multiplyWorkerCount = GetSparseBlockMatrixMultiplyWorkerCount();
     };
 
     struct LinearSolveResult

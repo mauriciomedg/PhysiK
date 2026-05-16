@@ -178,6 +178,26 @@ extern "C"
         return PHYSIK_MULTIPLY_SERIAL;
     }
 
+    PHYSIK_API void PHYSIK_SetMultiplyWorkerCount(
+        PhysiK::WorldHandle world,
+        int workerCount)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetMultiplyWorkerCount(workerCount);
+        }
+    }
+
+    PHYSIK_API int PHYSIK_GetMultiplyWorkerCount(PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetMultiplyWorkerCount();
+        }
+
+        return 1;
+    }
+
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,

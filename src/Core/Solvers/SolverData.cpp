@@ -142,6 +142,7 @@ namespace PhysiK
         settings.tolerance = 1.0e-5f;
         settings.useJacobiPreconditioner = true;
         settings.multiplyMode = multiplyMode;
+        settings.multiplyWorkerCount = multiplyWorkerCount;
 
         const LinearSolveResult result =
             GetCurrentLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
@@ -156,6 +157,16 @@ namespace PhysiK
     SparseBlockMatrixMultiplyMode SolverData::GetMultiplyMode() const
     {
         return multiplyMode;
+    }
+
+    void SolverData::SetMultiplyWorkerCount(int workerCount)
+    {
+        multiplyWorkerCount = std::max(1, std::min(workerCount, 64));
+    }
+
+    int SolverData::GetMultiplyWorkerCount() const
+    {
+        return multiplyWorkerCount;
     }
 
     int SolverData::GetDynamicBlockForNode(int nodeIndex) const

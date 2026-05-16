@@ -73,6 +73,8 @@ namespace PhysiK
         bool SolveImplicitLinearSystem();
         void SetMultiplyMode(SparseBlockMatrixMultiplyMode mode);
         SparseBlockMatrixMultiplyMode GetMultiplyMode() const;
+        void SetMultiplyWorkerCount(int workerCount);
+        int GetMultiplyWorkerCount() const;
 
         int GetDynamicBlockForNode(int nodeIndex) const;
         int GetDynamicBlockCount() const
@@ -111,5 +113,6 @@ namespace PhysiK
         SparseBlockMatrix matrix;
         std::vector<float> deltaVelocity;
         SparseBlockMatrixMultiplyMode multiplyMode = SparseBlockMatrixMultiplyMode::Serial;
+        int multiplyWorkerCount = GetSparseBlockMatrixMultiplyWorkerCount();
     };
 }
