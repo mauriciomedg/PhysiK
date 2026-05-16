@@ -13,6 +13,7 @@ namespace PhysiK
         int maxIterations = 128;
         float tolerance = 1.0e-5f;
         bool useJacobiPreconditioner = true;
+        SparseBlockMatrixMultiplyMode multiplyMode = SparseBlockMatrixMultiplyMode::Serial;
     };
 
     struct LinearSolveResult

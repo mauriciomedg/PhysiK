@@ -1801,6 +1801,54 @@ void CurrentLinearSolverSolvesKnownSparseSystem()
     assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
 }
 
+void WorldMultiplyModeApiDefaultsToSerial()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for multiply mode default test");
+
+    Require(
+        PHYSIK_GetMultiplyMode(world) == PHYSIK_MULTIPLY_SERIAL,
+        "world multiply mode default is not Serial");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void WorldMultiplyModeApiStoresSelectedModes()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for multiply mode set/get test");
+
+    PHYSIK_SetMultiplyMode(world, PHYSIK_MULTIPLY_PARALLEL);
+    Require(
+        PHYSIK_GetMultiplyMode(world) == PHYSIK_MULTIPLY_PARALLEL,
+        "world multiply mode did not store Parallel");
+
+    PHYSIK_SetMultiplyMode(world, PHYSIK_MULTIPLY_SPIN);
+    Require(
+        PHYSIK_GetMultiplyMode(world) == PHYSIK_MULTIPLY_SPIN,
+        "world multiply mode did not store Spin");
+
+    PHYSIK_SetMultiplyMode(world, PHYSIK_MULTIPLY_SERIAL);
+    Require(
+        PHYSIK_GetMultiplyMode(world) == PHYSIK_MULTIPLY_SERIAL,
+        "world multiply mode did not store Serial");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void WorldMultiplyModeApiInvalidValueFallsBackToSerial()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for invalid multiply mode test");
+
+    PHYSIK_SetMultiplyMode(world, 99);
+    Require(
+        PHYSIK_GetMultiplyMode(world) == PHYSIK_MULTIPLY_SERIAL,
+        "world multiply mode did not fall back to Serial for invalid value");
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
 {
     std::vector<PhysiK::Node> nodes(1);
@@ -2480,6 +2528,9 @@ int main()
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
     CurrentLinearSolverSolvesKnownSparseSystem();
+    WorldMultiplyModeApiDefaultsToSerial();
+    WorldMultiplyModeApiStoresSelectedModes();
+    WorldMultiplyModeApiInvalidValueFallsBackToSerial();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();

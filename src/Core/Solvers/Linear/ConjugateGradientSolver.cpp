@@ -275,7 +275,7 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         Clock::time_point timedStart = Clock::now();
 #endif
-        matrix.Multiply(solution, scratch.matrixDirection);
+        matrix.Multiply(solution, scratch.matrixDirection, settings.multiplyMode);
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         profile.sparseMatrixMultiplyMilliseconds += MillisecondsBetween(timedStart, Clock::now());
 #endif
@@ -343,7 +343,7 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
             timedStart = Clock::now();
 #endif
-            matrix.Multiply(scratch.direction, scratch.matrixDirection);
+            matrix.Multiply(scratch.direction, scratch.matrixDirection, settings.multiplyMode);
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
             profile.sparseMatrixMultiplyMilliseconds += MillisecondsBetween(timedStart, Clock::now());
 #endif

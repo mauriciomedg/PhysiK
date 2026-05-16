@@ -152,6 +152,16 @@ namespace PhysiK
         return solverMode;
     }
 
+    void World::SetMultiplyMode(SparseBlockMatrixMultiplyMode mode)
+    {
+        multiplyMode = mode;
+    }
+
+    SparseBlockMatrixMultiplyMode World::GetMultiplyMode() const
+    {
+        return multiplyMode;
+    }
+
     void World::SetGravity(const Vec3& value)
     {
         gravity = value;
@@ -414,6 +424,7 @@ namespace PhysiK
     bool World::SolveImplicitLinearSystem(SolverData& solverData, float dt)
     {
         (void)dt;
+        solverData.SetMultiplyMode(multiplyMode);
         return solverData.SolveImplicitLinearSystem();
     }
 

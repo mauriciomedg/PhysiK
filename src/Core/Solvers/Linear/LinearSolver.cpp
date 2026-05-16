@@ -52,6 +52,7 @@ namespace PhysiK
         cgSettings.maxIterations = std::max(1, settings.maxIterations);
         cgSettings.tolerance = settings.tolerance;
         cgSettings.useJacobiPreconditioner = settings.useJacobiPreconditioner;
+        cgSettings.multiplyMode = settings.multiplyMode;
 
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         ResetCurrentLinearSolverProfile();

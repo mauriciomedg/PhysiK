@@ -40,6 +40,34 @@ namespace
         }
     }
 
+    PhysiK::SparseBlockMatrixMultiplyMode ToMultiplyMode(int value)
+    {
+        switch (value)
+        {
+        case PHYSIK_MULTIPLY_PARALLEL:
+            return PhysiK::SparseBlockMatrixMultiplyMode::ConditionVariableParallel;
+        case PHYSIK_MULTIPLY_SPIN:
+            return PhysiK::SparseBlockMatrixMultiplyMode::SpinningWorkers;
+        case PHYSIK_MULTIPLY_SERIAL:
+        default:
+            return PhysiK::SparseBlockMatrixMultiplyMode::Serial;
+        }
+    }
+
+    int ToApiMultiplyMode(PhysiK::SparseBlockMatrixMultiplyMode mode)
+    {
+        switch (mode)
+        {
+        case PhysiK::SparseBlockMatrixMultiplyMode::ConditionVariableParallel:
+            return PHYSIK_MULTIPLY_PARALLEL;
+        case PhysiK::SparseBlockMatrixMultiplyMode::SpinningWorkers:
+            return PHYSIK_MULTIPLY_SPIN;
+        case PhysiK::SparseBlockMatrixMultiplyMode::Serial:
+        default:
+            return PHYSIK_MULTIPLY_SERIAL;
+        }
+    }
+
     PhysikCollisionSphereOverlap ToApiOverlap(const PhysiK::CollisionSphereOverlap& overlap)
     {
         PhysikCollisionSphereOverlap apiOverlap;
@@ -130,6 +158,24 @@ extern "C"
             worldPtr->SetSolverMode(
                 mode == 1 ? PhysiK::SolverMode::ImplicitEuler : PhysiK::SolverMode::Explicit);
         }
+    }
+
+    PHYSIK_API void PHYSIK_SetMultiplyMode(PhysiK::WorldHandle world, int mode)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetMultiplyMode(ToMultiplyMode(mode));
+        }
+    }
+
+    PHYSIK_API int PHYSIK_GetMultiplyMode(PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return ToApiMultiplyMode(worldPtr->GetMultiplyMode());
+        }
+
+        return PHYSIK_MULTIPLY_SERIAL;
     }
 
     PHYSIK_API void PHYSIK_SetGravity(

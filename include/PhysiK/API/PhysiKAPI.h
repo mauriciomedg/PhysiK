@@ -29,6 +29,13 @@ enum PhysikOverlapGeometryType
     PHYSIK_OverlapGeometry_Node = 4
 };
 
+enum PhysikMultiplyMode
+{
+    PHYSIK_MULTIPLY_SERIAL = 0,
+    PHYSIK_MULTIPLY_PARALLEL = 1,
+    PHYSIK_MULTIPLY_SPIN = 2
+};
+
 struct PhysikCollisionSphereOverlap
 {
     int geometryType;
@@ -59,6 +66,8 @@ extern "C"
     PHYSIK_API void PHYSIK_Step(PhysiK::WorldHandle world, float dt);
     PHYSIK_API void PHYSIK_SetSubstepCount(PhysiK::WorldHandle world, int substepCount);
     PHYSIK_API void PHYSIK_SetSolverMode(PhysiK::WorldHandle world, int mode);
+    PHYSIK_API void PHYSIK_SetMultiplyMode(PhysiK::WorldHandle world, int mode);
+    PHYSIK_API int PHYSIK_GetMultiplyMode(PhysiK::WorldHandle world);
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,

@@ -141,10 +141,21 @@ namespace PhysiK
         settings.maxIterations = std::max(128, dynamicBlockCount * 12);
         settings.tolerance = 1.0e-5f;
         settings.useJacobiPreconditioner = true;
+        settings.multiplyMode = multiplyMode;
 
         const LinearSolveResult result =
             GetCurrentLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
         return result.converged && deltaVelocity.size() == dimension;
+    }
+
+    void SolverData::SetMultiplyMode(SparseBlockMatrixMultiplyMode mode)
+    {
+        multiplyMode = mode;
+    }
+
+    SparseBlockMatrixMultiplyMode SolverData::GetMultiplyMode() const
+    {
+        return multiplyMode;
     }
 
     int SolverData::GetDynamicBlockForNode(int nodeIndex) const
