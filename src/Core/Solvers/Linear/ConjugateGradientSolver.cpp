@@ -112,18 +112,53 @@ namespace PhysiK
             return sourceColumn.z;
         }
 
-        void BuildScalarJacobiInverse(
+        void EnsureDiagonalBlockIndexCache(
             const SparseBlockMatrix& matrix,
-            std::vector<float>& inverseDiagonal)
+            ConjugateGradientScratch& scratch)
         {
-            const std::size_t dimension =
-                static_cast<std::size_t>(std::max(0, matrix.blockCount) * 3);
-            ResizeScratchVector(inverseDiagonal, dimension);
-            std::fill(inverseDiagonal.begin(), inverseDiagonal.end(), 1.0f);
+            if (scratch.cachedBlockCount == matrix.blockCount &&
+                scratch.cachedRowStart == matrix.rowStart &&
+                scratch.cachedColumnIndex == matrix.colIndex)
+            {
+                return;
+            }
+
+            scratch.cachedBlockCount = matrix.blockCount;
+            scratch.cachedRowStart = matrix.rowStart;
+            scratch.cachedColumnIndex = matrix.colIndex;
+            scratch.diagonalBlockIndices.assign(
+                static_cast<std::size_t>(std::max(0, matrix.blockCount)),
+                -1);
 
             for (int block = 0; block < matrix.blockCount; ++block)
             {
-                const int blockIndex = matrix.FindBlockIndex(block, block);
+                const int rowBegin = matrix.rowStart[static_cast<std::size_t>(block)];
+                const int rowEnd = matrix.rowStart[static_cast<std::size_t>(block + 1)];
+                for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
+                {
+                    if (matrix.colIndex[static_cast<std::size_t>(blockIndex)] == block)
+                    {
+                        scratch.diagonalBlockIndices[static_cast<std::size_t>(block)] =
+                            blockIndex;
+                        break;
+                    }
+                }
+            }
+        }
+
+        void BuildScalarJacobiInverse(
+            const SparseBlockMatrix& matrix,
+            ConjugateGradientScratch& scratch)
+        {
+            const std::size_t dimension =
+                static_cast<std::size_t>(std::max(0, matrix.blockCount) * 3);
+            ResizeScratchVector(scratch.inverseDiagonal, dimension);
+            std::fill(scratch.inverseDiagonal.begin(), scratch.inverseDiagonal.end(), 1.0f);
+            EnsureDiagonalBlockIndexCache(matrix, scratch);
+
+            for (int block = 0; block < matrix.blockCount; ++block)
+            {
+                const int blockIndex = scratch.diagonalBlockIndices[static_cast<std::size_t>(block)];
                 if (blockIndex < 0)
                 {
                     continue;
@@ -136,7 +171,8 @@ namespace PhysiK
                     const float diagonal = GetBlockValue(diagonalBlock, axis, axis);
                     if (IsFinite(diagonal) && std::abs(diagonal) > DiagonalTolerance)
                     {
-                        inverseDiagonal[base + static_cast<std::size_t>(axis)] = 1.0f / diagonal;
+                        scratch.inverseDiagonal[base + static_cast<std::size_t>(axis)] =
+                            1.0f / diagonal;
                     }
                 }
             }
@@ -273,7 +309,7 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         timedStart = Clock::now();
 #endif
-        BuildScalarJacobiInverse(matrix, scratch.inverseDiagonal);
+        BuildScalarJacobiInverse(matrix, scratch);
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
         profile.preconditionerSetupMilliseconds += MillisecondsBetween(timedStart, Clock::now());
 #endif

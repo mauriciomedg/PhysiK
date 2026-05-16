@@ -28,6 +28,10 @@ namespace PhysiK
         std::vector<float> matrixDirection;
         std::vector<float> preconditionedResidual;
         std::vector<float> inverseDiagonal;
+        std::vector<int> diagonalBlockIndices;
+        std::vector<int> cachedRowStart;
+        std::vector<int> cachedColumnIndex;
+        int cachedBlockCount = -1;
     };
 
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
