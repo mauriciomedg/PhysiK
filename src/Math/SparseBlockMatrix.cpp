@@ -1,11 +1,23 @@
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 
 namespace PhysiK
 {
     namespace
     {
+        std::atomic<bool> timingEnabled{false};
+        thread_local double multiplyMilliseconds = 0.0;
+
+        using Clock = std::chrono::steady_clock;
+
+        double ElapsedMilliseconds(Clock::time_point start)
+        {
+            return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+        }
+
         Mat3 Add(const Mat3& a, const Mat3& b)
         {
             return Mat3::FromColumns(
@@ -19,6 +31,21 @@ namespace PhysiK
             return rowBlock >= 0 && rowBlock < blockCount &&
                 colBlock >= 0 && colBlock < blockCount;
         }
+    }
+
+    void SetSparseBlockMatrixTimingEnabled(bool enabled)
+    {
+        timingEnabled.store(enabled, std::memory_order_relaxed);
+    }
+
+    void ResetSparseBlockMatrixTiming()
+    {
+        multiplyMilliseconds = 0.0;
+    }
+
+    double GetSparseBlockMatrixMultiplyMilliseconds()
+    {
+        return multiplyMilliseconds;
     }
 
     void SparseBlockMatrix::Clear()
@@ -95,10 +122,16 @@ namespace PhysiK
         const std::vector<float>& input,
         std::vector<float>& output) const
     {
+        const bool recordTiming = timingEnabled.load(std::memory_order_relaxed);
+        const Clock::time_point start = recordTiming ? Clock::now() : Clock::time_point{};
         const std::size_t dimension = static_cast<std::size_t>(std::max(0, blockCount) * 3);
         if (input.size() < dimension || rowStart.size() != static_cast<std::size_t>(blockCount + 1))
         {
             output.assign(dimension, 0.0f);
+            if (recordTiming)
+            {
+                multiplyMilliseconds += ElapsedMilliseconds(start);
+            }
             return;
         }
 
@@ -137,6 +170,11 @@ namespace PhysiK
             outputValues[rowBase + 0] = rowX;
             outputValues[rowBase + 1] = rowY;
             outputValues[rowBase + 2] = rowZ;
+        }
+
+        if (recordTiming)
+        {
+            multiplyMilliseconds += ElapsedMilliseconds(start);
         }
     }
 

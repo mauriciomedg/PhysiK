@@ -6,6 +6,7 @@
 #include "PhysiK/API/Handles.h"
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Core/Collision/CollisionDetectionEngine.h"
+#include "PhysiK/Core/Performance/PerformanceLogger.h"
 #include "PhysiK/Core/PhysicsConnections/PhysicsConnection.h"
 #include "PhysiK/Core/PhysicsConnections/PointConnection.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
@@ -43,6 +44,8 @@ namespace PhysiK
         int GetSubstepCount() const;
         void SetSolverMode(SolverMode mode);
         SolverMode GetSolverMode() const;
+        void EnablePerformanceLogging(bool enabled);
+        void SetPerformanceLogPath(const char* path);
         void SetGravity(const Vec3& value);
         const Vec3& GetGravity() const;
 
@@ -63,15 +66,24 @@ namespace PhysiK
         void RunExternalLogic();
         void UpdateFrameComponents(float frameDt);
         void UpdateKinematicTargets();
-        void BuildSolverData(SolverData& solverData, float dt);
+        void BuildSolverData(
+            SolverData& solverData,
+            float dt,
+            PerformanceLogRecord* performanceRecord);
         void AddDefaultNodeMasses(SolverData& solverData);
         void AddGravityForces(SolverData& solverData);
         void AssembleConnectionSystems(SolverData& solverData, float dt);
         void GenerateCollisionConnections();
         void AssembleComponentSystems(SolverData& solverData, float dt);
         void GeneratePointConnectionFromContact(const Contact& contact);
-        void PrecomputeSolve(SolverData& solverData, float dt);
-        bool SolveImplicitLinearSystem(SolverData& solverData, float dt);
+        void PrecomputeSolve(
+            SolverData& solverData,
+            float dt,
+            PerformanceLogRecord* performanceRecord);
+        bool SolveImplicitLinearSystem(
+            SolverData& solverData,
+            float dt,
+            PerformanceLogRecord* performanceRecord);
         bool IntegrateImplicitEuler(const SolverData& solverData, float dt);
         void IntegrateExplicitEuler(const SolverData& solverData, float dt);
         void ClearTransientConnections();
@@ -91,5 +103,7 @@ namespace PhysiK
         Vec3 gravity;
         int substepCount = 1;
         SolverMode solverMode = SolverMode::Explicit;
+        std::uint64_t frameIndex = 0;
+        PerformanceLogger performanceLogger;
     };
 }
