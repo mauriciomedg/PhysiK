@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <thread>
 #include <vector>
 
 namespace
@@ -210,6 +211,17 @@ namespace
         return parsed > 0 ? parsed : fallback;
     }
 
+    int DefaultMultiplyWorkerCount()
+    {
+        const unsigned int hardwareThreads = std::thread::hardware_concurrency();
+        if (hardwareThreads <= 1u)
+        {
+            return 1;
+        }
+
+        return std::max(1, static_cast<int>(hardwareThreads) - 1);
+    }
+
     PhysiK::SparseBlockMatrixMultiplyMode ParseMultiplyMode(const char* value)
     {
         if (value == nullptr || std::strcmp(value, "serial") == 0)
@@ -279,8 +291,12 @@ int main(int argc, char** argv)
     const int iterations = ParsePositiveInt(argc > 4 ? argv[4] : nullptr, 200);
     const PhysiK::SparseBlockMatrixMultiplyMode multiplyMode =
         ParseMultiplyMode(argc > 5 ? argv[5] : nullptr);
+    const int requestedWorkerCount = ParsePositiveInt(
+        argc > 6 ? argv[6] : nullptr,
+        DefaultMultiplyWorkerCount());
     const int warmups = std::min(10, std::max(1, iterations / 10));
     PhysiK::SetSparseBlockMatrixMultiplyMode(multiplyMode);
+    PhysiK::SetSparseBlockMatrixMultiplyWorkerCount(requestedWorkerCount);
 
     std::printf(
         "PhysiK stress test grid: %d x %d x %d nodes\n",
@@ -294,6 +310,9 @@ int main(int argc, char** argv)
     std::printf(
         "SparseBlockMatrix multiply mode: %s\n",
         GetMultiplyModeName(multiplyMode));
+    std::printf(
+        "SparseBlockMatrix requested worker count: %d\n",
+        requestedWorkerCount);
 
     const StressSystem system = BuildStructuredImplicitFemLikeSystem(width, height, depth);
     for (int i = 0; i < warmups; ++i)
@@ -332,7 +351,7 @@ int main(int argc, char** argv)
 
     std::printf("CurrentLinearSolver wall-clock solve timing:\n");
     std::printf(
-        "  SparseBlockMatrix worker count: %d\n",
+        "  SparseBlockMatrix actual worker count: %d\n",
         PhysiK::GetSparseBlockMatrixLastMultiplyThreadCount());
     PrintStats("solve", wallClockStats, "ms");
     PrintStats("delta velocity norm", deltaVelocityNormStats, "");

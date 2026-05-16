@@ -50,5 +50,7 @@ namespace PhysiK
 
     PHYSIK_API void SetSparseBlockMatrixMultiplyMode(SparseBlockMatrixMultiplyMode mode);
     PHYSIK_API SparseBlockMatrixMultiplyMode GetSparseBlockMatrixMultiplyMode();
+    PHYSIK_API void SetSparseBlockMatrixMultiplyWorkerCount(int workerCount);
+    PHYSIK_API int GetSparseBlockMatrixMultiplyWorkerCount();
     PHYSIK_API int GetSparseBlockMatrixLastMultiplyThreadCount();
 }

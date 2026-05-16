@@ -12,11 +12,12 @@ namespace PhysiK
     {
         constexpr int ParallelMultiplyMinBlockRows = 8192;
         constexpr int MinimumRowsPerMultiplyWorker = 2048;
-        constexpr int MaxParallelMultiplyThreads = 4;
+        constexpr int MaxConfiguredMultiplyThreads = 64;
         constexpr int SpinBeforeYieldCount = 64;
 
         std::atomic<SparseBlockMatrixMultiplyMode> multiplyMode{
             SparseBlockMatrixMultiplyMode::Serial};
+        std::atomic<int> configuredMultiplyThreadCount{0};
         std::atomic<int> lastMultiplyThreadCount{1};
 
         Mat3 Add(const Mat3& a, const Mat3& b)
@@ -33,21 +34,53 @@ namespace PhysiK
                 colBlock >= 0 && colBlock < blockCount;
         }
 
-        int GetMultiplyThreadCount(int blockCount)
+        int ClampMultiplyThreadCount(int threadCount)
         {
+            return std::max(1, std::min(threadCount, MaxConfiguredMultiplyThreads));
+        }
+
+        int GetDefaultMultiplyThreadCount()
+        {
+            const unsigned int hardwareThreads = std::thread::hardware_concurrency();
+            if (hardwareThreads <= 1u)
+            {
+                return 1;
+            }
+
+            return ClampMultiplyThreadCount(static_cast<int>(hardwareThreads) - 1);
+        }
+
+        int GetConfiguredMultiplyThreadCount()
+        {
+            const int configured =
+                configuredMultiplyThreadCount.load(std::memory_order_relaxed);
+            return configured > 0 ? ClampMultiplyThreadCount(configured) :
+                GetDefaultMultiplyThreadCount();
+        }
+
+        int GetMultiplyThreadCount(
+            int blockCount,
+            SparseBlockMatrixMultiplyMode mode)
+        {
+            if (mode == SparseBlockMatrixMultiplyMode::Serial)
+            {
+                return 1;
+            }
+
+            const int configuredThreadCount = GetConfiguredMultiplyThreadCount();
+            if (mode == SparseBlockMatrixMultiplyMode::SpinningWorkers)
+            {
+                return configuredThreadCount;
+            }
+
             if (blockCount < ParallelMultiplyMinBlockRows)
             {
                 return 1;
             }
 
-            const unsigned int hardwareThreads = std::thread::hardware_concurrency();
-            const int availableThreads =
-                hardwareThreads > 0u ? static_cast<int>(hardwareThreads) : 1;
             const int usefulThreads =
                 std::max(1, blockCount / MinimumRowsPerMultiplyWorker);
-            return std::max(
-                1,
-                std::min({availableThreads, usefulThreads, MaxParallelMultiplyThreads}));
+            return std::max(1, std::min(configuredThreadCount, usefulThreads));
         }
 
         void MultiplyBlockRows(
@@ -92,13 +125,9 @@ namespace PhysiK
         class MultiplyThreadPool
         {
         public:
-            explicit MultiplyThreadPool(int workerCount)
+            explicit MultiplyThreadPool(int workerCount = 0)
             {
-                workers.reserve(static_cast<std::size_t>(std::max(0, workerCount)));
-                for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex)
-                {
-                    workers.emplace_back([this, workerIndex]() { WorkerLoop(workerIndex); });
-                }
+                EnsureWorkerCapacity(workerCount);
             }
 
             ~MultiplyThreadPool()
@@ -122,6 +151,26 @@ namespace PhysiK
             int WorkerCapacity() const
             {
                 return static_cast<int>(workers.size());
+            }
+
+            void EnsureWorkerCapacity(int workerCount)
+            {
+                if (workerCount <= WorkerCapacity())
+                {
+                    return;
+                }
+
+                std::lock_guard<std::mutex> lock(mutex);
+                while (static_cast<int>(workers.size()) < workerCount)
+                {
+                    const int workerIndex = static_cast<int>(workers.size());
+                    const int initialGeneration = generation;
+                    workers.emplace_back(
+                        [this, workerIndex, initialGeneration]()
+                        {
+                            WorkerLoop(workerIndex, initialGeneration);
+                        });
+                }
             }
 
             void Run(
@@ -178,9 +227,9 @@ namespace PhysiK
             }
 
         private:
-            void WorkerLoop(int workerIndex)
+            void WorkerLoop(int workerIndex, int initialGeneration)
             {
-                int observedGeneration = 0;
+                int observedGeneration = initialGeneration;
                 for (;;)
                 {
                     int rowBegin = 0;
@@ -260,20 +309,16 @@ namespace PhysiK
 
         MultiplyThreadPool& GetMultiplyThreadPool()
         {
-            thread_local MultiplyThreadPool threadPool(MaxParallelMultiplyThreads - 1);
+            thread_local MultiplyThreadPool threadPool;
             return threadPool;
         }
 
         class SpinningBlockMultiplyScheduler
         {
         public:
-            explicit SpinningBlockMultiplyScheduler(int workerCount)
+            explicit SpinningBlockMultiplyScheduler(int workerCount = 0)
             {
-                workers.reserve(static_cast<std::size_t>(std::max(0, workerCount)));
-                for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex)
-                {
-                    workers.emplace_back([this, workerIndex]() { WorkerLoop(workerIndex); });
-                }
+                EnsureWorkerCapacity(workerCount);
             }
 
             ~SpinningBlockMultiplyScheduler()
@@ -292,6 +337,27 @@ namespace PhysiK
             int WorkerCapacity() const
             {
                 return static_cast<int>(workers.size());
+            }
+
+            void EnsureWorkerCapacity(int workerCount)
+            {
+                if (workerCount <= WorkerCapacity())
+                {
+                    return;
+                }
+
+                workers.reserve(static_cast<std::size_t>(workerCount));
+                while (static_cast<int>(workers.size()) < workerCount)
+                {
+                    const int workerIndex = static_cast<int>(workers.size());
+                    const int initialGeneration =
+                        generation.load(std::memory_order_acquire);
+                    workers.emplace_back(
+                        [this, workerIndex, initialGeneration]()
+                        {
+                            WorkerLoop(workerIndex, initialGeneration);
+                        });
+                }
             }
 
             void Run(
@@ -350,9 +416,9 @@ namespace PhysiK
             }
 
         private:
-            void WorkerLoop(int workerIndex)
+            void WorkerLoop(int workerIndex, int initialGeneration)
             {
-                int observedGeneration = 0;
+                int observedGeneration = initialGeneration;
                 int spins = 0;
                 for (;;)
                 {
@@ -409,8 +475,7 @@ namespace PhysiK
 
         SpinningBlockMultiplyScheduler& GetSpinningBlockMultiplyScheduler()
         {
-            thread_local SpinningBlockMultiplyScheduler scheduler(
-                MaxParallelMultiplyThreads - 1);
+            thread_local SpinningBlockMultiplyScheduler scheduler;
             return scheduler;
         }
     }
@@ -512,8 +577,7 @@ namespace PhysiK
         const int* columnIndices = colIndex.data();
         const Mat3* blockValues = values.data();
 
-        const int threadCount =
-            mode == SparseBlockMatrixMultiplyMode::Serial ? 1 : GetMultiplyThreadCount(blockCount);
+        const int threadCount = GetMultiplyThreadCount(blockCount, mode);
         lastMultiplyThreadCount.store(threadCount, std::memory_order_relaxed);
         if (threadCount <= 1 || mode == SparseBlockMatrixMultiplyMode::Serial)
         {
@@ -530,7 +594,9 @@ namespace PhysiK
 
         if (mode == SparseBlockMatrixMultiplyMode::ConditionVariableParallel)
         {
-            GetMultiplyThreadPool().Run(
+            MultiplyThreadPool& threadPool = GetMultiplyThreadPool();
+            threadPool.EnsureWorkerCapacity(threadCount - 1);
+            threadPool.Run(
                 threadCount,
                 blockCount,
                 inputValues,
@@ -541,7 +607,9 @@ namespace PhysiK
             return;
         }
 
-        GetSpinningBlockMultiplyScheduler().Run(
+        SpinningBlockMultiplyScheduler& scheduler = GetSpinningBlockMultiplyScheduler();
+        scheduler.EnsureWorkerCapacity(threadCount - 1);
+        scheduler.Run(
             threadCount,
             blockCount,
             inputValues,
@@ -576,6 +644,18 @@ namespace PhysiK
     SparseBlockMatrixMultiplyMode GetSparseBlockMatrixMultiplyMode()
     {
         return multiplyMode.load(std::memory_order_relaxed);
+    }
+
+    void SetSparseBlockMatrixMultiplyWorkerCount(int workerCount)
+    {
+        configuredMultiplyThreadCount.store(
+            ClampMultiplyThreadCount(workerCount),
+            std::memory_order_relaxed);
+    }
+
+    int GetSparseBlockMatrixMultiplyWorkerCount()
+    {
+        return GetConfiguredMultiplyThreadCount();
     }
 
     int GetSparseBlockMatrixLastMultiplyThreadCount()
