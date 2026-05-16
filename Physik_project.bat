@@ -5,6 +5,18 @@ cd /d "%~dp0"
 
 set UNITY_PLUGIN_DIR=..\PhysiKUnity\Assets\Plugins
 
+if exist "..\PhysiKUnity" (
+    if not exist "%UNITY_PLUGIN_DIR%" mkdir "%UNITY_PLUGIN_DIR%"
+
+    copy /Y "build\Release\Physik.dll" "%UNITY_PLUGIN_DIR%\Physik.dll"
+
+    if exist "build\Release\Physik.pdb" (
+        copy /Y "build\Release\Physik.pdb" "%UNITY_PLUGIN_DIR%\Physik.pdb"
+    )
+) else (
+    echo Unity folder not found: ..\PhysiKUnity
+    echo Skipping DLL copy.
+)
 call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" --force
 
 if exist build rmdir /s /q build
