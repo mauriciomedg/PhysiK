@@ -10,6 +10,13 @@
 
 namespace PhysiK
 {
+    enum class SparseBlockMatrixMultiplyMode
+    {
+        Serial,
+        ConditionVariableParallel,
+        SpinningWorkers
+    };
+
     class PHYSIK_API SparseBlockMatrix
     {
     public:
@@ -36,4 +43,8 @@ namespace PhysiK
 
         static std::uint64_t MakeKey(int rowBlock, int colBlock);
     };
+
+    PHYSIK_API void SetSparseBlockMatrixMultiplyMode(SparseBlockMatrixMultiplyMode mode);
+    PHYSIK_API SparseBlockMatrixMultiplyMode GetSparseBlockMatrixMultiplyMode();
+    PHYSIK_API int GetSparseBlockMatrixLastMultiplyThreadCount();
 }

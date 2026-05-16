@@ -1,6 +1,7 @@
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <algorithm>
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -12,6 +13,11 @@ namespace PhysiK
         constexpr int ParallelMultiplyMinBlockRows = 8192;
         constexpr int MinimumRowsPerMultiplyWorker = 2048;
         constexpr int MaxParallelMultiplyThreads = 4;
+        constexpr int SpinBeforeYieldCount = 64;
+
+        std::atomic<SparseBlockMatrixMultiplyMode> multiplyMode{
+            SparseBlockMatrixMultiplyMode::Serial};
+        std::atomic<int> lastMultiplyThreadCount{1};
 
         Mat3 Add(const Mat3& a, const Mat3& b)
         {
@@ -257,6 +263,156 @@ namespace PhysiK
             thread_local MultiplyThreadPool threadPool(MaxParallelMultiplyThreads - 1);
             return threadPool;
         }
+
+        class SpinningBlockMultiplyScheduler
+        {
+        public:
+            explicit SpinningBlockMultiplyScheduler(int workerCount)
+            {
+                workers.reserve(static_cast<std::size_t>(std::max(0, workerCount)));
+                for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex)
+                {
+                    workers.emplace_back([this, workerIndex]() { WorkerLoop(workerIndex); });
+                }
+            }
+
+            ~SpinningBlockMultiplyScheduler()
+            {
+                stopping.store(true, std::memory_order_release);
+                generation.fetch_add(1, std::memory_order_release);
+                for (std::thread& worker : workers)
+                {
+                    if (worker.joinable())
+                    {
+                        worker.join();
+                    }
+                }
+            }
+
+            int WorkerCapacity() const
+            {
+                return static_cast<int>(workers.size());
+            }
+
+            void Run(
+                int threadCount,
+                int blockCount,
+                const float* inputValues,
+                float* outputValues,
+                const int* rowStarts,
+                const int* columnIndices,
+                const Mat3* blockValues)
+            {
+                const int workerCount = std::min(threadCount - 1, WorkerCapacity());
+                if (workerCount <= 0)
+                {
+                    MultiplyBlockRows(
+                        0,
+                        blockCount,
+                        inputValues,
+                        outputValues,
+                        rowStarts,
+                        columnIndices,
+                        blockValues);
+                    return;
+                }
+
+                taskBlockCount = blockCount;
+                taskRowsPerThread = (blockCount + threadCount - 1) / threadCount;
+                taskWorkerCount = workerCount;
+                taskInputValues = inputValues;
+                taskOutputValues = outputValues;
+                taskRowStarts = rowStarts;
+                taskColumnIndices = columnIndices;
+                taskBlockValues = blockValues;
+                remainingWorkers.store(workerCount, std::memory_order_relaxed);
+                generation.fetch_add(1, std::memory_order_release);
+
+                const int mainRowBegin = workerCount * taskRowsPerThread;
+                MultiplyBlockRows(
+                    mainRowBegin,
+                    blockCount,
+                    inputValues,
+                    outputValues,
+                    rowStarts,
+                    columnIndices,
+                    blockValues);
+
+                int spins = 0;
+                while (remainingWorkers.load(std::memory_order_acquire) != 0)
+                {
+                    if (++spins >= SpinBeforeYieldCount)
+                    {
+                        spins = 0;
+                        std::this_thread::yield();
+                    }
+                }
+            }
+
+        private:
+            void WorkerLoop(int workerIndex)
+            {
+                int observedGeneration = 0;
+                int spins = 0;
+                for (;;)
+                {
+                    if (stopping.load(std::memory_order_acquire))
+                    {
+                        return;
+                    }
+
+                    const int currentGeneration = generation.load(std::memory_order_acquire);
+                    if (currentGeneration == observedGeneration)
+                    {
+                        if (++spins >= SpinBeforeYieldCount)
+                        {
+                            spins = 0;
+                            std::this_thread::yield();
+                        }
+                        continue;
+                    }
+
+                    spins = 0;
+                    observedGeneration = currentGeneration;
+                    if (workerIndex >= taskWorkerCount)
+                    {
+                        continue;
+                    }
+
+                    const int rowBegin = workerIndex * taskRowsPerThread;
+                    const int rowEnd = std::min(taskBlockCount, rowBegin + taskRowsPerThread);
+                    MultiplyBlockRows(
+                        rowBegin,
+                        rowEnd,
+                        taskInputValues,
+                        taskOutputValues,
+                        taskRowStarts,
+                        taskColumnIndices,
+                        taskBlockValues);
+                    remainingWorkers.fetch_sub(1, std::memory_order_release);
+                }
+            }
+
+            std::vector<std::thread> workers;
+            std::atomic<bool> stopping{false};
+            std::atomic<int> generation{0};
+            std::atomic<int> remainingWorkers{0};
+            int taskBlockCount = 0;
+            int taskRowsPerThread = 0;
+            int taskWorkerCount = 0;
+            const float* taskInputValues = nullptr;
+            float* taskOutputValues = nullptr;
+            const int* taskRowStarts = nullptr;
+            const int* taskColumnIndices = nullptr;
+            const Mat3* taskBlockValues = nullptr;
+        };
+
+        SpinningBlockMultiplyScheduler& GetSpinningBlockMultiplyScheduler()
+        {
+            thread_local SpinningBlockMultiplyScheduler scheduler(
+                MaxParallelMultiplyThreads - 1);
+            return scheduler;
+        }
     }
 
     void SparseBlockMatrix::Clear()
@@ -348,8 +504,12 @@ namespace PhysiK
         const int* columnIndices = colIndex.data();
         const Mat3* blockValues = values.data();
 
-        const int threadCount = GetMultiplyThreadCount(blockCount);
-        if (threadCount <= 1)
+        const SparseBlockMatrixMultiplyMode mode =
+            multiplyMode.load(std::memory_order_relaxed);
+        const int threadCount =
+            mode == SparseBlockMatrixMultiplyMode::Serial ? 1 : GetMultiplyThreadCount(blockCount);
+        lastMultiplyThreadCount.store(threadCount, std::memory_order_relaxed);
+        if (threadCount <= 1 || mode == SparseBlockMatrixMultiplyMode::Serial)
         {
             MultiplyBlockRows(
                 0,
@@ -362,7 +522,20 @@ namespace PhysiK
             return;
         }
 
-        GetMultiplyThreadPool().Run(
+        if (mode == SparseBlockMatrixMultiplyMode::ConditionVariableParallel)
+        {
+            GetMultiplyThreadPool().Run(
+                threadCount,
+                blockCount,
+                inputValues,
+                outputValues,
+                rowStarts,
+                columnIndices,
+                blockValues);
+            return;
+        }
+
+        GetSpinningBlockMultiplyScheduler().Run(
             threadCount,
             blockCount,
             inputValues,
@@ -387,5 +560,20 @@ namespace PhysiK
     {
         return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(rowBlock)) << 32u) |
             static_cast<std::uint32_t>(colBlock);
+    }
+
+    void SetSparseBlockMatrixMultiplyMode(SparseBlockMatrixMultiplyMode mode)
+    {
+        multiplyMode.store(mode, std::memory_order_relaxed);
+    }
+
+    SparseBlockMatrixMultiplyMode GetSparseBlockMatrixMultiplyMode()
+    {
+        return multiplyMode.load(std::memory_order_relaxed);
+    }
+
+    int GetSparseBlockMatrixLastMultiplyThreadCount()
+    {
+        return lastMultiplyThreadCount.load(std::memory_order_relaxed);
     }
 }

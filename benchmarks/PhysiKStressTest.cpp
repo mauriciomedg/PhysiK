@@ -1,5 +1,6 @@
 #include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
+#include "PhysiK/Math/SparseBlockMatrix.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/PhysicsData/Node.h"
 
@@ -8,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <vector>
 
@@ -206,6 +208,42 @@ namespace
         return parsed > 0 ? parsed : fallback;
     }
 
+    PhysiK::SparseBlockMatrixMultiplyMode ParseMultiplyMode(const char* value)
+    {
+        if (value == nullptr || std::strcmp(value, "serial") == 0)
+        {
+            return PhysiK::SparseBlockMatrixMultiplyMode::Serial;
+        }
+
+        if (std::strcmp(value, "parallel") == 0 ||
+            std::strcmp(value, "cv") == 0)
+        {
+            return PhysiK::SparseBlockMatrixMultiplyMode::ConditionVariableParallel;
+        }
+
+        if (std::strcmp(value, "spin") == 0 ||
+            std::strcmp(value, "spinning") == 0)
+        {
+            return PhysiK::SparseBlockMatrixMultiplyMode::SpinningWorkers;
+        }
+
+        return PhysiK::SparseBlockMatrixMultiplyMode::Serial;
+    }
+
+    const char* GetMultiplyModeName(PhysiK::SparseBlockMatrixMultiplyMode mode)
+    {
+        switch (mode)
+        {
+        case PhysiK::SparseBlockMatrixMultiplyMode::ConditionVariableParallel:
+            return "parallel";
+        case PhysiK::SparseBlockMatrixMultiplyMode::SpinningWorkers:
+            return "spin";
+        case PhysiK::SparseBlockMatrixMultiplyMode::Serial:
+        default:
+            return "serial";
+        }
+    }
+
     void PrintStats(const char* label, const TimingStats& stats, const char* unit)
     {
         if (unit[0] == '\0')
@@ -237,7 +275,10 @@ int main(int argc, char** argv)
     const int height = ParsePositiveInt(argc > 2 ? argv[2] : nullptr, 20);
     const int depth = ParsePositiveInt(argc > 3 ? argv[3] : nullptr, 10);
     const int iterations = ParsePositiveInt(argc > 4 ? argv[4] : nullptr, 200);
+    const PhysiK::SparseBlockMatrixMultiplyMode multiplyMode =
+        ParseMultiplyMode(argc > 5 ? argv[5] : nullptr);
     const int warmups = std::min(10, std::max(1, iterations / 10));
+    PhysiK::SetSparseBlockMatrixMultiplyMode(multiplyMode);
 
     std::printf(
         "PhysiK stress test grid: %d x %d x %d nodes\n",
@@ -248,6 +289,9 @@ int main(int argc, char** argv)
         "Warmups: %d, benchmark iterations: %d\n",
         warmups,
         iterations);
+    std::printf(
+        "SparseBlockMatrix multiply mode: %s\n",
+        GetMultiplyModeName(multiplyMode));
 
     const StressSystem system = BuildStructuredImplicitFemLikeSystem(width, height, depth);
     for (int i = 0; i < warmups; ++i)
@@ -285,6 +329,9 @@ int main(int argc, char** argv)
     }
 
     std::printf("CurrentLinearSolver wall-clock solve timing:\n");
+    std::printf(
+        "  SparseBlockMatrix worker count: %d\n",
+        PhysiK::GetSparseBlockMatrixLastMultiplyThreadCount());
     PrintStats("solve", wallClockStats, "ms");
     PrintStats("delta velocity norm", deltaVelocityNormStats, "");
 
