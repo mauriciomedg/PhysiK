@@ -55,7 +55,7 @@ namespace PhysiK
         bool EnsureOpen();
         void Close();
 
-        bool enabled = false;
+        bool enabled = true;
         bool headerWritten = false;
         std::string path = "logs/physik_performance.csv";
         std::ofstream file;

@@ -1835,7 +1835,6 @@ void PerformanceLoggingWritesCsvForImplicitStep()
     CreateSingleTetWithMaterial(world, nodes, 100.0f, 0.0f, 1.0f);
     PHYSIK_SetSolverMode(world, 1);
     PHYSIK_SetPerformanceLogPath(world, logPath.string().c_str());
-    PHYSIK_EnablePerformanceLogging(world, 1);
 
     PHYSIK_Step(world, 0.01f);
     PHYSIK_DestroyWorld(world);
