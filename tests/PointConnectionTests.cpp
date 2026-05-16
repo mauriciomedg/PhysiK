@@ -1822,6 +1822,7 @@ void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
 
 void PerformanceLoggingWritesCsvForImplicitStep()
 {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
     const std::filesystem::path logPath =
         std::filesystem::path("logs") / "physik_performance_test.csv";
     std::error_code error;
@@ -1859,6 +1860,16 @@ void PerformanceLoggingWritesCsvForImplicitStep()
     Require(!row.empty(), "performance CSV did not contain a data row");
 
     std::filesystem::remove(logPath, error);
+#else
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    Require(world != nullptr, "world creation failed for performance logging no-op test");
+
+    PHYSIK_SetPerformanceLogPath(world, "logs/physik_performance_disabled_test.csv");
+    PHYSIK_EnablePerformanceLogging(world, 1);
+    PHYSIK_Step(world, 0.01f);
+
+    PHYSIK_DestroyWorld(world);
+#endif
 }
 
 void ImplicitEulerLinearTetUsesSparseCgPath()

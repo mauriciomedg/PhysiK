@@ -1,6 +1,8 @@
 #include "PhysiK/Core/World/World.h"
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
 #include "PhysiK/Components/TetMeshComponent.h"
+#endif
 
 #include <algorithm>
 #include <cassert>
@@ -21,6 +23,7 @@ namespace PhysiK
             return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
         }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
         void AddTopologyCounts(
             const std::vector<std::unique_ptr<Component>>& components,
             PerformanceLogRecord& record)
@@ -37,6 +40,7 @@ namespace PhysiK
                 record.activeTetCount += tetMesh->GetActiveTetCount();
             }
         }
+#endif
 
     }
 
@@ -55,10 +59,13 @@ namespace PhysiK
 
         const int steps = std::max(1, substepCount);
         const float substepDt = frameDt / static_cast<float>(steps);
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
         const bool logPerformance = performanceLogger.IsEnabled();
+#endif
 
         for (int i = 0; i < steps; ++i)
         {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
             PerformanceLogRecord record;
             record.frameIndex = frameIndex;
             record.substepIndex = i;
@@ -69,16 +76,25 @@ namespace PhysiK
             }
             const std::unique_ptr<PerformanceTimer> totalTimer =
                 logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
 
             SolverData solverData;
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
             PrecomputeSolve(solverData, substepDt, logPerformance ? &record : nullptr);
+#else
+            PrecomputeSolve(solverData, substepDt);
+#endif
 
             if (solverMode == SolverMode::ImplicitEuler)
             {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
                 if (SolveImplicitLinearSystem(
                     solverData,
                     substepDt,
                     logPerformance ? &record : nullptr))
+#else
+                if (SolveImplicitLinearSystem(solverData, substepDt))
+#endif
                 {
                     IntegrateImplicitEuler(solverData, substepDt);
                 }
@@ -88,6 +104,7 @@ namespace PhysiK
                 IntegrateExplicitEuler(solverData, substepDt);
             }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
             if (logPerformance)
             {
                 record.dynamicBlockCount = solverData.GetDynamicBlockCount();
@@ -95,11 +112,14 @@ namespace PhysiK
                 record.totalStepMs = totalTimer->ElapsedMilliseconds();
                 performanceLogger.Log(record);
             }
+#endif
 
             ClearTransientConnections();
         }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
         ++frameIndex;
+#endif
     }
 
     int World::AddNode(const Vec3& position)
@@ -198,13 +218,20 @@ namespace PhysiK
 
     void World::EnablePerformanceLogging(bool enabled)
     {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
         performanceLogger.Enable(enabled);
-        SetSparseBlockMatrixTimingEnabled(enabled);
+#else
+        (void)enabled;
+#endif
     }
 
     void World::SetPerformanceLogPath(const char* path)
     {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
         performanceLogger.SetPath(path);
+#else
+        (void)path;
+#endif
     }
 
     void World::SetGravity(const Vec3& value)
@@ -349,6 +376,7 @@ namespace PhysiK
         }
     }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
     void World::BuildSolverData(
         SolverData& solverData,
         float dt,
@@ -379,6 +407,17 @@ namespace PhysiK
             performanceRecord->buildSolverDataMs = buildTimer->ElapsedMilliseconds();
         }
     }
+#else
+    void World::BuildSolverData(SolverData& solverData, float dt)
+    {
+        GenerateCollisionConnections();
+
+        AssembleComponentSystems(solverData, dt);
+        AddDefaultNodeMasses(solverData);
+        AddGravityForces(solverData);
+        AssembleConnectionSystems(solverData, dt);
+    }
+#endif
 
     void World::AddDefaultNodeMasses(SolverData& solverData)
     {
@@ -480,6 +519,7 @@ namespace PhysiK
         AddPointConnection(connection);
     }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
     void World::PrecomputeSolve(
         SolverData& solverData,
         float dt,
@@ -489,7 +529,16 @@ namespace PhysiK
         BuildSolverData(solverData, dt, performanceRecord);
         solverData.PrecomputeImplicitSolve(nodes, dt);
     }
+#else
+    void World::PrecomputeSolve(SolverData& solverData, float dt)
+    {
+        solverData.Clear();
+        BuildSolverData(solverData, dt);
+        solverData.PrecomputeImplicitSolve(nodes, dt);
+    }
+#endif
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
     bool World::SolveImplicitLinearSystem(
         SolverData& solverData,
         float dt,
@@ -501,10 +550,12 @@ namespace PhysiK
         if (performanceRecord != nullptr)
         {
             ResetSparseBlockMatrixTiming();
+            SetSparseBlockMatrixTimingEnabled(true);
         }
         const bool solved = solverData.SolveImplicitLinearSystem();
         if (performanceRecord != nullptr)
         {
+            SetSparseBlockMatrixTimingEnabled(false);
             performanceRecord->conjugateGradientSolveMs = solveTimer->ElapsedMilliseconds();
             performanceRecord->sparseMultiplyMs = GetSparseBlockMatrixMultiplyMilliseconds();
             performanceRecord->cgIterations = solverData.GetLastCgIterationCount();
@@ -513,6 +564,13 @@ namespace PhysiK
 
         return solved;
     }
+#else
+    bool World::SolveImplicitLinearSystem(SolverData& solverData, float dt)
+    {
+        (void)dt;
+        return solverData.SolveImplicitLinearSystem();
+    }
+#endif
 
     bool World::IntegrateImplicitEuler(const SolverData& solverData, float dt)
     {

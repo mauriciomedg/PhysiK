@@ -4,6 +4,7 @@ project(PhysiK VERSION 0.1.0 LANGUAGES CXX)
 
 option(PHYSIK_BUILD_TESTS "Build PhysiK tests" ON)
 option(PHYSIK_BUILD_BENCHMARKS "Build PhysiK standalone benchmark executables" OFF)
+option(PHYSIK_ENABLE_PERF_LOGGING "Enable optional CSV performance logging instrumentation" OFF)
 
 add_library(PhysiK SHARED)
 add_library(PhysiK::PhysiK ALIAS PhysiK)
@@ -41,7 +42,6 @@ target_sources(
         include/PhysiK/Components/TetMeshComponent.h
 
         include/PhysiK/Core/Collision/CollisionDetectionEngine.h
-        include/PhysiK/Core/Performance/PerformanceLogger.h
         include/PhysiK/Core/Physics/PhysicsModel.h
         include/PhysiK/Core/Physics/FEM/FEMModel.h
         include/PhysiK/Core/PhysicsConnections/PhysicsConnection.h
@@ -61,7 +61,6 @@ target_sources(
         src/Components/CollisionSphereComponent.cpp
         src/Components/TetMeshComponent.cpp
         src/Core/Collision/CollisionDetectionEngine.cpp
-        src/Core/Performance/PerformanceLogger.cpp
         src/Core/Physics/FEM/FEMModel.cpp
         src/Core/PhysicsConnections/PointConnection.cpp
         src/Core/PhysicsConnections/SurfaceConnection.cpp
@@ -112,6 +111,17 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
 )
 
 target_compile_definitions(PhysiK PRIVATE PHYSIK_BUILDING_DLL)
+
+if(PHYSIK_ENABLE_PERF_LOGGING)
+    target_compile_definitions(PhysiK PUBLIC PHYSIK_ENABLE_PERF_LOGGING)
+    target_sources(
+        PhysiK
+        PUBLIC
+            include/PhysiK/Core/Performance/PerformanceLogger.h
+        PRIVATE
+            src/Core/Performance/PerformanceLogger.cpp
+    )
+endif()
 
 if(PHYSIK_BUILD_TESTS OR PHYSIK_BUILD_BENCHMARKS)
     target_compile_definitions(PhysiK PUBLIC PHYSIK_ENABLE_SOLVER_PROFILING)
