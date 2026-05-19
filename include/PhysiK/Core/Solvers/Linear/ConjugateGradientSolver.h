@@ -10,7 +10,7 @@ namespace PhysiK
     struct ConjugateGradientSettings
     {
         int maxIterations = 128;
-        float tolerance = 1.0e-5f;
+        float tolerance = 1.0e-4f;
         bool useJacobiPreconditioner = true;
     };
 
