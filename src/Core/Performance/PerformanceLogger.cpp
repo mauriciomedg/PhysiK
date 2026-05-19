@@ -74,6 +74,16 @@ namespace PhysiK
             << record.addDefaultMassLoopMs << ','
             << record.addDefaultMassMatrixWriteMs << ','
             << record.addDefaultMassDynamicNodeCount << ','
+            << record.computeDeformationGradientMs << ','
+            << record.extractRotationPolarMs << ','
+            << record.averageExtractRotationPolarMs << ','
+            << record.rotateElementStiffnessMs << ','
+            << record.computeElasticForcesMs << ','
+            << record.tetMatrixWriteMs << ','
+            << record.polarCallCount << ','
+            << record.averagePolarIterations << ','
+            << record.maxPolarIterationsObserved << ','
+            << record.polarEarlyExitCount << ','
             << record.conjugateGradientSolveMs << ','
             << record.sparseMultiplyMs << ','
             << record.cgIterations << ','
@@ -122,6 +132,10 @@ namespace PhysiK
                 << "assembleTetStiffnessMs,assembleMatrixAddBlockMs,assembleRhsWriteMs,"
                 << "addDefaultMassesTotalMs,addDefaultMassLoopMs,"
                 << "addDefaultMassMatrixWriteMs,addDefaultMassDynamicNodeCount,"
+                << "computeDeformationGradientMs,extractRotationPolarMs,"
+                << "averageExtractRotationPolarMs,rotateElementStiffnessMs,"
+                << "computeElasticForcesMs,tetMatrixWriteMs,polarCallCount,"
+                << "averagePolarIterations,maxPolarIterationsObserved,polarEarlyExitCount,"
                 << "conjugateGradientSolveMs,sparseMultiplyMs,cgIterations,cgResidual,"
                 << "dynamicBlockCount,tetCount,activeTetCount,transientConnectionCount\n";
         }

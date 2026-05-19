@@ -35,6 +35,16 @@ namespace PhysiK
         double addDefaultMassLoopMs = 0.0;
         double addDefaultMassMatrixWriteMs = 0.0;
         int addDefaultMassDynamicNodeCount = 0;
+        double computeDeformationGradientMs = 0.0;
+        double extractRotationPolarMs = 0.0;
+        double averageExtractRotationPolarMs = 0.0;
+        double rotateElementStiffnessMs = 0.0;
+        double computeElasticForcesMs = 0.0;
+        double tetMatrixWriteMs = 0.0;
+        int polarCallCount = 0;
+        double averagePolarIterations = 0.0;
+        int maxPolarIterationsObserved = 0;
+        int polarEarlyExitCount = 0;
         double conjugateGradientSolveMs = 0.0;
         double sparseMultiplyMs = 0.0;
         int cgIterations = 0;

@@ -33,6 +33,46 @@ namespace PhysiK
         {
             target += timer.ElapsedMilliseconds();
         }
+
+        void RecordPolarCall(int iterations, bool earlyExit)
+        {
+            if (currentPerformanceRecord == nullptr)
+            {
+                return;
+            }
+
+            ++currentPerformanceRecord->polarCallCount;
+            const int callCount = currentPerformanceRecord->polarCallCount;
+            currentPerformanceRecord->averagePolarIterations +=
+                (static_cast<double>(iterations) -
+                 currentPerformanceRecord->averagePolarIterations) /
+                static_cast<double>(callCount);
+            currentPerformanceRecord->maxPolarIterationsObserved = std::max(
+                currentPerformanceRecord->maxPolarIterationsObserved,
+                iterations);
+            if (earlyExit)
+            {
+                ++currentPerformanceRecord->polarEarlyExitCount;
+            }
+        }
+
+        void AddPolarElapsed(double elapsedMilliseconds)
+        {
+            if (currentPerformanceRecord == nullptr)
+            {
+                return;
+            }
+
+            currentPerformanceRecord->extractRotationPolarMs += elapsedMilliseconds;
+            const int callCount = currentPerformanceRecord->polarCallCount;
+            if (callCount > 0)
+            {
+                currentPerformanceRecord->averageExtractRotationPolarMs +=
+                    (elapsedMilliseconds -
+                     currentPerformanceRecord->averageExtractRotationPolarMs) /
+                    static_cast<double>(callCount);
+            }
+        }
 #endif
 
         Mat3 BuildDm(const Tet& tet, const std::vector<Node>& nodes)
@@ -138,28 +178,41 @@ namespace PhysiK
             if (!IsFinite(deformationGradient) ||
                 std::abs(Determinant(deformationGradient)) <= MinPolarDeterminant)
             {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+                RecordPolarCall(0, true);
+#endif
                 return Mat3::Identity();
             }
 
             Mat3 rotation = deformationGradient;
+            int iterationCount = 0;
+            bool earlyExit = false;
             for (int iteration = 0; iteration < 12; ++iteration)
             {
+                iterationCount = iteration + 1;
                 const Mat3 transposeInverse = Inverse(Transpose(rotation));
                 if (!IsFinite(transposeInverse) ||
                     std::abs(Determinant(transposeInverse)) <= MinPolarDeterminant)
                 {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+                    RecordPolarCall(iterationCount, true);
+#endif
                     return Mat3::Identity();
                 }
 
                 const Mat3 nextRotation = Scale(Add(rotation, transposeInverse), 0.5f);
                 if (!IsFinite(nextRotation))
                 {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+                    RecordPolarCall(iterationCount, true);
+#endif
                     return Mat3::Identity();
                 }
 
                 if (FrobeniusDifferenceSquared(nextRotation, rotation) <= 1.0e-10f)
                 {
                     rotation = nextRotation;
+                    earlyExit = iterationCount < 12;
                     break;
                 }
 
@@ -168,6 +221,9 @@ namespace PhysiK
 
             if (!IsFinite(rotation))
             {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+                RecordPolarCall(iterationCount, true);
+#endif
                 return Mat3::Identity();
             }
 
@@ -176,6 +232,9 @@ namespace PhysiK
                 rotation.columns[2] *= -1.0f;
             }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            RecordPolarCall(iterationCount, earlyExit);
+#endif
             return rotation;
         }
 
@@ -377,13 +436,37 @@ namespace PhysiK
 
                     if (rotation != nullptr)
                     {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+                        PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
+                        const bool logPerformance = performanceRecord != nullptr;
+                        const std::unique_ptr<PerformanceTimer> rotateTimer =
+                            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
                         block = (*rotation) * block * rotationTranspose;
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+                        if (logPerformance)
+                        {
+                            AddElapsed(performanceRecord->rotateElementStiffnessMs, *rotateTimer);
+                        }
+#endif
                     }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+                    PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
+                    const bool logPerformance = performanceRecord != nullptr;
+                    const std::unique_ptr<PerformanceTimer> matrixWriteTimer =
+                        logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
                     solverData.AddStiffnessBlock(
                         nodeIndices[rowNode],
                         nodeIndices[columnNode],
                         block);
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+                    if (logPerformance)
+                    {
+                        AddElapsed(performanceRecord->tetMatrixWriteMs, *matrixWriteTimer);
+                    }
+#endif
                 }
             }
         }
@@ -419,7 +502,9 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
             if (logPerformance)
             {
-                AddElapsed(performanceRecord->assembleTetForceMs, *forceTimer);
+                const double forceMilliseconds = forceTimer->ElapsedMilliseconds();
+                performanceRecord->assembleTetForceMs += forceMilliseconds;
+                performanceRecord->computeElasticForcesMs += forceMilliseconds;
             }
 
             const std::unique_ptr<PerformanceTimer> rhsWriteTimer =
@@ -644,14 +729,39 @@ namespace PhysiK
                 ++performanceRecord->assembleTetCount;
             }
 #endif
-            const Mat3 ds = BuildDm(tet, nodes);
-            const Mat3 deformationGradient = ds * tet.restDmInverse;
+            Mat3 deformationGradient;
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            const std::unique_ptr<PerformanceTimer> deformationGradientTimer =
+                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
+            {
+                const Mat3 ds = BuildDm(tet, nodes);
+                deformationGradient = ds * tet.restDmInverse;
+            }
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            if (logPerformance)
+            {
+                AddElapsed(
+                    performanceRecord->computeDeformationGradientMs,
+                    *deformationGradientTimer);
+            }
+#endif
             if (!IsFinite(deformationGradient))
             {
                 continue;
             }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            const std::unique_ptr<PerformanceTimer> polarTimer =
+                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
             const Mat3 rotation = ExtractRotationPolar(deformationGradient);
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            if (logPerformance)
+            {
+                AddPolarElapsed(polarTimer->ElapsedMilliseconds());
+            }
+#endif
             const Vector12 displacement = BuildCorotatedDisplacementVector(tet, nodes, rotation);
             AddElasticForcesAndStiffness(tet, nodes, solverData, displacement, &rotation);
         }

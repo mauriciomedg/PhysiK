@@ -333,8 +333,10 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         if (logPerformance)
         {
-            performanceRecord->assembleMatrixAddBlockMs +=
+            const double matrixAddBlockMilliseconds =
                 matrixAddBlockTimer->ElapsedMilliseconds();
+            performanceRecord->assembleMatrixAddBlockMs += matrixAddBlockMilliseconds;
+            performanceRecord->tetMatrixWriteMs += matrixAddBlockMilliseconds;
         }
 #endif
 
