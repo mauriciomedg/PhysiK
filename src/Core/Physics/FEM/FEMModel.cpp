@@ -4,8 +4,12 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <memory>
 
 #include "PhysiK/Components/TetMeshComponent.h"
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+#include "PhysiK/Core/Performance/PerformanceLogger.h"
+#endif
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
 
@@ -21,6 +25,15 @@ namespace PhysiK
 
         constexpr float MinTetVolume = 1.0e-8f;
         constexpr float MinPolarDeterminant = 1.0e-8f;
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        thread_local PerformanceLogRecord* currentPerformanceRecord = nullptr;
+
+        void AddElapsed(double& target, const PerformanceTimer& timer)
+        {
+            target += timer.ElapsedMilliseconds();
+        }
+#endif
 
         Mat3 BuildDm(const Tet& tet, const std::vector<Node>& nodes)
         {
@@ -382,6 +395,12 @@ namespace PhysiK
             const Vector12& displacement,
             const Mat3* rotation)
         {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
+            const bool logPerformance = performanceRecord != nullptr;
+            const std::unique_ptr<PerformanceTimer> forceTimer =
+                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
             const Matrix6x12 b = BuildStrainDisplacementMatrix(tet);
             const Matrix6 d = BuildElasticityMatrix(tet.youngModulus, tet.poissonRatio);
 
@@ -397,6 +416,15 @@ namespace PhysiK
             {
                 value *= tet.restVolume;
             }
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            if (logPerformance)
+            {
+                AddElapsed(performanceRecord->assembleTetForceMs, *forceTimer);
+            }
+
+            const std::unique_ptr<PerformanceTimer> rhsWriteTimer =
+                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
 
             const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
             for (int node = 0; node < 4; ++node)
@@ -418,11 +446,26 @@ namespace PhysiK
                 // A future milestone should replace this with a proper damping model.
                 solverData.AddNodeForce(nodeIndex, elasticForce + dampingForce);
             }
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            if (logPerformance)
+            {
+                AddElapsed(performanceRecord->assembleRhsWriteMs, *rhsWriteTimer);
+            }
+
+            const std::unique_ptr<PerformanceTimer> stiffnessTimer =
+                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
 
             const Matrix12 stiffness = BuildElementStiffness(b, d, tet.restVolume);
             // Store positive element stiffness K_e.
             // The implicit solver decides how to combine it into the global system.
             AssembleStiffness(tet, stiffness, solverData, rotation);
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            if (logPerformance)
+            {
+                AddElapsed(performanceRecord->assembleTetStiffnessMs, *stiffnessTimer);
+            }
+#endif
         }
     }
 
@@ -480,6 +523,18 @@ namespace PhysiK
         return false;
     }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+    void FEMModel::SetPerformanceLogRecord(PerformanceLogRecord* record)
+    {
+        currentPerformanceRecord = record;
+    }
+
+    PerformanceLogRecord* FEMModel::GetPerformanceLogRecord()
+    {
+        return currentPerformanceRecord;
+    }
+#endif
+
     void FEMModel::InitializeTetRestData(Tet& tet, const std::vector<Node>& nodes)
     {
         if (!HasValidNodes(tet, nodes))
@@ -525,6 +580,12 @@ namespace PhysiK
         const std::vector<Node>& nodes,
         SolverData& solverData)
     {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
+        const bool logPerformance = performanceRecord != nullptr;
+        const std::unique_ptr<PerformanceTimer> linearTimer =
+            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
         for (const Tet& tet : tets)
         {
             if (!tet.active)
@@ -537,9 +598,21 @@ namespace PhysiK
                 continue;
             }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            if (logPerformance)
+            {
+                ++performanceRecord->assembleTetCount;
+            }
+#endif
             const Vector12 displacement = BuildDisplacementVector(tet, nodes);
             AddElasticForcesAndStiffness(tet, nodes, solverData, displacement, nullptr);
         }
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        if (logPerformance)
+        {
+            AddElapsed(performanceRecord->assembleLinearFemMs, *linearTimer);
+        }
+#endif
     }
 
     void FEMModel::AccumulateCorotationalElasticForces(
@@ -547,6 +620,12 @@ namespace PhysiK
         const std::vector<Node>& nodes,
         SolverData& solverData)
     {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
+        const bool logPerformance = performanceRecord != nullptr;
+        const std::unique_ptr<PerformanceTimer> corotationalTimer =
+            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
         for (const Tet& tet : tets)
         {
             if (!tet.active)
@@ -559,6 +638,12 @@ namespace PhysiK
                 continue;
             }
 
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            if (logPerformance)
+            {
+                ++performanceRecord->assembleTetCount;
+            }
+#endif
             const Mat3 ds = BuildDm(tet, nodes);
             const Mat3 deformationGradient = ds * tet.restDmInverse;
             if (!IsFinite(deformationGradient))
@@ -570,5 +655,11 @@ namespace PhysiK
             const Vector12 displacement = BuildCorotatedDisplacementVector(tet, nodes, rotation);
             AddElasticForcesAndStiffness(tet, nodes, solverData, displacement, &rotation);
         }
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        if (logPerformance)
+        {
+            AddElapsed(performanceRecord->assembleCorotationalFemMs, *corotationalTimer);
+        }
+#endif
     }
 }

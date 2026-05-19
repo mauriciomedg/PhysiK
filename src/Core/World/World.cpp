@@ -2,6 +2,7 @@
 
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #endif
 
 #include <algorithm>
@@ -395,15 +396,46 @@ namespace PhysiK
                 collisionTimer->ElapsedMilliseconds();
         }
 
-        const std::unique_ptr<PerformanceTimer> assembleTimer =
+        const std::unique_ptr<PerformanceTimer> componentTimer =
             logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
-        AssembleComponentSystems(solverData, dt);
-        AddDefaultNodeMasses(solverData);
+        AssembleComponentSystems(solverData, dt, performanceRecord);
+        if (logPerformance)
+        {
+            performanceRecord->assembleComponentsMs = componentTimer->ElapsedMilliseconds();
+            performanceRecord->assembleComponentTotalMs =
+                performanceRecord->assembleComponentsMs;
+        }
+
+        const std::unique_ptr<PerformanceTimer> defaultMassTimer =
+            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        AddDefaultNodeMasses(solverData, performanceRecord);
+        if (logPerformance)
+        {
+            performanceRecord->addDefaultMassesMs = defaultMassTimer->ElapsedMilliseconds();
+            performanceRecord->addDefaultMassesTotalMs =
+                performanceRecord->addDefaultMassesMs;
+        }
+
+        const std::unique_ptr<PerformanceTimer> gravityTimer =
+            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
         AddGravityForces(solverData);
+        if (logPerformance)
+        {
+            performanceRecord->addGravityForcesMs = gravityTimer->ElapsedMilliseconds();
+        }
+
+        const std::unique_ptr<PerformanceTimer> connectionTimer =
+            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
         AssembleConnectionSystems(solverData, dt);
         if (logPerformance)
         {
-            performanceRecord->assembleSystemMs = assembleTimer->ElapsedMilliseconds();
+            performanceRecord->assembleConnectionsMs =
+                connectionTimer->ElapsedMilliseconds();
+            performanceRecord->assembleSystemMs =
+                performanceRecord->assembleComponentsMs +
+                performanceRecord->addDefaultMassesMs +
+                performanceRecord->addGravityForcesMs +
+                performanceRecord->assembleConnectionsMs;
             performanceRecord->buildSolverDataMs = buildTimer->ElapsedMilliseconds();
         }
     }
@@ -435,6 +467,45 @@ namespace PhysiK
             solverData.AddNodeMass(i, 1.0f);
         }
     }
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+    void World::AddDefaultNodeMasses(
+        SolverData& solverData,
+        PerformanceLogRecord* performanceRecord)
+    {
+        const bool logPerformance = performanceRecord != nullptr;
+        const std::unique_ptr<PerformanceTimer> matrixWriteTimer =
+            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        solverData.AssembleMasses(static_cast<int>(nodes.size()));
+        if (logPerformance)
+        {
+            performanceRecord->addDefaultMassMatrixWriteMs =
+                matrixWriteTimer->ElapsedMilliseconds();
+        }
+
+        const std::unique_ptr<PerformanceTimer> loopTimer =
+            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        int dynamicNodeCount = 0;
+        for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
+        {
+            if (nodes[static_cast<std::size_t>(i)].fixed ||
+                solverData.HasNodeMassContribution(i) ||
+                solverData.GetAssembledMassForNode(i) > 0.0f)
+            {
+                continue;
+            }
+
+            solverData.AddNodeMass(i, 1.0f);
+            ++dynamicNodeCount;
+        }
+
+        if (logPerformance)
+        {
+            performanceRecord->addDefaultMassLoopMs = loopTimer->ElapsedMilliseconds();
+            performanceRecord->addDefaultMassDynamicNodeCount = dynamicNodeCount;
+        }
+    }
+#endif
 
     void World::AddGravityForces(SolverData& solverData)
     {
@@ -499,6 +570,32 @@ namespace PhysiK
             }
         }
     }
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+    void World::AssembleComponentSystems(
+        SolverData& solverData,
+        float dt,
+        PerformanceLogRecord* performanceRecord)
+    {
+        FEMModel::SetPerformanceLogRecord(performanceRecord);
+
+        int componentCount = 0;
+        for (const std::unique_ptr<Component>& component : components)
+        {
+            if (component != nullptr && component->active)
+            {
+                ++componentCount;
+                component->UpdateSystem(*this, solverData, dt);
+            }
+        }
+
+        FEMModel::SetPerformanceLogRecord(nullptr);
+        if (performanceRecord != nullptr)
+        {
+            performanceRecord->assembleComponentCount = componentCount;
+        }
+    }
+#endif
 
     void World::GeneratePointConnectionFromContact(const Contact& contact)
     {

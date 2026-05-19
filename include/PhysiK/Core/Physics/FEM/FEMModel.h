@@ -10,6 +10,8 @@
 
 namespace PhysiK
 {
+    struct PerformanceLogRecord;
+
     enum class FemModel : std::uint32_t
     {
         Linear = 0,
@@ -44,6 +46,10 @@ namespace PhysiK
             const std::vector<Tet>& tets,
             const std::vector<Node>& nodes,
             SolverData& solverData);
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        static void SetPerformanceLogRecord(PerformanceLogRecord* record);
+        static PerformanceLogRecord* GetPerformanceLogRecord();
+#endif
         static bool IsFemModelImplemented(FemModel femModel);
         static const char* GetNotImplementedMessage(FemModel femModel);
     };

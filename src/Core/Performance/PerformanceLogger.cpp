@@ -57,6 +57,23 @@ namespace PhysiK
             << record.generateCollisionConnectionsMs << ','
             << record.buildSolverDataMs << ','
             << record.assembleSystemMs << ','
+            << record.assembleComponentsMs << ','
+            << record.addDefaultMassesMs << ','
+            << record.addGravityForcesMs << ','
+            << record.assembleConnectionsMs << ','
+            << record.assembleComponentCount << ','
+            << record.assembleTetCount << ','
+            << record.assembleComponentTotalMs << ','
+            << record.assembleLinearFemMs << ','
+            << record.assembleCorotationalFemMs << ','
+            << record.assembleTetForceMs << ','
+            << record.assembleTetStiffnessMs << ','
+            << record.assembleMatrixAddBlockMs << ','
+            << record.assembleRhsWriteMs << ','
+            << record.addDefaultMassesTotalMs << ','
+            << record.addDefaultMassLoopMs << ','
+            << record.addDefaultMassMatrixWriteMs << ','
+            << record.addDefaultMassDynamicNodeCount << ','
             << record.conjugateGradientSolveMs << ','
             << record.sparseMultiplyMs << ','
             << record.cgIterations << ','
@@ -98,6 +115,13 @@ namespace PhysiK
             file
                 << "frameIndex,substepIndex,dt,totalStepMs,"
                 << "generateCollisionConnectionsMs,buildSolverDataMs,assembleSystemMs,"
+                << "assembleComponentsMs,addDefaultMassesMs,addGravityForcesMs,"
+                << "assembleConnectionsMs,"
+                << "assembleComponentCount,assembleTetCount,assembleComponentTotalMs,"
+                << "assembleLinearFemMs,assembleCorotationalFemMs,assembleTetForceMs,"
+                << "assembleTetStiffnessMs,assembleMatrixAddBlockMs,assembleRhsWriteMs,"
+                << "addDefaultMassesTotalMs,addDefaultMassLoopMs,"
+                << "addDefaultMassMatrixWriteMs,addDefaultMassDynamicNodeCount,"
                 << "conjugateGradientSolveMs,sparseMultiplyMs,cgIterations,cgResidual,"
                 << "dynamicBlockCount,tetCount,activeTetCount,transientConnectionCount\n";
         }

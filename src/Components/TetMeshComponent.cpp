@@ -5,6 +5,9 @@
 
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+#include "PhysiK/Core/Performance/PerformanceLogger.h"
+#endif
 
 namespace PhysiK
 {
@@ -317,10 +320,23 @@ namespace PhysiK
         }
 
         femSparseMatrix.ClearValues();
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        PerformanceLogRecord* performanceRecord = FEMModel::GetPerformanceLogRecord();
+        const bool logPerformance = performanceRecord != nullptr;
+        const std::unique_ptr<PerformanceTimer> matrixAddBlockTimer =
+            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+#endif
         for (const SolverData::StiffnessBlock& block : femSolverData.GetStiffnessBlocks())
         {
             femSparseMatrix.AddBlock(block.nodeA, block.nodeB, block.block);
         }
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        if (logPerformance)
+        {
+            performanceRecord->assembleMatrixAddBlockMs +=
+                matrixAddBlockTimer->ElapsedMilliseconds();
+        }
+#endif
 
         for (int rowBlock = 0; rowBlock < femSparseMatrix.blockCount; ++rowBlock)
         {
