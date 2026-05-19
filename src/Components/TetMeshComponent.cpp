@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
@@ -341,8 +342,11 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         PerformanceLogRecord* performanceRecord = FEMModel::GetPerformanceLogRecord();
         const bool logPerformance = performanceRecord != nullptr;
-        const std::unique_ptr<PerformanceTimer> matrixAddBlockTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> matrixAddBlockTimer;
+        if (logPerformance)
+        {
+            matrixAddBlockTimer.emplace();
+        }
 #endif
         for (const SolverData::StiffnessBlock& block : femSolverData.GetStiffnessBlocks())
         {

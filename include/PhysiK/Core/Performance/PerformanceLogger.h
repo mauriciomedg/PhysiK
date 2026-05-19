@@ -53,6 +53,7 @@ namespace PhysiK
         int tetCount = 0;
         int activeTetCount = 0;
         int transientConnectionCount = 0;
+        double assembleStiffnessBlocksMs = 0.0;
     };
 
     class PHYSIK_API PerformanceTimer

@@ -4,7 +4,7 @@
 #include <array>
 #include <cmath>
 #include <iostream>
-#include <memory>
+#include <optional>
 
 #include "PhysiK/Components/TetMeshComponent.h"
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
@@ -411,8 +411,20 @@ namespace PhysiK
             SolverData& solverData,
             const Mat3* rotation = nullptr)
         {
-            const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
-            const Mat3 rotationTranspose = rotation != nullptr ? Transpose(*rotation) : Mat3::Identity();
+            const int nodeIndices[4] = { tet.node0, tet.node1, tet.node2, tet.node3 };
+            const Mat3 rotationTranspose =
+                rotation != nullptr ? Transpose(*rotation) : Mat3::Identity();
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
+            const bool logPerformance = performanceRecord != nullptr;
+
+            std::optional<PerformanceTimer> assembleStiffnessTimer;
+            if (logPerformance)
+            {
+                assembleStiffnessTimer.emplace();
+            }
+#endif
 
             for (int rowNode = 0; rowNode < 4; ++rowNode)
             {
@@ -428,45 +440,31 @@ namespace PhysiK
                                 block,
                                 rowAxis,
                                 columnAxis,
-                                stiffness[rowNode * 3 + rowAxis][columnNode * 3 + columnAxis]);
+                                stiffness[rowNode * 3 + rowAxis]
+                                [columnNode * 3 + columnAxis]);
                         }
                     }
 
                     if (rotation != nullptr)
                     {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-                        PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
-                        const bool logPerformance = performanceRecord != nullptr;
-                        const std::unique_ptr<PerformanceTimer> rotateTimer =
-                            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
-#endif
                         block = (*rotation) * block * rotationTranspose;
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-                        if (logPerformance)
-                        {
-                            AddElapsed(performanceRecord->rotateElementStiffnessMs, *rotateTimer);
-                        }
-#endif
                     }
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-                    PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
-                    const bool logPerformance = performanceRecord != nullptr;
-                    const std::unique_ptr<PerformanceTimer> matrixWriteTimer =
-                        logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
-#endif
                     solverData.AddStiffnessBlock(
                         nodeIndices[rowNode],
                         nodeIndices[columnNode],
                         block);
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-                    if (logPerformance)
-                    {
-                        AddElapsed(performanceRecord->tetMatrixWriteMs, *matrixWriteTimer);
-                    }
-#endif
                 }
             }
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            if (logPerformance)
+            {
+                AddElapsed(
+                    performanceRecord->assembleStiffnessBlocksMs,
+                    *assembleStiffnessTimer);
+            }
+#endif
         }
 
         void AddElasticForcesAndStiffness(
@@ -480,8 +478,11 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
             PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
             const bool logPerformance = performanceRecord != nullptr;
-            const std::unique_ptr<PerformanceTimer> forceTimer =
-                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+            std::optional<PerformanceTimer> forceTimer;
+            if (logPerformance)
+            {
+                forceTimer.emplace();
+            }
 #endif
             // epsilon = B * u_e.
             const Vector6 strain = Multiply(cache.B, displacement);
@@ -503,8 +504,11 @@ namespace PhysiK
                 performanceRecord->computeElasticForcesMs += forceMilliseconds;
             }
 
-            const std::unique_ptr<PerformanceTimer> rhsWriteTimer =
-                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+            std::optional<PerformanceTimer> rhsWriteTimer;
+            if (logPerformance)
+            {
+                rhsWriteTimer.emplace();
+            }
 #endif
 
             const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
@@ -533,8 +537,11 @@ namespace PhysiK
                 AddElapsed(performanceRecord->assembleRhsWriteMs, *rhsWriteTimer);
             }
 
-            const std::unique_ptr<PerformanceTimer> stiffnessTimer =
-                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+            std::optional<PerformanceTimer> stiffnessTimer;
+            if (logPerformance)
+            {
+                stiffnessTimer.emplace();
+            }
 #endif
 
             // Store positive element stiffness K_e.
@@ -710,8 +717,11 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
         const bool logPerformance = performanceRecord != nullptr;
-        const std::unique_ptr<PerformanceTimer> linearTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> linearTimer;
+        if (logPerformance)
+        {
+            linearTimer.emplace();
+        }
 #endif
         const std::size_t count = std::min(tets.size(), tetFemCache.size());
         for (std::size_t tetIndex = 0; tetIndex < count; ++tetIndex)
@@ -774,8 +784,11 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
         const bool logPerformance = performanceRecord != nullptr;
-        const std::unique_ptr<PerformanceTimer> corotationalTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> corotationalTimer;
+        if (logPerformance)
+        {
+            corotationalTimer.emplace();
+        }
 #endif
         const std::size_t count = std::min(tets.size(), tetFemCache.size());
         for (std::size_t tetIndex = 0; tetIndex < count; ++tetIndex)
@@ -799,8 +812,11 @@ namespace PhysiK
 #endif
             Mat3 deformationGradient;
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            const std::unique_ptr<PerformanceTimer> deformationGradientTimer =
-                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+            std::optional<PerformanceTimer> deformationGradientTimer;
+            if (logPerformance)
+            {
+                deformationGradientTimer.emplace();
+            }
 #endif
             {
                 const Mat3 ds = BuildDm(tet, nodes);
@@ -820,8 +836,11 @@ namespace PhysiK
             }
 
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            const std::unique_ptr<PerformanceTimer> polarTimer =
-                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+            std::optional<PerformanceTimer> polarTimer;
+            if (logPerformance)
+            {
+                polarTimer.emplace();
+            }
 #endif
             const Mat3 rotation = ExtractRotationPolar(deformationGradient);
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)

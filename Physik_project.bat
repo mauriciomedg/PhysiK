@@ -4,7 +4,7 @@ setlocal
 cd /d "%~dp0"
 
 set CONFIG=Release
-set ENABLE_PERF_LOGGING=ON
+set ENABLE_PERF_LOGGING=OFF
 
 set UNITY_ROOT=..\PhysiKUnity
 set UNITY_PLUGIN_DIR=%UNITY_ROOT%\Assets\Plugins

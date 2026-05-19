@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cmath>
 #include <memory>
+#include <optional>
 
 namespace PhysiK
 {
@@ -75,8 +76,11 @@ namespace PhysiK
             {
                 AddTopologyCounts(components, record);
             }
-            const std::unique_ptr<PerformanceTimer> totalTimer =
-                logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+            std::optional<PerformanceTimer> totalTimer;
+            if (logPerformance)
+            {
+                totalTimer.emplace();
+            }
 #endif
 
             SolverData solverData;
@@ -384,11 +388,17 @@ namespace PhysiK
         PerformanceLogRecord* performanceRecord)
     {
         const bool logPerformance = performanceRecord != nullptr;
-        const std::unique_ptr<PerformanceTimer> buildTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> buildTimer;
+        if (logPerformance)
+        {
+            buildTimer.emplace();
+        }
 
-        const std::unique_ptr<PerformanceTimer> collisionTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> collisionTimer;
+        if (logPerformance)
+        {
+            collisionTimer.emplace();
+        }
         GenerateCollisionConnections();
         if (logPerformance)
         {
@@ -396,8 +406,11 @@ namespace PhysiK
                 collisionTimer->ElapsedMilliseconds();
         }
 
-        const std::unique_ptr<PerformanceTimer> componentTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> componentTimer;
+        if (logPerformance)
+        {
+            componentTimer.emplace();
+        }
         AssembleComponentSystems(solverData, dt, performanceRecord);
         if (logPerformance)
         {
@@ -406,8 +419,11 @@ namespace PhysiK
                 performanceRecord->assembleComponentsMs;
         }
 
-        const std::unique_ptr<PerformanceTimer> defaultMassTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> defaultMassTimer;
+        if (logPerformance)
+        {
+            defaultMassTimer.emplace();
+        }
         AddDefaultNodeMasses(solverData, performanceRecord);
         if (logPerformance)
         {
@@ -416,16 +432,22 @@ namespace PhysiK
                 performanceRecord->addDefaultMassesMs;
         }
 
-        const std::unique_ptr<PerformanceTimer> gravityTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> gravityTimer;
+        if (logPerformance)
+        {
+            gravityTimer.emplace();
+        }
         AddGravityForces(solverData);
         if (logPerformance)
         {
             performanceRecord->addGravityForcesMs = gravityTimer->ElapsedMilliseconds();
         }
 
-        const std::unique_ptr<PerformanceTimer> connectionTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> connectionTimer;
+        if (logPerformance)
+        {
+            connectionTimer.emplace();
+        }
         AssembleConnectionSystems(solverData, dt);
         if (logPerformance)
         {
@@ -474,8 +496,11 @@ namespace PhysiK
         PerformanceLogRecord* performanceRecord)
     {
         const bool logPerformance = performanceRecord != nullptr;
-        const std::unique_ptr<PerformanceTimer> matrixWriteTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> matrixWriteTimer;
+        if (logPerformance)
+        {
+            matrixWriteTimer.emplace();
+        }
         solverData.AssembleMasses(static_cast<int>(nodes.size()));
         if (logPerformance)
         {
@@ -483,8 +508,11 @@ namespace PhysiK
                 matrixWriteTimer->ElapsedMilliseconds();
         }
 
-        const std::unique_ptr<PerformanceTimer> loopTimer =
-            logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> loopTimer;
+        if (logPerformance)
+        {
+            loopTimer.emplace();
+        }
         int dynamicNodeCount = 0;
         for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
@@ -642,8 +670,11 @@ namespace PhysiK
         PerformanceLogRecord* performanceRecord)
     {
         (void)dt;
-        const std::unique_ptr<PerformanceTimer> solveTimer =
-            performanceRecord != nullptr ? std::make_unique<PerformanceTimer>() : nullptr;
+        std::optional<PerformanceTimer> solveTimer;
+        if (performanceRecord != nullptr)
+        {
+            solveTimer.emplace();
+        }
         if (performanceRecord != nullptr)
         {
             ResetSparseBlockMatrixTiming();
