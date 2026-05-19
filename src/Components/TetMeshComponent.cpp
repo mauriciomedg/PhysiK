@@ -2,9 +2,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+#include "PhysiK/Core/Performance/PerformanceLogger.h"
+#endif
 
 namespace PhysiK
 {
@@ -28,6 +32,7 @@ namespace PhysiK
             tet.damping = component.material.damping;
             FEMModel::InitializeTetRestData(tet, world.GetNodes());
             component.tets.push_back(tet);
+            component.tetFemCache.push_back(FEMModel::BuildTetFemCache(component.tets.back()));
             component.MarkFemSparsePatternDirty();
         }
 
@@ -142,6 +147,7 @@ namespace PhysiK
         if (tetGlobalNodeIndices != nullptr && tetCount > 0)
         {
             component->tets.reserve(static_cast<std::size_t>(tetCount));
+            component->tetFemCache.reserve(static_cast<std::size_t>(tetCount));
             for (int i = 0; i < tetCount; ++i)
             {
                 AppendTetFromGlobalNodes(
@@ -208,6 +214,7 @@ namespace PhysiK
         if (tetLocalNodeIndices != nullptr && tetCount > 0)
         {
             component->tets.reserve(static_cast<std::size_t>(tetCount));
+            component->tetFemCache.reserve(static_cast<std::size_t>(tetCount));
             for (int i = 0; i < tetCount; ++i)
             {
                 const int local0 = tetLocalNodeIndices[i * 4 + 0];
@@ -245,6 +252,17 @@ namespace PhysiK
             tet.youngModulus = material.youngModulus;
             tet.poissonRatio = material.poissonRatio;
             tet.damping = material.damping;
+        }
+        RebuildTetFemCache();
+    }
+
+    void TetMeshComponent::RebuildTetFemCache()
+    {
+        tetFemCache.clear();
+        tetFemCache.reserve(tets.size());
+        for (const Tet& tet : tets)
+        {
+            tetFemCache.push_back(FEMModel::BuildTetFemCache(tet));
         }
     }
 
@@ -307,6 +325,10 @@ namespace PhysiK
     {
         AssembleLumpedMass(*this, world, solverData);
         EnsureFemSparsePattern(static_cast<int>(world.GetNodes().size()));
+        if (tetFemCache.size() != tets.size())
+        {
+            RebuildTetFemCache();
+        }
 
         SolverData femSolverData;
         femModel.UpdateSystem(world, *this, femSolverData, dt);
@@ -317,10 +339,28 @@ namespace PhysiK
         }
 
         femSparseMatrix.ClearValues();
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        PerformanceLogRecord* performanceRecord = FEMModel::GetPerformanceLogRecord();
+        const bool logPerformance = performanceRecord != nullptr;
+        std::optional<PerformanceTimer> matrixAddBlockTimer;
+        if (logPerformance)
+        {
+            matrixAddBlockTimer.emplace();
+        }
+#endif
         for (const SolverData::StiffnessBlock& block : femSolverData.GetStiffnessBlocks())
         {
             femSparseMatrix.AddBlock(block.nodeA, block.nodeB, block.block);
         }
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        if (logPerformance)
+        {
+            const double matrixAddBlockMilliseconds =
+                matrixAddBlockTimer->ElapsedMilliseconds();
+            performanceRecord->assembleMatrixAddBlockMs += matrixAddBlockMilliseconds;
+            performanceRecord->tetMatrixWriteMs += matrixAddBlockMilliseconds;
+        }
+#endif
 
         for (int rowBlock = 0; rowBlock < femSparseMatrix.blockCount; ++rowBlock)
         {

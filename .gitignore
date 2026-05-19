@@ -20,6 +20,7 @@ mono_crash.*
 # CMake
 /build/
 /build-mkl/
+/build-perf/
 /out/
 .vs/
 CMakeCache.txt

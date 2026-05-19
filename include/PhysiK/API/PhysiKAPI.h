@@ -59,6 +59,12 @@ extern "C"
     PHYSIK_API void PHYSIK_Step(PhysiK::WorldHandle world, float dt);
     PHYSIK_API void PHYSIK_SetSubstepCount(PhysiK::WorldHandle world, int substepCount);
     PHYSIK_API void PHYSIK_SetSolverMode(PhysiK::WorldHandle world, int mode);
+    PHYSIK_API void PHYSIK_EnablePerformanceLogging(
+        PhysiK::WorldHandle world,
+        int enabled);
+    PHYSIK_API void PHYSIK_SetPerformanceLogPath(
+        PhysiK::WorldHandle world,
+        const char* path);
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,

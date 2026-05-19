@@ -54,6 +54,7 @@ namespace PhysiK
         rhs.clear();
         matrix.Clear();
         deltaVelocity.clear();
+        lastLinearSolveResult = LinearSolveResult{};
     }
 
     void SolverData::AssembleMasses(int nodeCount)
@@ -104,6 +105,7 @@ namespace PhysiK
         rhs.clear();
         matrix.Clear();
         deltaVelocity.clear();
+        lastLinearSolveResult = LinearSolveResult{};
 
         for (const NodeForce& nodeForce : nodeForces)
         {
@@ -144,7 +146,18 @@ namespace PhysiK
 
         const LinearSolveResult result =
             GetCurrentLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
-        return result.converged && deltaVelocity.size() == dimension;
+        lastLinearSolveResult = result;
+        return lastLinearSolveResult.converged && deltaVelocity.size() == dimension;
+    }
+
+    int SolverData::GetLastCgIterationCount() const
+    {
+        return lastLinearSolveResult.iterations;
+    }
+
+    float SolverData::GetLastCgResidualNorm() const
+    {
+        return lastLinearSolveResult.residualNorm;
     }
 
     int SolverData::GetDynamicBlockForNode(int nodeIndex) const
