@@ -58,6 +58,7 @@ namespace PhysiK
 
         std::vector<int> nodeIndices;
         std::vector<Tet> tets;
+        std::vector<TetFemCache> tetFemCache;
 
         Material material;
         FemModel selectedFemModel = FemModel::Linear;
@@ -81,6 +82,7 @@ namespace PhysiK
             femSparsePatternDirty = true;
         }
 
+        void RebuildTetFemCache();
         void EnsureFemSparsePattern(int worldNodeCount);
 
         bool IsTetActive(int tetIndex) const;

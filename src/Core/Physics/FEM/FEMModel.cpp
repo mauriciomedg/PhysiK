@@ -17,9 +17,6 @@ namespace PhysiK
 {
     namespace
     {
-        using Matrix6 = std::array<std::array<float, 6>, 6>;
-        using Matrix6x12 = std::array<std::array<float, 12>, 6>;
-        using Matrix12 = std::array<std::array<float, 12>, 12>;
         using Vector6 = std::array<float, 6>;
         using Vector12 = std::array<float, 12>;
 
@@ -28,6 +25,7 @@ namespace PhysiK
 
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         thread_local PerformanceLogRecord* currentPerformanceRecord = nullptr;
+
 
         void AddElapsed(double& target, const PerformanceTimer& timer)
         {
@@ -473,6 +471,7 @@ namespace PhysiK
 
         void AddElasticForcesAndStiffness(
             const Tet& tet,
+            const TetFemCache& cache,
             const std::vector<Node>& nodes,
             SolverData& solverData,
             const Vector12& displacement,
@@ -484,17 +483,14 @@ namespace PhysiK
             const std::unique_ptr<PerformanceTimer> forceTimer =
                 logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
 #endif
-            const Matrix6x12 b = BuildStrainDisplacementMatrix(tet);
-            const Matrix6 d = BuildElasticityMatrix(tet.youngModulus, tet.poissonRatio);
-
             // epsilon = B * u_e.
-            const Vector6 strain = Multiply(b, displacement);
+            const Vector6 strain = Multiply(cache.B, displacement);
 
             // sigma = D * epsilon.
-            const Vector6 stress = Multiply(d, strain);
+            const Vector6 stress = Multiply(cache.D, strain);
 
             // f_int = V * B^T * sigma. SolverData stores total force, so assemble -f_int.
-            Vector12 internalForce = MultiplyTranspose(b, stress);
+            Vector12 internalForce = MultiplyTranspose(cache.B, stress);
             for (float& value : internalForce)
             {
                 value *= tet.restVolume;
@@ -541,10 +537,9 @@ namespace PhysiK
                 logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
 #endif
 
-            const Matrix12 stiffness = BuildElementStiffness(b, d, tet.restVolume);
             // Store positive element stiffness K_e.
             // The implicit solver decides how to combine it into the global system.
-            AssembleStiffness(tet, stiffness, solverData, rotation);
+            AssembleStiffness(tet, cache.Ke, solverData, rotation);
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
             if (logPerformance)
             {
@@ -561,7 +556,12 @@ namespace PhysiK
         float dt)
     {
         (void)dt;
-        AccumulateForces(owner.GetFemModel(), owner.tets, world.GetNodes(), solverData);
+        AccumulateForces(
+            owner.GetFemModel(),
+            owner.tets,
+            owner.tetFemCache,
+            world.GetNodes(),
+            solverData);
     }
 
     bool FEMModel::IsFemModelImplemented(FemModel femModel)
@@ -591,13 +591,30 @@ namespace PhysiK
         const std::vector<Node>& nodes,
         SolverData& solverData)
     {
+        std::vector<TetFemCache> tetFemCache;
+        tetFemCache.reserve(tets.size());
+        for (const Tet& tet : tets)
+        {
+            tetFemCache.push_back(BuildTetFemCache(tet));
+        }
+
+        return AccumulateForces(femModel, tets, tetFemCache, nodes, solverData);
+    }
+
+    bool FEMModel::AccumulateForces(
+        FemModel femModel,
+        const std::vector<Tet>& tets,
+        const std::vector<TetFemCache>& tetFemCache,
+        const std::vector<Node>& nodes,
+        SolverData& solverData)
+    {
         switch (femModel)
         {
         case FemModel::Linear:
-            AccumulateElasticForces(tets, nodes, solverData);
+            AccumulateElasticForces(tets, tetFemCache, nodes, solverData);
             return true;
         case FemModel::Corotational:
-            AccumulateCorotationalElasticForces(tets, nodes, solverData);
+            AccumulateCorotationalElasticForces(tets, tetFemCache, nodes, solverData);
             return true;
         case FemModel::NeoHookean:
             std::cerr << GetNotImplementedMessage(femModel) << '\n';
@@ -660,8 +677,33 @@ namespace PhysiK
               tet.shapeFunctionGradients[3]);
     }
 
+    TetFemCache FEMModel::BuildTetFemCache(const Tet& tet)
+    {
+        TetFemCache cache;
+        cache.B = BuildStrainDisplacementMatrix(tet);
+        cache.D = BuildElasticityMatrix(tet.youngModulus, tet.poissonRatio);
+        cache.Ke = BuildElementStiffness(cache.B, cache.D, tet.restVolume);
+        return cache;
+    }
+
     void FEMModel::AccumulateElasticForces(
         const std::vector<Tet>& tets,
+        const std::vector<Node>& nodes,
+        SolverData& solverData)
+    {
+        std::vector<TetFemCache> tetFemCache;
+        tetFemCache.reserve(tets.size());
+        for (const Tet& tet : tets)
+        {
+            tetFemCache.push_back(BuildTetFemCache(tet));
+        }
+
+        AccumulateElasticForces(tets, tetFemCache, nodes, solverData);
+    }
+
+    void FEMModel::AccumulateElasticForces(
+        const std::vector<Tet>& tets,
+        const std::vector<TetFemCache>& tetFemCache,
         const std::vector<Node>& nodes,
         SolverData& solverData)
     {
@@ -671,8 +713,10 @@ namespace PhysiK
         const std::unique_ptr<PerformanceTimer> linearTimer =
             logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
 #endif
-        for (const Tet& tet : tets)
+        const std::size_t count = std::min(tets.size(), tetFemCache.size());
+        for (std::size_t tetIndex = 0; tetIndex < count; ++tetIndex)
         {
+            const Tet& tet = tets[tetIndex];
             if (!tet.active)
             {
                 continue;
@@ -690,7 +734,13 @@ namespace PhysiK
             }
 #endif
             const Vector12 displacement = BuildDisplacementVector(tet, nodes);
-            AddElasticForcesAndStiffness(tet, nodes, solverData, displacement, nullptr);
+            AddElasticForcesAndStiffness(
+                tet,
+                tetFemCache[tetIndex],
+                nodes,
+                solverData,
+                displacement,
+                nullptr);
         }
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         if (logPerformance)
@@ -705,14 +755,32 @@ namespace PhysiK
         const std::vector<Node>& nodes,
         SolverData& solverData)
     {
+        std::vector<TetFemCache> tetFemCache;
+        tetFemCache.reserve(tets.size());
+        for (const Tet& tet : tets)
+        {
+            tetFemCache.push_back(BuildTetFemCache(tet));
+        }
+
+        AccumulateCorotationalElasticForces(tets, tetFemCache, nodes, solverData);
+    }
+
+    void FEMModel::AccumulateCorotationalElasticForces(
+        const std::vector<Tet>& tets,
+        const std::vector<TetFemCache>& tetFemCache,
+        const std::vector<Node>& nodes,
+        SolverData& solverData)
+    {
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
         const bool logPerformance = performanceRecord != nullptr;
         const std::unique_ptr<PerformanceTimer> corotationalTimer =
             logPerformance ? std::make_unique<PerformanceTimer>() : nullptr;
 #endif
-        for (const Tet& tet : tets)
+        const std::size_t count = std::min(tets.size(), tetFemCache.size());
+        for (std::size_t tetIndex = 0; tetIndex < count; ++tetIndex)
         {
+            const Tet& tet = tets[tetIndex];
             if (!tet.active)
             {
                 continue;
@@ -763,7 +831,13 @@ namespace PhysiK
             }
 #endif
             const Vector12 displacement = BuildCorotatedDisplacementVector(tet, nodes, rotation);
-            AddElasticForcesAndStiffness(tet, nodes, solverData, displacement, &rotation);
+            AddElasticForcesAndStiffness(
+                tet,
+                tetFemCache[tetIndex],
+                nodes,
+                solverData,
+                displacement,
+                &rotation);
         }
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         if (logPerformance)
