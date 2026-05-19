@@ -2165,6 +2165,60 @@ void TetMeshComponentStoresSelectedFemModel()
     assert(component.GetFemModel() == PhysiK::FemModel::NeoHookean);
 }
 
+void WorldCgSettingsCanBeUpdatedAndValidateInputs()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    assert(NearlyEqual(PHYSIK_GetCgTolerance(world), 1.0e-5f));
+    assert(PHYSIK_GetCgMaxIterations(world) == 0);
+
+    PHYSIK_SetCgTolerance(world, 0.0025f);
+    PHYSIK_SetCgMaxIterations(world, 42);
+    assert(NearlyEqual(PHYSIK_GetCgTolerance(world), 0.0025f));
+    assert(PHYSIK_GetCgMaxIterations(world) == 42);
+
+    PHYSIK_SetCgTolerance(world, 0.0f);
+    PHYSIK_SetCgTolerance(world, -1.0f);
+    PHYSIK_SetCgMaxIterations(world, 0);
+    PHYSIK_SetCgMaxIterations(world, -10);
+    assert(NearlyEqual(PHYSIK_GetCgTolerance(world), 0.0025f));
+    assert(PHYSIK_GetCgMaxIterations(world) == 42);
+
+    assert(NearlyEqual(PHYSIK_GetCgTolerance(nullptr), 0.0f));
+    assert(PHYSIK_GetCgMaxIterations(nullptr) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CgSettingsCAPIHandlesInvalidInputs()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    PHYSIK_SetCgTolerance(world, 0.001f);
+    PHYSIK_SetCgMaxIterations(world, 8);
+    PHYSIK_SetCgTolerance(world, 0.0f);
+    PHYSIK_SetCgTolerance(world, -0.1f);
+    PHYSIK_SetCgMaxIterations(world, 0);
+    PHYSIK_SetCgMaxIterations(world, -3);
+
+    int nodes[4] = {};
+    CreateSingleTet(world, nodes);
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_Step(world, 0.01f);
+
+    const Point position = GetNodePosition(world, nodes[0]);
+    assert(IsFinite(position.x));
+    assert(IsFinite(position.y));
+    assert(IsFinite(position.z));
+
+    PHYSIK_SetCgTolerance(nullptr, 0.001f);
+    PHYSIK_SetCgMaxIterations(nullptr, 8);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -2547,6 +2601,8 @@ int main()
     SmallTetMeshSimulatesAfterTetDeactivation();
     TetMeshComponentDefaultFemModelIsLinear();
     TetMeshComponentStoresSelectedFemModel();
+    WorldCgSettingsCanBeUpdatedAndValidateInputs();
+    CgSettingsCAPIHandlesInvalidInputs();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();

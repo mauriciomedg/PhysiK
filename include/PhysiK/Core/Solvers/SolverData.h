@@ -71,6 +71,7 @@ namespace PhysiK
 
         bool PrecomputeImplicitSolve(const std::vector<Node>& nodes, float dt);
         bool SolveImplicitLinearSystem();
+        bool SolveImplicitLinearSystem(const LinearSolveSettings& settings);
         int GetLastCgIterationCount() const;
         float GetLastCgResidualNorm() const;
 

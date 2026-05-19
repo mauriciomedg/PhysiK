@@ -221,6 +221,32 @@ namespace PhysiK
         return solverMode;
     }
 
+    void World::SetCgTolerance(float tolerance)
+    {
+        if (std::isfinite(tolerance) && tolerance > 0.0f)
+        {
+            cgTolerance = tolerance;
+        }
+    }
+
+    float World::GetCgTolerance() const
+    {
+        return cgTolerance;
+    }
+
+    void World::SetCgMaxIterations(int maxIterations)
+    {
+        if (maxIterations > 0)
+        {
+            cgMaxIterations = maxIterations;
+        }
+    }
+
+    int World::GetCgMaxIterations() const
+    {
+        return cgMaxIterations;
+    }
+
     void World::EnablePerformanceLogging(bool enabled)
     {
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
@@ -680,7 +706,13 @@ namespace PhysiK
             ResetSparseBlockMatrixTiming();
             SetSparseBlockMatrixTimingEnabled(true);
         }
-        const bool solved = solverData.SolveImplicitLinearSystem();
+        LinearSolveSettings settings;
+        settings.maxIterations =
+            cgMaxIterations > 0 ? cgMaxIterations : std::max(128, solverData.GetDynamicBlockCount() * 12);
+        settings.tolerance = cgTolerance;
+        settings.useJacobiPreconditioner = true;
+
+        const bool solved = solverData.SolveImplicitLinearSystem(settings);
         if (performanceRecord != nullptr)
         {
             SetSparseBlockMatrixTimingEnabled(false);
@@ -696,7 +728,13 @@ namespace PhysiK
     bool World::SolveImplicitLinearSystem(SolverData& solverData, float dt)
     {
         (void)dt;
-        return solverData.SolveImplicitLinearSystem();
+        LinearSolveSettings settings;
+        settings.maxIterations =
+            cgMaxIterations > 0 ? cgMaxIterations : std::max(128, solverData.GetDynamicBlockCount() * 12);
+        settings.tolerance = cgTolerance;
+        settings.useJacobiPreconditioner = true;
+
+        return solverData.SolveImplicitLinearSystem(settings);
     }
 #endif
 

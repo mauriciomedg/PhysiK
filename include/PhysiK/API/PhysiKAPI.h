@@ -59,6 +59,14 @@ extern "C"
     PHYSIK_API void PHYSIK_Step(PhysiK::WorldHandle world, float dt);
     PHYSIK_API void PHYSIK_SetSubstepCount(PhysiK::WorldHandle world, int substepCount);
     PHYSIK_API void PHYSIK_SetSolverMode(PhysiK::WorldHandle world, int mode);
+    PHYSIK_API void PHYSIK_SetCgTolerance(
+        PhysiK::WorldHandle world,
+        float tolerance);
+    PHYSIK_API void PHYSIK_SetCgMaxIterations(
+        PhysiK::WorldHandle world,
+        int maxIterations);
+    PHYSIK_API float PHYSIK_GetCgTolerance(PhysiK::WorldHandle world);
+    PHYSIK_API int PHYSIK_GetCgMaxIterations(PhysiK::WorldHandle world);
     PHYSIK_API void PHYSIK_EnablePerformanceLogging(
         PhysiK::WorldHandle world,
         int enabled);

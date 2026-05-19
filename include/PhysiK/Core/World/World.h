@@ -46,6 +46,10 @@ namespace PhysiK
         int GetSubstepCount() const;
         void SetSolverMode(SolverMode mode);
         SolverMode GetSolverMode() const;
+        void SetCgTolerance(float tolerance);
+        float GetCgTolerance() const;
+        void SetCgMaxIterations(int maxIterations);
+        int GetCgMaxIterations() const;
         void EnablePerformanceLogging(bool enabled);
         void SetPerformanceLogPath(const char* path);
         void SetGravity(const Vec3& value);
@@ -125,6 +129,8 @@ namespace PhysiK
         Vec3 gravity;
         int substepCount = 1;
         SolverMode solverMode = SolverMode::Explicit;
+        float cgTolerance = 1.0e-5f;
+        int cgMaxIterations = 0;
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         std::uint64_t frameIndex = 0;
         PerformanceLogger performanceLogger;

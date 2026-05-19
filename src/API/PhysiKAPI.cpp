@@ -132,6 +132,46 @@ extern "C"
         }
     }
 
+    PHYSIK_API void PHYSIK_SetCgTolerance(
+        PhysiK::WorldHandle world,
+        float tolerance)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetCgTolerance(tolerance);
+        }
+    }
+
+    PHYSIK_API void PHYSIK_SetCgMaxIterations(
+        PhysiK::WorldHandle world,
+        int maxIterations)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetCgMaxIterations(maxIterations);
+        }
+    }
+
+    PHYSIK_API float PHYSIK_GetCgTolerance(PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetCgTolerance();
+        }
+
+        return 0.0f;
+    }
+
+    PHYSIK_API int PHYSIK_GetCgMaxIterations(PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetCgMaxIterations();
+        }
+
+        return 0;
+    }
+
     PHYSIK_API void PHYSIK_EnablePerformanceLogging(
         PhysiK::WorldHandle world,
         int enabled)

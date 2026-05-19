@@ -133,16 +133,20 @@ namespace PhysiK
 
     bool SolverData::SolveImplicitLinearSystem()
     {
+        LinearSolveSettings settings;
+        settings.maxIterations = std::max(128, dynamicBlockCount * 12);
+        settings.tolerance = 1.0e-5f;
+        settings.useJacobiPreconditioner = true;
+        return SolveImplicitLinearSystem(settings);
+    }
+
+    bool SolverData::SolveImplicitLinearSystem(const LinearSolveSettings& settings)
+    {
         const std::size_t dimension = static_cast<std::size_t>(dynamicBlockCount * 3);
         if (dimension == 0)
         {
             return false;
         }
-
-        LinearSolveSettings settings;
-        settings.maxIterations = std::max(128, dynamicBlockCount * 12);
-        settings.tolerance = 1.0e-5f;
-        settings.useJacobiPreconditioner = true;
 
         const LinearSolveResult result =
             GetCurrentLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
