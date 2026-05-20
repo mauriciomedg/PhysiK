@@ -1,5 +1,6 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Core/Events/EventSystem.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
@@ -2210,6 +2211,41 @@ void EventSystemDeliversSubscribedEventsOnlyOnce()
     assert(listener.eventCount == 1);
 }
 
+void VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    PhysiK::VisualMeshComponent visual;
+
+    assert(visual.listenedEvents.size() == 1);
+    assert(visual.listenedEvents[0] == PhysiK::PhysicsEventType::TetMeshTopologyChanged);
+
+    visual.topologyDirty = true;
+    visual.Execute(*static_cast<PhysiK::World*>(world));
+    assert(!visual.topologyDirty);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void VisualMeshComponentCanBeCreatedThroughNativeApi()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle visual =
+        PHYSIK_CreateVisualMeshComponent(world, tetMesh, "test visual");
+
+    assert(PHYSIK_IsComponentHandleValid(world, visual) == 1);
+
+    PHYSIK_DeactivateTet(world, tetMesh, 0);
+    PHYSIK_Step(world, 0.01f);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -2593,6 +2629,8 @@ int main()
     TetMeshComponentDefaultFemModelIsLinear();
     TetMeshComponentStoresSelectedFemModel();
     EventSystemDeliversSubscribedEventsOnlyOnce();
+    VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag();
+    VisualMeshComponentCanBeCreatedThroughNativeApi();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();

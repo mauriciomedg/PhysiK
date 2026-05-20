@@ -112,6 +112,11 @@ extern "C"
         float z,
         float radius);
 
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateVisualMeshComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle hostTetMeshHandle,
+        const char* debugName);
+
     PHYSIK_API void PHYSIK_SetCollisionSphereConnectionSettings(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle sphereComponent,

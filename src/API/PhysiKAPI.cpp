@@ -3,9 +3,11 @@
 #include "PhysiK/Components/CollisionComponent.h"
 #include "PhysiK/Components/CollisionSphereComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
 
 #include <algorithm>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -265,6 +267,23 @@ extern "C"
         }
 
         return PhysiK::ComponentHandle{};
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateVisualMeshComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle hostTetMeshHandle,
+        const char* debugName)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component = std::make_unique<PhysiK::VisualMeshComponent>(
+            hostTetMeshHandle,
+            debugName != nullptr ? std::string(debugName) : std::string{});
+        return worldPtr->AddComponent(std::move(component));
     }
 
     PHYSIK_API void PHYSIK_SetCollisionSphereConnectionSettings(
