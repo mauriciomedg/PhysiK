@@ -2246,6 +2246,43 @@ void VisualMeshComponentCanBeCreatedThroughNativeApi()
     PHYSIK_DestroyWorld(world);
 }
 
+void VisualMeshComponentStoresVisualMeshData()
+{
+    PhysiK::VisualMeshComponent visual;
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int indices[] = {0, 1, 2, 0, 2, 3};
+
+    visual.SetVisualMesh(vertices, 4, indices, 6);
+
+    assert(visual.restVisualVertices.size() == 4);
+    assert(visual.GetDeformedVertices().size() == 4);
+    assert(visual.GetTriangleIndices().size() == 6);
+    assert(visual.embeddedVertices.size() == 4);
+    assert(visual.triangleValid.size() == 2);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        assert(NearlyEqual(visual.restVisualVertices[i], vertices[i]));
+        assert(NearlyEqual(visual.GetDeformedVertices()[i], vertices[i]));
+        assert(visual.embeddedVertices[i].tetIndex == -1);
+        assert(!visual.embeddedVertices[i].valid);
+    }
+
+    for (int i = 0; i < 6; ++i)
+    {
+        assert(visual.GetTriangleIndices()[i] == indices[i]);
+    }
+
+    for (bool valid : visual.triangleValid)
+    {
+        assert(valid);
+    }
+}
+
 void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -2631,6 +2668,7 @@ int main()
     EventSystemDeliversSubscribedEventsOnlyOnce();
     VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag();
     VisualMeshComponentCanBeCreatedThroughNativeApi();
+    VisualMeshComponentStoresVisualMeshData();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();

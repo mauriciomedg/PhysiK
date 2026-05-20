@@ -1,5 +1,6 @@
 #include "PhysiK/Components/VisualMeshComponent.h"
 
+#include <cstddef>
 #include <utility>
 
 #include "PhysiK/Core/World/World.h"
@@ -18,6 +19,46 @@ namespace PhysiK
     {
         this->hostTetMeshHandle = hostTetMeshHandle;
         this->debugEntityName = std::move(debugEntityName);
+    }
+
+    void VisualMeshComponent::SetVisualMesh(
+        const Vec3* vertices,
+        int vertexCount,
+        const int* triangleIndices,
+        int triangleIndexCount)
+    {
+        restVisualVertices.clear();
+        deformedVisualVertices.clear();
+        this->triangleIndices.clear();
+        embeddedVertices.clear();
+        triangleValid.clear();
+
+        if (vertices != nullptr && vertexCount > 0)
+        {
+            restVisualVertices.assign(vertices, vertices + vertexCount);
+            deformedVisualVertices = restVisualVertices;
+            embeddedVertices.resize(static_cast<std::size_t>(vertexCount));
+        }
+
+        if (triangleIndices != nullptr && triangleIndexCount > 0)
+        {
+            this->triangleIndices.assign(
+                triangleIndices,
+                triangleIndices + triangleIndexCount);
+            triangleValid.assign(
+                static_cast<std::size_t>(triangleIndexCount / 3),
+                true);
+        }
+    }
+
+    const std::vector<Vec3>& VisualMeshComponent::GetDeformedVertices() const
+    {
+        return deformedVisualVertices;
+    }
+
+    const std::vector<int>& VisualMeshComponent::GetTriangleIndices() const
+    {
+        return triangleIndices;
     }
 
     void VisualMeshComponent::OnPhysicsEvent(const PhysicsEvent& event)
