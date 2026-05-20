@@ -181,7 +181,7 @@ namespace PhysiK
         topologyDirty = true;
     }
 
-    void VisualMeshComponent::Execute(World& world)
+    void VisualMeshComponent::PostUpdate(World& world)
     {
         (void)world;
         if (!topologyDirty)

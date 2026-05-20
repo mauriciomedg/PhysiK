@@ -2222,7 +2222,7 @@ void VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag()
     assert(visual.listenedEvents[0] == PhysiK::PhysicsEventType::TetMeshTopologyChanged);
 
     visual.topologyDirty = true;
-    visual.Execute(*static_cast<PhysiK::World*>(world));
+    visual.PostUpdate(*static_cast<PhysiK::World*>(world));
     assert(!visual.topologyDirty);
 
     PHYSIK_DestroyWorld(world);

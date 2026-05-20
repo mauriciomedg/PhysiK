@@ -50,6 +50,6 @@ namespace PhysiK
         const std::vector<Vec3>& GetDeformedVertices() const;
         const std::vector<int>& GetTriangleIndices() const;
         void OnPhysicsEvent(const PhysicsEvent& event) override;
-        void Execute(World& world) override;
+        void PostUpdate(World& world) override;
     };
 }

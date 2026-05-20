@@ -18,7 +18,7 @@ namespace PhysiK
         std::vector<PhysicsEventType> listenedEvents;
         std::vector<PhysicsEventType> emittedEvents;
 
-        virtual void UpdateFrame(World& world, float dt)
+        virtual void PreUpdate(World& world, float dt)
         {
             (void)world;
             (void)dt;
@@ -51,7 +51,10 @@ namespace PhysiK
             (void)event;
         }
 
-        virtual void Execute(World& world) {};
+        virtual void PostUpdate(World& world)
+        {
+            (void)world;
+        }
 
         virtual ~Component() = default;
     };
