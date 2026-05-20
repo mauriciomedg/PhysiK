@@ -6,6 +6,7 @@
 #include "PhysiK/API/Handles.h"
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Core/Collision/CollisionDetectionEngine.h"
+#include "PhysiK/Core/Events/EventSystem.h"
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
 #include "PhysiK/Core/Performance/PerformanceLogger.h"
 #endif
@@ -39,6 +40,9 @@ namespace PhysiK
 
         void AddPointConnection(const PointConnection& connection);
         void AddTransientConnection(std::unique_ptr<PhysicsConnection> connection);
+        void SubscribeToEvent(Component* listener, PhysicsEventType type);
+        void UnsubscribeFromEvent(Component* listener, PhysicsEventType type);
+        void EmitEvent(const PhysicsEvent& event);
         void SetExternalLogicCallback(ExternalLogicCallback callback, void* userData);
         void ClearExternalLogicCallback();
 
@@ -118,6 +122,7 @@ namespace PhysiK
         std::vector<std::unique_ptr<PhysicsConnection>> transientConnections;
 
         CollisionDetectionEngine collisionDetectionEngine;
+        EventSystem eventSystem;
 
         ExternalLogicCallback externalLogicCallback = nullptr;
         void* externalLogicUserData = nullptr;

@@ -42,6 +42,8 @@ target_sources(
         include/PhysiK/Components/TetMeshComponent.h
 
         include/PhysiK/Core/Collision/CollisionDetectionEngine.h
+        include/PhysiK/Core/Events/EventSystem.h
+        include/PhysiK/Core/Events/PhysicsEvent.h
         include/PhysiK/Core/Physics/PhysicsModel.h
         include/PhysiK/Core/Physics/FEM/FEMModel.h
         include/PhysiK/Core/PhysicsConnections/PhysicsConnection.h
@@ -61,6 +63,7 @@ target_sources(
         src/Components/CollisionSphereComponent.cpp
         src/Components/TetMeshComponent.cpp
         src/Core/Collision/CollisionDetectionEngine.cpp
+        src/Core/Events/EventSystem.cpp
         src/Core/Physics/FEM/FEMModel.cpp
         src/Core/PhysicsConnections/PointConnection.cpp
         src/Core/PhysicsConnections/SurfaceConnection.cpp
@@ -94,6 +97,8 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Components/CollisionSphereComponent.h
     include/PhysiK/Components/TetMeshComponent.h
     include/PhysiK/Core/Collision/CollisionDetectionEngine.h
+    include/PhysiK/Core/Events/EventSystem.h
+    include/PhysiK/Core/Events/PhysicsEvent.h
     include/PhysiK/Core/Performance/PerformanceLogger.h
     include/PhysiK/Core/Physics/PhysicsModel.h
     include/PhysiK/Core/Physics/FEM/FEMModel.h

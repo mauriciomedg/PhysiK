@@ -1,6 +1,7 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
+#include "PhysiK/Core/Events/EventSystem.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 #include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
@@ -420,6 +421,22 @@ namespace
             100.0f,
             0.0f);
     }
+
+    class RecordingEventComponent final : public PhysiK::Component
+    {
+    public:
+        int eventCount = 0;
+        PhysiK::PhysicsEvent lastEvent{
+            PhysiK::PhysicsEventType::TetMeshTopologyChanged,
+            nullptr,
+            nullptr};
+
+        void OnPhysicsEvent(const PhysiK::PhysicsEvent& event) override
+        {
+            ++eventCount;
+            lastEvent = event;
+        }
+    };
 }
 
 void ManualPointConnectionMovesBarycentricPoint()
@@ -2165,6 +2182,34 @@ void TetMeshComponentStoresSelectedFemModel()
     assert(component.GetFemModel() == PhysiK::FemModel::NeoHookean);
 }
 
+void EventSystemDeliversSubscribedEventsOnlyOnce()
+{
+    PhysiK::EventSystem eventSystem;
+    RecordingEventComponent listener;
+    PhysiK::Component sender;
+    listener.listenedEvents.push_back(PhysiK::PhysicsEventType::TetMeshTopologyChanged);
+    sender.emittedEvents.push_back(PhysiK::PhysicsEventType::TetMeshTopologyChanged);
+
+    eventSystem.Subscribe(&listener, PhysiK::PhysicsEventType::TetMeshTopologyChanged);
+    eventSystem.Subscribe(&listener, PhysiK::PhysicsEventType::TetMeshTopologyChanged);
+
+    const PhysiK::PhysicsEvent event{
+        PhysiK::PhysicsEventType::TetMeshTopologyChanged,
+        nullptr,
+        &sender};
+    eventSystem.Emit(event);
+
+    assert(listener.eventCount == 1);
+    assert(listener.lastEvent.type == PhysiK::PhysicsEventType::TetMeshTopologyChanged);
+    assert(listener.lastEvent.sender == &sender);
+    assert(listener.listenedEvents.size() == 1);
+    assert(sender.emittedEvents.size() == 1);
+
+    eventSystem.Unsubscribe(&listener, PhysiK::PhysicsEventType::TetMeshTopologyChanged);
+    eventSystem.Emit(event);
+    assert(listener.eventCount == 1);
+}
+
 void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -2547,6 +2592,7 @@ int main()
     SmallTetMeshSimulatesAfterTetDeactivation();
     TetMeshComponentDefaultFemModelIsLinear();
     TetMeshComponentStoresSelectedFemModel();
+    EventSystemDeliversSubscribedEventsOnlyOnce();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();

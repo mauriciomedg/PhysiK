@@ -162,6 +162,7 @@ namespace PhysiK
             return;
         }
 
+        eventSystem.UnsubscribeAll(components[handle.index].get());
         components[handle.index].reset();
         ++componentGenerations[handle.index];
 
@@ -187,6 +188,21 @@ namespace PhysiK
         {
             transientConnections.push_back(std::move(connection));
         }
+    }
+
+    void World::SubscribeToEvent(Component* listener, PhysicsEventType type)
+    {
+        eventSystem.Subscribe(listener, type);
+    }
+
+    void World::UnsubscribeFromEvent(Component* listener, PhysicsEventType type)
+    {
+        eventSystem.Unsubscribe(listener, type);
+    }
+
+    void World::EmitEvent(const PhysicsEvent& event)
+    {
+        eventSystem.Emit(event);
     }
 
     void World::SetExternalLogicCallback(ExternalLogicCallback callback, void* userData)
@@ -329,11 +345,21 @@ namespace PhysiK
             const std::uint32_t slotIndex = freeComponentSlots.back();
             freeComponentSlots.pop_back();
             components[slotIndex] = std::move(component);
+            Component* addedComponent = components[slotIndex].get();
+            for (PhysicsEventType eventType : addedComponent->listenedEvents)
+            {
+                eventSystem.Subscribe(addedComponent, eventType);
+            }
             return ComponentHandle{slotIndex, componentGenerations[slotIndex]};
         }
 
         components.push_back(std::move(component));
         componentGenerations.push_back(1u);
+        Component* addedComponent = components.back().get();
+        for (PhysicsEventType eventType : addedComponent->listenedEvents)
+        {
+            eventSystem.Subscribe(addedComponent, eventType);
+        }
 
         return ComponentHandle{
             static_cast<std::uint32_t>(components.size() - 1u),
