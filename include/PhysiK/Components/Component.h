@@ -22,10 +22,6 @@ namespace PhysiK
         {
         }
 
-        virtual void UpdateKinematicTarget(World&)
-        {
-        }
-
         virtual void QueryContacts(
             World&,
             CollisionDetectionEngine&,
@@ -37,11 +33,11 @@ namespace PhysiK
         {
         }
 
-        virtual void OnPhysicsEvent(const PhysicsEvent&)
+        virtual void PostUpdate(World&, float)
         {
         }
 
-        virtual void PostUpdate(World&)
+        virtual void OnPhysicsEvent(const PhysicsEvent&)
         {
         }
 

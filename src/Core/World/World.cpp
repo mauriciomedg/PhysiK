@@ -56,7 +56,6 @@ namespace PhysiK
 
         RunExternalLogic();
         PreUpdateComponents(frameDt);
-        UpdateKinematicTargets();
 
         const int steps = std::max(1, substepCount);
         const float substepDt = frameDt / static_cast<float>(steps);
@@ -121,7 +120,7 @@ namespace PhysiK
             ClearTransientConnections();
         }
 
-        PostUpdateComponents();
+        PostUpdateComponents(frameDt);
 
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         ++frameIndex;
@@ -397,24 +396,13 @@ namespace PhysiK
         }
     }
 
-    void World::PostUpdateComponents()
+    void World::PostUpdateComponents(float frameDt)
     {
         for (const std::unique_ptr<Component>& component : components)
         {
             if (component != nullptr && component->active)
             {
-                component->PostUpdate(*this);
-            }
-        }
-    }
-
-    void World::UpdateKinematicTargets()
-    {
-        for (const std::unique_ptr<Component>& component : components)
-        {
-            if (component != nullptr && component->active)
-            {
-                component->UpdateKinematicTarget(*this);
+                component->PostUpdate(*this, frameDt);
             }
         }
     }

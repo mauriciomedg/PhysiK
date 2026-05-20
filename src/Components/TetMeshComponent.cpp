@@ -377,8 +377,10 @@ namespace PhysiK
         }
     }
 
-    void TetMeshComponent::PostUpdate(World& world)
+    void TetMeshComponent::PostUpdate(World& world, float dt)
     {
+        (void)dt;
+
         if (!topologyDirty)
             return;
 

@@ -71,8 +71,7 @@ namespace PhysiK
         bool IsComponentHandleValid(ComponentHandle handle) const;
         void RunExternalLogic();
         void PreUpdateComponents(float frameDt);
-        void PostUpdateComponents();
-        void UpdateKinematicTargets();
+        void PostUpdateComponents(float frameDt);
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         void BuildSolverData(
             SolverData& solverData,

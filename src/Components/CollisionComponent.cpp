@@ -12,9 +12,10 @@ namespace PhysiK
         (void)outContacts;
     }
 
-    void CollisionComponent::UpdateKinematicTarget(World& world)
+    void CollisionComponent::PreUpdate(World& world, float dt)
     {
         (void)world;
+        (void)dt;
 
         Transform target;
         if (ConsumeKinematicTarget(target))
