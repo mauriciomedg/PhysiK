@@ -2,6 +2,8 @@
 
 #include <vector>
 
+#include "PhysiK/Core/Events/PhysicsEvent.h"
+
 namespace PhysiK
 {
     class CollisionDetectionEngine;
@@ -13,6 +15,8 @@ namespace PhysiK
     {
     public:
         bool active = true;
+        std::vector<PhysicsEventType> listenedEvents;
+        std::vector<PhysicsEventType> emittedEvents;
 
         virtual void UpdateFrame(World& world, float dt)
         {
@@ -40,6 +44,11 @@ namespace PhysiK
             (void)world;
             (void)solverData;
             (void)dt;
+        }
+
+        virtual void OnPhysicsEvent(const PhysicsEvent& event)
+        {
+            (void)event;
         }
 
         virtual ~Component() = default;
