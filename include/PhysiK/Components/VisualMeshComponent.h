@@ -18,6 +18,14 @@ namespace PhysiK
         bool valid = false;
     };
 
+    PHYSIK_API bool ComputeTetBarycentric(
+        const Vec3& p,
+        const Vec3& a,
+        const Vec3& b,
+        const Vec3& c,
+        const Vec3& d,
+        Vec4& outBarycentric);
+
     class PHYSIK_API VisualMeshComponent : public Component
     {
     public:
@@ -38,6 +46,7 @@ namespace PhysiK
             int vertexCount,
             const int* triangleIndices,
             int triangleIndexCount);
+        void BuildEmbedding(const World& world);
         const std::vector<Vec3>& GetDeformedVertices() const;
         const std::vector<int>& GetTriangleIndices() const;
         void OnPhysicsEvent(const PhysicsEvent& event) override;

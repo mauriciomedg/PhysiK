@@ -1,12 +1,46 @@
 #include "PhysiK/Components/VisualMeshComponent.h"
 
+#include <cmath>
 #include <cstddef>
 #include <utility>
 
+#include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
+#include "PhysiK/PhysicsData/Node.h"
+#include "PhysiK/PhysicsData/Tet.h"
 
 namespace PhysiK
 {
+    bool ComputeTetBarycentric(
+        const Vec3& p,
+        const Vec3& a,
+        const Vec3& b,
+        const Vec3& c,
+        const Vec3& d,
+        Vec4& outBarycentric)
+    {
+        const Vec3 ab = b - a;
+        const Vec3 ac = c - a;
+        const Vec3 ad = d - a;
+        const Vec3 ap = p - a;
+        const float determinant = Dot(ab, Cross(ac, ad));
+
+        if (std::abs(determinant) <= 0.00000001f)
+        {
+            outBarycentric = Vec4{};
+            return false;
+        }
+
+        const float inverseDeterminant = 1.0f / determinant;
+        const float bWeight = Dot(ap, Cross(ac, ad)) * inverseDeterminant;
+        const float cWeight = Dot(ab, Cross(ap, ad)) * inverseDeterminant;
+        const float dWeight = Dot(ab, Cross(ac, ap)) * inverseDeterminant;
+        const float aWeight = 1.0f - bWeight - cWeight - dWeight;
+
+        outBarycentric = Vec4{aWeight, bWeight, cWeight, dWeight};
+        return true;
+    }
+
     VisualMeshComponent::VisualMeshComponent()
     {
         listenedEvents.push_back(PhysicsEventType::TetMeshTopologyChanged);
@@ -48,6 +82,76 @@ namespace PhysiK
             triangleValid.assign(
                 static_cast<std::size_t>(triangleIndexCount / 3),
                 true);
+        }
+    }
+
+    void VisualMeshComponent::BuildEmbedding(const World& world)
+    {
+        embeddedVertices.clear();
+        embeddedVertices.resize(restVisualVertices.size());
+
+        const Component* hostComponent = world.GetComponent(hostTetMeshHandle);
+        const TetMeshComponent* hostTetMesh =
+            dynamic_cast<const TetMeshComponent*>(hostComponent);
+        if (hostTetMesh == nullptr)
+        {
+            return;
+        }
+
+        const std::vector<Node>& nodes = world.GetNodes();
+        constexpr float insideEpsilon = -0.0001f;
+
+        for (std::size_t vertexIndex = 0; vertexIndex < restVisualVertices.size(); ++vertexIndex)
+        {
+            EmbeddedVertex& embeddedVertex = embeddedVertices[vertexIndex];
+            embeddedVertex = EmbeddedVertex{};
+
+            for (std::size_t tetIndex = 0; tetIndex < hostTetMesh->tets.size(); ++tetIndex)
+            {
+                const Tet& tet = hostTetMesh->tets[tetIndex];
+                if (!tet.active)
+                {
+                    continue;
+                }
+
+                const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+                bool nodesAreValid = true;
+                for (int nodeIndex : nodeIndices)
+                {
+                    if (nodeIndex < 0 || nodeIndex >= static_cast<int>(nodes.size()))
+                    {
+                        nodesAreValid = false;
+                    }
+                }
+
+                if (!nodesAreValid)
+                {
+                    continue;
+                }
+
+                Vec4 barycentric;
+                if (!ComputeTetBarycentric(
+                        restVisualVertices[vertexIndex],
+                        nodes[static_cast<std::size_t>(tet.node0)].position,
+                        nodes[static_cast<std::size_t>(tet.node1)].position,
+                        nodes[static_cast<std::size_t>(tet.node2)].position,
+                        nodes[static_cast<std::size_t>(tet.node3)].position,
+                        barycentric))
+                {
+                    continue;
+                }
+
+                if (barycentric.x >= insideEpsilon &&
+                    barycentric.y >= insideEpsilon &&
+                    barycentric.z >= insideEpsilon &&
+                    barycentric.w >= insideEpsilon)
+                {
+                    embeddedVertex.tetIndex = static_cast<int>(tetIndex);
+                    embeddedVertex.barycentric = barycentric;
+                    embeddedVertex.valid = true;
+                    break;
+                }
+            }
         }
     }
 

@@ -2283,6 +2283,39 @@ void VisualMeshComponentStoresVisualMeshData()
     }
 }
 
+void VisualMeshComponentBuildsBruteForceEmbedding()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    PhysiK::VisualMeshComponent visual(tetMesh, "test visual");
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
+        PhysiK::Vec3{2.0f, 2.0f, 2.0f}};
+
+    visual.SetVisualMesh(vertices, 2, nullptr, 0);
+    visual.BuildEmbedding(*static_cast<PhysiK::World*>(world));
+
+    assert(visual.embeddedVertices.size() == 2);
+    assert(visual.embeddedVertices[0].valid);
+    assert(visual.embeddedVertices[0].tetIndex == 0);
+    assert(NearlyEqual(visual.embeddedVertices[0].barycentric.x, 0.25f));
+    assert(NearlyEqual(visual.embeddedVertices[0].barycentric.y, 0.25f));
+    assert(NearlyEqual(visual.embeddedVertices[0].barycentric.z, 0.25f));
+    assert(NearlyEqual(visual.embeddedVertices[0].barycentric.w, 0.25f));
+    assert(!visual.embeddedVertices[1].valid);
+    assert(visual.embeddedVertices[1].tetIndex == -1);
+
+    PHYSIK_DeactivateTet(world, tetMesh, 0);
+    visual.BuildEmbedding(*static_cast<PhysiK::World*>(world));
+    assert(!visual.embeddedVertices[0].valid);
+    assert(visual.embeddedVertices[0].tetIndex == -1);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -2669,6 +2702,7 @@ int main()
     VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag();
     VisualMeshComponentCanBeCreatedThroughNativeApi();
     VisualMeshComponentStoresVisualMeshData();
+    VisualMeshComponentBuildsBruteForceEmbedding();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();
