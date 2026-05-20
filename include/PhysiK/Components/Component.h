@@ -18,42 +18,31 @@ namespace PhysiK
         std::vector<PhysicsEventType> listenedEvents;
         std::vector<PhysicsEventType> emittedEvents;
 
-        virtual void PreUpdate(World& world, float dt)
+        virtual void PreUpdate(World&, float)
         {
-            (void)world;
-            (void)dt;
         }
 
-        virtual void UpdateKinematicTarget(World& world)
+        virtual void UpdateKinematicTarget(World&)
         {
-            (void)world;
         }
 
         virtual void QueryContacts(
-            World& world,
-            CollisionDetectionEngine& collisionDetectionEngine,
-            std::vector<Contact>& outContacts)
+            World&,
+            CollisionDetectionEngine&,
+            std::vector<Contact>&)
         {
-            (void)world;
-            (void)collisionDetectionEngine;
-            (void)outContacts;
         }
 
-        virtual void UpdateSystem(World& world, SolverData& solverData, float dt)
+        virtual void UpdateSystem(World&, SolverData&, float)
         {
-            (void)world;
-            (void)solverData;
-            (void)dt;
         }
 
-        virtual void OnPhysicsEvent(const PhysicsEvent& event)
+        virtual void OnPhysicsEvent(const PhysicsEvent&)
         {
-            (void)event;
         }
 
-        virtual void PostUpdate(World& world)
+        virtual void PostUpdate(World&)
         {
-            (void)world;
         }
 
         virtual ~Component() = default;
