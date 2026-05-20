@@ -2236,7 +2236,7 @@ void VisualMeshComponentCanBeCreatedThroughNativeApi()
     int nodes[4] = {};
     const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
     const PhysiK::ComponentHandle visual =
-        PHYSIK_CreateVisualMeshComponent(world, tetMesh, "test visual");
+        PHYSIK_CreateVisualMeshComponent(world, tetMesh);
 
     assert(PHYSIK_IsComponentHandleValid(world, visual) == 1);
 
@@ -2368,19 +2368,49 @@ void VisualMeshComponentCAPIExportsMeshBuffers()
     int nodes[4] = {};
     const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
     const PhysiK::ComponentHandle visualHandle =
-        PHYSIK_CreateVisualMeshComponent(world, tetMesh, "api visual");
+        PHYSIK_CreateVisualMeshComponent(world, tetMesh);
 
     assert(PHYSIK_IsComponentHandleValid(world, visualHandle) == 1);
     assert(PHYSIK_GetVisualMeshVertexCount(world, visualHandle) == 0);
     assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, visualHandle) == 0);
 
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
+        PhysiK::Vec3{0.5f, 0.25f, 0.25f},
+        PhysiK::Vec3{2.0f, 2.0f, 2.0f}};
+    const int indices[] = {0, 1, 2};
+    PHYSIK_SetVisualMeshData(world, visualHandle, vertices, 3, indices, 3);
+
+    assert(PHYSIK_GetVisualMeshVertexCount(world, visualHandle) == 3);
+    assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, visualHandle) == 3);
+    assert(PHYSIK_BuildVisualMeshEmbedding(world, visualHandle) == 1);
+
+    PHYSIK_SetNodePosition(world, nodes[0], 0.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[1], 2.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[2], 0.0f, 2.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[3], 0.0f, 0.0f, 3.0f);
+    PHYSIK_Step(world, 0.01f);
+
     PhysiK::Vec3 copiedVertices[3] = {};
     int copiedIndices[3] = {};
-    assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, copiedVertices, 3) == 0);
-    assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, copiedIndices, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, copiedVertices, 3) == 3);
+    assert(NearlyEqual(copiedVertices[0], PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
+    assert(NearlyEqual(copiedVertices[1], PhysiK::Vec3{1.0f, 0.5f, 1.5f}));
+    assert(NearlyEqual(copiedVertices[2], vertices[2]));
+    assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, copiedIndices, 3) == 3);
+    assert(copiedIndices[0] == 0);
+    assert(copiedIndices[1] == 1);
+    assert(copiedIndices[2] == 2);
 
     assert(PHYSIK_GetVisualMeshVertexCount(nullptr, visualHandle) == 0);
     assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, tetMesh) == 0);
+    assert(PHYSIK_CreateVisualMeshComponent(nullptr, tetMesh).IsValid() == false);
+    assert(PHYSIK_CreateVisualMeshComponent(world, PhysiK::ComponentHandle{}).IsValid() == false);
+    assert(PHYSIK_CreateVisualMeshComponent(world, visualHandle).IsValid() == false);
+    assert(PHYSIK_BuildVisualMeshEmbedding(nullptr, visualHandle) == 0);
+    assert(PHYSIK_BuildVisualMeshEmbedding(world, tetMesh) == 0);
+    PHYSIK_SetVisualMeshData(nullptr, visualHandle, vertices, 3, indices, 3);
+    PHYSIK_SetVisualMeshData(world, tetMesh, vertices, 3, indices, 3);
     assert(PHYSIK_CopyVisualMeshVertices(nullptr, visualHandle, copiedVertices, 3) == 0);
     assert(PHYSIK_CopyVisualMeshVertices(world, tetMesh, copiedVertices, 3) == 0);
     assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, nullptr, 3) == 0);

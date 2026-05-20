@@ -96,6 +96,19 @@ namespace
             world->GetComponent(sphereComponent));
     }
 
+    PhysiK::TetMeshComponent* AsTetMesh(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle tetMeshComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::TetMeshComponent*>(
+            world->GetComponent(tetMeshComponent));
+    }
+
     PhysiK::VisualMeshComponent* AsVisualMesh(
         PhysiK::World* world,
         PhysiK::ComponentHandle visualMeshComponent)
@@ -297,19 +310,59 @@ extern "C"
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateVisualMeshComponent(
         PhysiK::WorldHandle world,
-        PhysiK::ComponentHandle hostTetMeshHandle,
-        const char* debugName)
+        PhysiK::ComponentHandle hostTetMesh)
     {
         PhysiK::World* worldPtr = AsWorld(world);
-        if (worldPtr == nullptr)
+        if (worldPtr == nullptr || AsTetMesh(worldPtr, hostTetMesh) == nullptr)
         {
             return PhysiK::ComponentHandle{};
         }
 
         auto component = std::make_unique<PhysiK::VisualMeshComponent>(
-            hostTetMeshHandle,
-            debugName != nullptr ? std::string(debugName) : std::string{});
+            hostTetMesh,
+            std::string{});
         return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API void PHYSIK_SetVisualMeshData(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh,
+        const PhysiK::Vec3* vertices,
+        int vertexCount,
+        const int* triangleIndices,
+        int triangleIndexCount)
+    {
+        PhysiK::VisualMeshComponent* visual =
+            AsVisualMesh(AsWorld(world), visualMesh);
+        if (visual == nullptr)
+        {
+            return;
+        }
+
+        visual->SetVisualMesh(vertices, vertexCount, triangleIndices, triangleIndexCount);
+    }
+
+    PHYSIK_API int PHYSIK_BuildVisualMeshEmbedding(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        PhysiK::VisualMeshComponent* visual = AsVisualMesh(worldPtr, visualMesh);
+        if (worldPtr == nullptr || visual == nullptr)
+        {
+            return 0;
+        }
+
+        visual->BuildEmbedding(*worldPtr);
+        for (const PhysiK::EmbeddedVertex& embeddedVertex : visual->embeddedVertices)
+        {
+            if (embeddedVertex.valid)
+            {
+                return 1;
+            }
+        }
+
+        return 0;
     }
 
     PHYSIK_API int PHYSIK_GetVisualMeshVertexCount(

@@ -115,8 +115,19 @@ extern "C"
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateVisualMeshComponent(
         PhysiK::WorldHandle world,
-        PhysiK::ComponentHandle hostTetMeshHandle,
-        const char* debugName);
+        PhysiK::ComponentHandle hostTetMesh);
+
+    PHYSIK_API void PHYSIK_SetVisualMeshData(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh,
+        const PhysiK::Vec3* vertices,
+        int vertexCount,
+        const int* triangleIndices,
+        int triangleIndexCount);
+
+    PHYSIK_API int PHYSIK_BuildVisualMeshEmbedding(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh);
 
     PHYSIK_API int PHYSIK_GetVisualMeshVertexCount(
         PhysiK::WorldHandle world,
