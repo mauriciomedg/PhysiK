@@ -47,6 +47,7 @@ namespace PhysiK
             const int* triangleIndices,
             int triangleIndexCount);
         void BuildEmbedding(const World& world);
+        void UpdateDeformedVertices(const World& world);
         const std::vector<Vec3>& GetDeformedVertices() const;
         const std::vector<int>& GetTriangleIndices() const;
         void OnPhysicsEvent(const PhysicsEvent& event) override;

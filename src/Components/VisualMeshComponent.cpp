@@ -155,6 +155,69 @@ namespace PhysiK
         }
     }
 
+    void VisualMeshComponent::UpdateDeformedVertices(const World& world)
+    {
+        if (deformedVisualVertices.size() != restVisualVertices.size())
+        {
+            deformedVisualVertices = restVisualVertices;
+        }
+
+        if (embeddedVertices.size() != restVisualVertices.size())
+        {
+            return;
+        }
+
+        const Component* hostComponent = world.GetComponent(hostTetMeshHandle);
+        const TetMeshComponent* hostTetMesh =
+            dynamic_cast<const TetMeshComponent*>(hostComponent);
+        if (hostTetMesh == nullptr)
+        {
+            return;
+        }
+
+        const std::vector<Node>& nodes = world.GetNodes();
+
+        for (std::size_t vertexIndex = 0; vertexIndex < embeddedVertices.size(); ++vertexIndex)
+        {
+            const EmbeddedVertex& embeddedVertex = embeddedVertices[vertexIndex];
+            if (!embeddedVertex.valid ||
+                embeddedVertex.tetIndex < 0 ||
+                embeddedVertex.tetIndex >= static_cast<int>(hostTetMesh->tets.size()))
+            {
+                continue;
+            }
+
+            const Tet& tet =
+                hostTetMesh->tets[static_cast<std::size_t>(embeddedVertex.tetIndex)];
+            if (!tet.active)
+            {
+                continue;
+            }
+
+            const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            bool nodesAreValid = true;
+            for (int nodeIndex : nodeIndices)
+            {
+                if (nodeIndex < 0 || nodeIndex >= static_cast<int>(nodes.size()))
+                {
+                    nodesAreValid = false;
+                }
+            }
+
+            if (!nodesAreValid)
+            {
+                continue;
+            }
+
+            const Vec4& weights = embeddedVertex.barycentric;
+            deformedVisualVertices[vertexIndex] =
+                nodes[static_cast<std::size_t>(tet.node0)].position * weights.x +
+                nodes[static_cast<std::size_t>(tet.node1)].position * weights.y +
+                nodes[static_cast<std::size_t>(tet.node2)].position * weights.z +
+                nodes[static_cast<std::size_t>(tet.node3)].position * weights.w;
+        }
+    }
+
     const std::vector<Vec3>& VisualMeshComponent::GetDeformedVertices() const
     {
         return deformedVisualVertices;
@@ -183,14 +246,13 @@ namespace PhysiK
 
     void VisualMeshComponent::PostUpdate(World& world, float dt)
     {
-        (void)world;
         (void)dt;
-        if (!topologyDirty)
-        {
-            return;
-        }
+        UpdateDeformedVertices(world);
 
-        // TODO: rebuild visual mesh embedding/update data after topology changes.
-        topologyDirty = false;
+        if (topologyDirty)
+        {
+            // TODO: rebuild visual mesh embedding/triangle state after topology changes.
+            topologyDirty = false;
+        }
     }
 }

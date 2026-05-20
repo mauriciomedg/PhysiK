@@ -2316,6 +2316,50 @@ void VisualMeshComponentBuildsBruteForceEmbedding()
     PHYSIK_DestroyWorld(world);
 }
 
+void VisualMeshComponentUpdatesDeformedVerticesFromHostTet()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    PhysiK::VisualMeshComponent visual(tetMesh, "test visual");
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
+        PhysiK::Vec3{2.0f, 2.0f, 2.0f}};
+
+    visual.SetVisualMesh(vertices, 2, nullptr, 0);
+    visual.BuildEmbedding(*static_cast<PhysiK::World*>(world));
+
+    PHYSIK_SetNodePosition(world, nodes[0], 0.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[1], 2.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[2], 0.0f, 2.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[3], 0.0f, 0.0f, 3.0f);
+
+    visual.UpdateDeformedVertices(*static_cast<PhysiK::World*>(world));
+
+    assert(NearlyEqual(
+        visual.GetDeformedVertices()[0],
+        PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
+    assert(NearlyEqual(visual.GetDeformedVertices()[1], vertices[1]));
+
+    visual.topologyDirty = true;
+    visual.PostUpdate(*static_cast<PhysiK::World*>(world), 0.0f);
+    assert(!visual.topologyDirty);
+    assert(NearlyEqual(
+        visual.GetDeformedVertices()[0],
+        PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
+
+    PHYSIK_DeactivateTet(world, tetMesh, 0);
+    PHYSIK_SetNodePosition(world, nodes[0], 10.0f, 10.0f, 10.0f);
+    visual.UpdateDeformedVertices(*static_cast<PhysiK::World*>(world));
+    assert(NearlyEqual(
+        visual.GetDeformedVertices()[0],
+        PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -2703,6 +2747,7 @@ int main()
     VisualMeshComponentCanBeCreatedThroughNativeApi();
     VisualMeshComponentStoresVisualMeshData();
     VisualMeshComponentBuildsBruteForceEmbedding();
+    VisualMeshComponentUpdatesDeformedVerticesFromHostTet();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();
