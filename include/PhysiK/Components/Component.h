@@ -6,8 +6,6 @@
 
 namespace PhysiK
 {
-    class CollisionDetectionEngine;
-    struct Contact;
     class SolverData;
     class World;
 
@@ -19,13 +17,6 @@ namespace PhysiK
         std::vector<PhysicsEventType> emittedEvents;
 
         virtual void PreUpdate(World&, float)
-        {
-        }
-
-        virtual void QueryContacts(
-            World&,
-            CollisionDetectionEngine&,
-            std::vector<Contact>&)
         {
         }
 

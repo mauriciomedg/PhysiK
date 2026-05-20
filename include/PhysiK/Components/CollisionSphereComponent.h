@@ -9,6 +9,8 @@
 
 namespace PhysiK
 {
+    class SolverData;
+
     enum class OverlapGeometryType
     {
         Unknown = 0,
@@ -53,10 +55,7 @@ namespace PhysiK
         void SetConnectionDamping(float damping);
         float GetConnectionDamping() const;
 
-        void QueryContacts(
-            World& world,
-            CollisionDetectionEngine& collisionDetectionEngine,
-            std::vector<Contact>& outContacts) override;
+        void UpdateSystem(World& world, SolverData& solverData, float dt) override;
 
         void QueryOverlaps(
             World& world,

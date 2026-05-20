@@ -4,12 +4,9 @@
 
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Math/Transform.h"
-#include "PhysiK/PhysicsData/Contact.h"
 
 namespace PhysiK
 {
-    class CollisionDetectionEngine;
-
     class CollisionComponent : public Component
     {
     public:
@@ -25,11 +22,6 @@ namespace PhysiK
         void SetKinematicTarget(const Transform& target);
         bool ConsumeKinematicTarget(Transform& outTarget);
         void PreUpdate(World& world, float dt) override;
-
-        void QueryContacts(
-            World& world,
-            CollisionDetectionEngine& collisionDetectionEngine,
-            std::vector<Contact>& outContacts) override;
 
     private:
         bool hasKinematicTarget = false;

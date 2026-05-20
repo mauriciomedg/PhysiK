@@ -420,18 +420,6 @@ namespace PhysiK
             buildTimer.emplace();
         }
 
-        std::optional<PerformanceTimer> collisionTimer;
-        if (logPerformance)
-        {
-            collisionTimer.emplace();
-        }
-        GenerateCollisionConnections();
-        if (logPerformance)
-        {
-            performanceRecord->generateCollisionConnectionsMs =
-                collisionTimer->ElapsedMilliseconds();
-        }
-
         std::optional<PerformanceTimer> componentTimer;
         if (logPerformance)
         {
@@ -490,8 +478,6 @@ namespace PhysiK
 #else
     void World::BuildSolverData(SolverData& solverData, float dt)
     {
-        GenerateCollisionConnections();
-
         AssembleComponentSystems(solverData, dt);
         AddDefaultNodeMasses(solverData);
         AddGravityForces(solverData);
@@ -593,27 +579,6 @@ namespace PhysiK
         }
     }
 
-    void World::GenerateCollisionConnections()
-    {
-        std::vector<Contact> contacts;
-
-        for (const std::unique_ptr<Component>& component : components)
-        {
-            if (component == nullptr || !component->active)
-            {
-                continue;
-            }
-
-            contacts.clear();
-            component->QueryContacts(*this, collisionDetectionEngine, contacts);
-
-            for (const Contact& contact : contacts)
-            {
-                GeneratePointConnectionFromContact(contact);
-            }
-        }
-    }
-
     void World::AssembleComponentSystems(SolverData& solverData, float dt)
     {
         for (const std::unique_ptr<Component>& component : components)
@@ -650,25 +615,6 @@ namespace PhysiK
         }
     }
 #endif
-
-    void World::GeneratePointConnectionFromContact(const Contact& contact)
-    {
-        if (contact.penetrationDepth <= 0.0f)
-        {
-            return;
-        }
-
-        PointConnection connection;
-        connection.node0 = contact.node0;
-        connection.node1 = contact.node1;
-        connection.node2 = contact.node2;
-        connection.node3 = contact.node3;
-        connection.barycentric = contact.barycentric;
-        connection.targetPosition = contact.worldPoint + contact.normal * contact.penetrationDepth;
-        connection.stiffness = contact.stiffness;
-        connection.damping = contact.damping;
-        AddPointConnection(connection);
-    }
 
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
     void World::PrecomputeSolve(
