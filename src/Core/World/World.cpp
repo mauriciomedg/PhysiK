@@ -1,7 +1,6 @@
 #include "PhysiK/Core/World/World.h"
 
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
-#include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #endif
 
@@ -64,6 +63,14 @@ namespace PhysiK
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         const bool logPerformance = performanceLogger.IsEnabled();
 #endif
+
+        for (const std::unique_ptr<Component>& component : components)
+        {
+            if (component != nullptr && component->active)
+            {
+                component->Execute(*this);
+            }
+        }
 
         for (int i = 0; i < steps; ++i)
         {
