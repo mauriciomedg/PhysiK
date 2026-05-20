@@ -60,6 +60,8 @@ namespace PhysiK
         std::vector<Tet> tets;
         std::vector<TetFemCache> tetFemCache;
 
+        bool topologyDirty = false;
+
         Material material;
         FemModel selectedFemModel = FemModel::Linear;
         FEMModel femModel;
@@ -99,5 +101,7 @@ namespace PhysiK
             World& world,
             SolverData& solverData,
             float dt) override;
+
+        void Execute(World& world) override;
     };
 }

@@ -51,6 +51,8 @@ namespace PhysiK
             (void)event;
         }
 
+        virtual void Execute(World& world) {};
+
         virtual ~Component() = default;
     };
 }

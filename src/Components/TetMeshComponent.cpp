@@ -302,6 +302,7 @@ namespace PhysiK
     void TetMeshComponent::DeactivateTet(int tetIndex)
     {
         SetTetActive(tetIndex, false);
+        topologyDirty = true;
     }
 
     int TetMeshComponent::GetActiveTetCount() const
@@ -374,5 +375,21 @@ namespace PhysiK
                     femSparseMatrix.values[static_cast<std::size_t>(blockIndex)]);
             }
         }
+    }
+
+    void TetMeshComponent::Execute(World& world)
+    {
+        if (!topologyDirty)
+            return;
+
+        PhysicsEvent event;
+        event.type = PhysicsEventType::TetMeshTopologyChanged;
+        event.world = &world;
+        event.sender = this;
+        //event.objectIndex = lastChangedTetIndex; // optional
+
+        world.EmitEvent(event);
+
+        topologyDirty = false;
     }
 }
