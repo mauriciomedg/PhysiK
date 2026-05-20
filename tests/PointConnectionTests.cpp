@@ -2360,6 +2360,37 @@ void VisualMeshComponentUpdatesDeformedVerticesFromHostTet()
     PHYSIK_DestroyWorld(world);
 }
 
+void VisualMeshComponentCAPIExportsMeshBuffers()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle visualHandle =
+        PHYSIK_CreateVisualMeshComponent(world, tetMesh, "api visual");
+
+    assert(PHYSIK_IsComponentHandleValid(world, visualHandle) == 1);
+    assert(PHYSIK_GetVisualMeshVertexCount(world, visualHandle) == 0);
+    assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, visualHandle) == 0);
+
+    PhysiK::Vec3 copiedVertices[3] = {};
+    int copiedIndices[3] = {};
+    assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, copiedVertices, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, copiedIndices, 3) == 0);
+
+    assert(PHYSIK_GetVisualMeshVertexCount(nullptr, visualHandle) == 0);
+    assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, tetMesh) == 0);
+    assert(PHYSIK_CopyVisualMeshVertices(nullptr, visualHandle, copiedVertices, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshVertices(world, tetMesh, copiedVertices, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, nullptr, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, copiedVertices, 0) == 0);
+    assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, nullptr, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, copiedIndices, 0) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -2748,6 +2779,7 @@ int main()
     VisualMeshComponentStoresVisualMeshData();
     VisualMeshComponentBuildsBruteForceEmbedding();
     VisualMeshComponentUpdatesDeformedVerticesFromHostTet();
+    VisualMeshComponentCAPIExportsMeshBuffers();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PhysiK/API/Handles.h"
+#include "PhysiK/Math/Vec3.h"
 
 #ifdef _WIN32
 #if defined(PHYSIK_BUILDING_DLL)
@@ -116,6 +117,26 @@ extern "C"
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle hostTetMeshHandle,
         const char* debugName);
+
+    PHYSIK_API int PHYSIK_GetVisualMeshVertexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh);
+
+    PHYSIK_API int PHYSIK_GetVisualMeshTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh);
+
+    PHYSIK_API int PHYSIK_CopyVisualMeshVertices(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh,
+        PhysiK::Vec3* outVertices,
+        int maxVertexCount);
+
+    PHYSIK_API int PHYSIK_CopyVisualMeshTriangleIndices(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh,
+        int* outIndices,
+        int maxIndexCount);
 
     PHYSIK_API void PHYSIK_SetCollisionSphereConnectionSettings(
         PhysiK::WorldHandle world,

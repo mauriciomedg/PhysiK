@@ -95,6 +95,32 @@ namespace
         return dynamic_cast<PhysiK::CollisionSphereComponent*>(
             world->GetComponent(sphereComponent));
     }
+
+    PhysiK::VisualMeshComponent* AsVisualMesh(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle visualMeshComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::VisualMeshComponent*>(
+            world->GetComponent(visualMeshComponent));
+    }
+
+    const PhysiK::VisualMeshComponent* AsVisualMesh(
+        const PhysiK::World* world,
+        PhysiK::ComponentHandle visualMeshComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<const PhysiK::VisualMeshComponent*>(
+            world->GetComponent(visualMeshComponent));
+    }
 }
 
 extern "C"
@@ -284,6 +310,90 @@ extern "C"
             hostTetMeshHandle,
             debugName != nullptr ? std::string(debugName) : std::string{});
         return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API int PHYSIK_GetVisualMeshVertexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh)
+    {
+        const PhysiK::VisualMeshComponent* visual =
+            AsVisualMesh(AsWorld(world), visualMesh);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(visual->GetDeformedVertices().size());
+    }
+
+    PHYSIK_API int PHYSIK_GetVisualMeshTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh)
+    {
+        const PhysiK::VisualMeshComponent* visual =
+            AsVisualMesh(AsWorld(world), visualMesh);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(visual->GetTriangleIndices().size());
+    }
+
+    PHYSIK_API int PHYSIK_CopyVisualMeshVertices(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh,
+        PhysiK::Vec3* outVertices,
+        int maxVertexCount)
+    {
+        if (outVertices == nullptr || maxVertexCount <= 0)
+        {
+            return 0;
+        }
+
+        const PhysiK::VisualMeshComponent* visual =
+            AsVisualMesh(AsWorld(world), visualMesh);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        const std::vector<PhysiK::Vec3>& vertices = visual->GetDeformedVertices();
+        const int writeCount = std::min(maxVertexCount, static_cast<int>(vertices.size()));
+        for (int i = 0; i < writeCount; ++i)
+        {
+            outVertices[i] = vertices[static_cast<std::size_t>(i)];
+        }
+
+        return writeCount;
+    }
+
+    PHYSIK_API int PHYSIK_CopyVisualMeshTriangleIndices(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle visualMesh,
+        int* outIndices,
+        int maxIndexCount)
+    {
+        if (outIndices == nullptr || maxIndexCount <= 0)
+        {
+            return 0;
+        }
+
+        const PhysiK::VisualMeshComponent* visual =
+            AsVisualMesh(AsWorld(world), visualMesh);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        const std::vector<int>& indices = visual->GetTriangleIndices();
+        const int writeCount = std::min(maxIndexCount, static_cast<int>(indices.size()));
+        for (int i = 0; i < writeCount; ++i)
+        {
+            outIndices[i] = indices[static_cast<std::size_t>(i)];
+        }
+
+        return writeCount;
     }
 
     PHYSIK_API void PHYSIK_SetCollisionSphereConnectionSettings(
