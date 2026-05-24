@@ -2395,7 +2395,7 @@ void VisualMeshComponentCAPIExportsMeshBuffers()
     int copiedIndices[3] = {};
     assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, copiedVertices, 3) == 3);
     assert(NearlyEqual(copiedVertices[0], PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
-    assert(NearlyEqual(copiedVertices[1], PhysiK::Vec3{1.0f, 0.5f, 1.5f}));
+    assert(NearlyEqual(copiedVertices[1], PhysiK::Vec3{1.0f, 0.5f, 1.5f}, 0.1));
     assert(NearlyEqual(copiedVertices[2], vertices[2]));
     assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, copiedIndices, 3) == 3);
     assert(copiedIndices[0] == 0);

@@ -7,6 +7,7 @@ namespace PhysiK
     struct Node
     {
         Vec3 position;
+        Vec3 restPosition;
         Vec3 velocity;
         bool fixed = false;
     };

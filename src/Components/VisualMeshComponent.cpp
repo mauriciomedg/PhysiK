@@ -132,10 +132,10 @@ namespace PhysiK
                 Vec4 barycentric;
                 if (!ComputeTetBarycentric(
                         restVisualVertices[vertexIndex],
-                        nodes[static_cast<std::size_t>(tet.node0)].position,
-                        nodes[static_cast<std::size_t>(tet.node1)].position,
-                        nodes[static_cast<std::size_t>(tet.node2)].position,
-                        nodes[static_cast<std::size_t>(tet.node3)].position,
+                        nodes[static_cast<std::size_t>(tet.node0)].restPosition,
+                        nodes[static_cast<std::size_t>(tet.node1)].restPosition,
+                        nodes[static_cast<std::size_t>(tet.node2)].restPosition,
+                        nodes[static_cast<std::size_t>(tet.node3)].restPosition,
                         barycentric))
                 {
                     continue;

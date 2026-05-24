@@ -131,6 +131,7 @@ namespace PhysiK
     {
         Node node;
         node.position = position;
+        node.restPosition = position;
         nodes.push_back(node);
         return static_cast<int>(nodes.size()) - 1;
     }
