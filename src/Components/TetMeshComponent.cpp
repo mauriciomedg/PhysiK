@@ -297,12 +297,12 @@ namespace PhysiK
         }
 
         tets[static_cast<std::size_t>(tetIndex)].active = active;
+        topologyDirty = true;
     }
 
     void TetMeshComponent::DeactivateTet(int tetIndex)
     {
         SetTetActive(tetIndex, false);
-        topologyDirty = true;
     }
 
     int TetMeshComponent::GetActiveTetCount() const
