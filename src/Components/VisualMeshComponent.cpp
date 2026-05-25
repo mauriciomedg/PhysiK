@@ -64,6 +64,7 @@ namespace PhysiK
         restVisualVertices.clear();
         deformedVisualVertices.clear();
         this->triangleIndices.clear();
+        filteredTriangleIndices.clear();
         embeddedVertices.clear();
         triangleValid.clear();
 
@@ -79,6 +80,7 @@ namespace PhysiK
             this->triangleIndices.assign(
                 triangleIndices,
                 triangleIndices + triangleIndexCount);
+            filteredTriangleIndices = this->triangleIndices;
             triangleValid.assign(
                 static_cast<std::size_t>(triangleIndexCount / 3),
                 true);
@@ -153,6 +155,67 @@ namespace PhysiK
                 }
             }
         }
+
+        UpdateTriangleValidity(world);
+    }
+
+    void VisualMeshComponent::UpdateTriangleValidity(const World& world)
+    {
+        filteredTriangleIndices.clear();
+
+        const std::size_t triangleCount = triangleIndices.size() / 3u;
+        triangleValid.assign(triangleCount, false);
+        if (triangleCount == 0u)
+        {
+            return;
+        }
+
+        const Component* hostComponent = world.GetComponent(hostTetMeshHandle);
+        const TetMeshComponent* hostTetMesh =
+            dynamic_cast<const TetMeshComponent*>(hostComponent);
+        if (hostTetMesh == nullptr)
+        {
+            return;
+        }
+
+        for (std::size_t triangleIndex = 0; triangleIndex < triangleCount; ++triangleIndex)
+        {
+            const std::size_t firstIndex = triangleIndex * 3u;
+            const int vertex0 = triangleIndices[firstIndex];
+            const int vertex1 = triangleIndices[firstIndex + 1u];
+            const int vertex2 = triangleIndices[firstIndex + 2u];
+            const int vertices[3] = {vertex0, vertex1, vertex2};
+
+            bool valid = true;
+            for (int vertexIndex : vertices)
+            {
+                if (vertexIndex < 0 ||
+                    vertexIndex >= static_cast<int>(embeddedVertices.size()))
+                {
+                    valid = false;
+                    break;
+                }
+
+                const EmbeddedVertex& embeddedVertex =
+                    embeddedVertices[static_cast<std::size_t>(vertexIndex)];
+                if (!embeddedVertex.valid ||
+                    embeddedVertex.tetIndex < 0 ||
+                    embeddedVertex.tetIndex >= static_cast<int>(hostTetMesh->tets.size()) ||
+                    !hostTetMesh->tets[static_cast<std::size_t>(embeddedVertex.tetIndex)].active)
+                {
+                    valid = false;
+                    break;
+                }
+            }
+
+            triangleValid[triangleIndex] = valid;
+            if (valid)
+            {
+                filteredTriangleIndices.push_back(vertex0);
+                filteredTriangleIndices.push_back(vertex1);
+                filteredTriangleIndices.push_back(vertex2);
+            }
+        }
     }
 
     void VisualMeshComponent::UpdateDeformedVertices(const World& world)
@@ -225,7 +288,7 @@ namespace PhysiK
 
     const std::vector<int>& VisualMeshComponent::GetTriangleIndices() const
     {
-        return triangleIndices;
+        return filteredTriangleIndices;
     }
 
     void VisualMeshComponent::OnPhysicsEvent(const PhysicsEvent& event)
@@ -247,12 +310,13 @@ namespace PhysiK
     void VisualMeshComponent::PostUpdate(World& world, float dt)
     {
         (void)dt;
-        UpdateDeformedVertices(world);
 
         if (topologyDirty)
         {
-            // TODO: rebuild visual mesh embedding/triangle state after topology changes.
+            UpdateTriangleValidity(world);
             topologyDirty = false;
         }
+
+        UpdateDeformedVertices(world);
     }
 }

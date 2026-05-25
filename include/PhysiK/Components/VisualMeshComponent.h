@@ -38,6 +38,7 @@ namespace PhysiK
         std::vector<Vec3> restVisualVertices;
         std::vector<Vec3> deformedVisualVertices;
         std::vector<int> triangleIndices;
+        std::vector<int> filteredTriangleIndices;
         std::vector<EmbeddedVertex> embeddedVertices;
         std::vector<bool> triangleValid;
 
@@ -47,6 +48,7 @@ namespace PhysiK
             const int* triangleIndices,
             int triangleIndexCount);
         void BuildEmbedding(const World& world);
+        void UpdateTriangleValidity(const World& world);
         void UpdateDeformedVertices(const World& world);
         const std::vector<Vec3>& GetDeformedVertices() const;
         const std::vector<int>& GetTriangleIndices() const;
