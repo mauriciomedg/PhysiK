@@ -55,22 +55,13 @@ namespace PhysiK
         }
 
         RunExternalLogic();
-        UpdateFrameComponents(frameDt);
-        UpdateKinematicTargets();
+        PreUpdateComponents(frameDt);
 
         const int steps = std::max(1, substepCount);
         const float substepDt = frameDt / static_cast<float>(steps);
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         const bool logPerformance = performanceLogger.IsEnabled();
 #endif
-
-        for (const std::unique_ptr<Component>& component : components)
-        {
-            if (component != nullptr && component->active)
-            {
-                component->Execute(*this);
-            }
-        }
 
         for (int i = 0; i < steps; ++i)
         {
@@ -129,6 +120,8 @@ namespace PhysiK
             ClearTransientConnections();
         }
 
+        PostUpdateComponents(frameDt);
+
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         ++frameIndex;
 #endif
@@ -138,6 +131,7 @@ namespace PhysiK
     {
         Node node;
         node.position = position;
+        node.restPosition = position;
         nodes.push_back(node);
         return static_cast<int>(nodes.size()) - 1;
     }
@@ -392,24 +386,24 @@ namespace PhysiK
         }
     }
 
-    void World::UpdateFrameComponents(float frameDt)
+    void World::PreUpdateComponents(float frameDt)
     {
         for (const std::unique_ptr<Component>& component : components)
         {
             if (component != nullptr && component->active)
             {
-                component->UpdateFrame(*this, frameDt);
+                component->PreUpdate(*this, frameDt);
             }
         }
     }
 
-    void World::UpdateKinematicTargets()
+    void World::PostUpdateComponents(float frameDt)
     {
         for (const std::unique_ptr<Component>& component : components)
         {
             if (component != nullptr && component->active)
             {
-                component->UpdateKinematicTarget(*this);
+                component->PostUpdate(*this, frameDt);
             }
         }
     }
@@ -425,18 +419,6 @@ namespace PhysiK
         if (logPerformance)
         {
             buildTimer.emplace();
-        }
-
-        std::optional<PerformanceTimer> collisionTimer;
-        if (logPerformance)
-        {
-            collisionTimer.emplace();
-        }
-        GenerateCollisionConnections();
-        if (logPerformance)
-        {
-            performanceRecord->generateCollisionConnectionsMs =
-                collisionTimer->ElapsedMilliseconds();
         }
 
         std::optional<PerformanceTimer> componentTimer;
@@ -497,8 +479,6 @@ namespace PhysiK
 #else
     void World::BuildSolverData(SolverData& solverData, float dt)
     {
-        GenerateCollisionConnections();
-
         AssembleComponentSystems(solverData, dt);
         AddDefaultNodeMasses(solverData);
         AddGravityForces(solverData);
@@ -600,27 +580,6 @@ namespace PhysiK
         }
     }
 
-    void World::GenerateCollisionConnections()
-    {
-        std::vector<Contact> contacts;
-
-        for (const std::unique_ptr<Component>& component : components)
-        {
-            if (component == nullptr || !component->active)
-            {
-                continue;
-            }
-
-            contacts.clear();
-            component->QueryContacts(*this, collisionDetectionEngine, contacts);
-
-            for (const Contact& contact : contacts)
-            {
-                GeneratePointConnectionFromContact(contact);
-            }
-        }
-    }
-
     void World::AssembleComponentSystems(SolverData& solverData, float dt)
     {
         for (const std::unique_ptr<Component>& component : components)
@@ -657,25 +616,6 @@ namespace PhysiK
         }
     }
 #endif
-
-    void World::GeneratePointConnectionFromContact(const Contact& contact)
-    {
-        if (contact.penetrationDepth <= 0.0f)
-        {
-            return;
-        }
-
-        PointConnection connection;
-        connection.node0 = contact.node0;
-        connection.node1 = contact.node1;
-        connection.node2 = contact.node2;
-        connection.node3 = contact.node3;
-        connection.barycentric = contact.barycentric;
-        connection.targetPosition = contact.worldPoint + contact.normal * contact.penetrationDepth;
-        connection.stiffness = contact.stiffness;
-        connection.damping = contact.damping;
-        AddPointConnection(connection);
-    }
 
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
     void World::PrecomputeSolve(

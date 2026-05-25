@@ -6,8 +6,6 @@
 
 namespace PhysiK
 {
-    class CollisionDetectionEngine;
-    struct Contact;
     class SolverData;
     class World;
 
@@ -18,40 +16,21 @@ namespace PhysiK
         std::vector<PhysicsEventType> listenedEvents;
         std::vector<PhysicsEventType> emittedEvents;
 
-        virtual void UpdateFrame(World& world, float dt)
+        virtual void PreUpdate(World&, float)
         {
-            (void)world;
-            (void)dt;
         }
 
-        virtual void UpdateKinematicTarget(World& world)
+        virtual void UpdateSystem(World&, SolverData&, float)
         {
-            (void)world;
         }
 
-        virtual void QueryContacts(
-            World& world,
-            CollisionDetectionEngine& collisionDetectionEngine,
-            std::vector<Contact>& outContacts)
+        virtual void PostUpdate(World&, float)
         {
-            (void)world;
-            (void)collisionDetectionEngine;
-            (void)outContacts;
         }
 
-        virtual void UpdateSystem(World& world, SolverData& solverData, float dt)
+        virtual void OnPhysicsEvent(const PhysicsEvent&)
         {
-            (void)world;
-            (void)solverData;
-            (void)dt;
         }
-
-        virtual void OnPhysicsEvent(const PhysicsEvent& event)
-        {
-            (void)event;
-        }
-
-        virtual void Execute(World& world) {};
 
         virtual ~Component() = default;
     };

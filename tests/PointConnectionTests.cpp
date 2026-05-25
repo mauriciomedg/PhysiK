@@ -1,5 +1,6 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Core/Events/EventSystem.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
@@ -2210,6 +2211,224 @@ void EventSystemDeliversSubscribedEventsOnlyOnce()
     assert(listener.eventCount == 1);
 }
 
+void VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    PhysiK::VisualMeshComponent visual;
+
+    assert(visual.listenedEvents.size() == 1);
+    assert(visual.listenedEvents[0] == PhysiK::PhysicsEventType::TetMeshTopologyChanged);
+
+    visual.topologyDirty = true;
+    visual.PostUpdate(*static_cast<PhysiK::World*>(world), 0.0f);
+    assert(!visual.topologyDirty);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void VisualMeshComponentCanBeCreatedThroughNativeApi()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle visual =
+        PHYSIK_CreateVisualMeshComponent(world, tetMesh);
+
+    assert(PHYSIK_IsComponentHandleValid(world, visual) == 1);
+
+    PHYSIK_DeactivateTet(world, tetMesh, 0);
+    PHYSIK_Step(world, 0.01f);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void VisualMeshComponentStoresVisualMeshData()
+{
+    PhysiK::VisualMeshComponent visual;
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int indices[] = {0, 1, 2, 0, 2, 3};
+
+    visual.SetVisualMesh(vertices, 4, indices, 6);
+
+    assert(visual.restVisualVertices.size() == 4);
+    assert(visual.GetDeformedVertices().size() == 4);
+    assert(visual.GetTriangleIndices().size() == 6);
+    assert(visual.embeddedVertices.size() == 4);
+    assert(visual.triangleValid.size() == 2);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        assert(NearlyEqual(visual.restVisualVertices[i], vertices[i]));
+        assert(NearlyEqual(visual.GetDeformedVertices()[i], vertices[i]));
+        assert(visual.embeddedVertices[i].tetIndex == -1);
+        assert(!visual.embeddedVertices[i].valid);
+    }
+
+    for (int i = 0; i < 6; ++i)
+    {
+        assert(visual.GetTriangleIndices()[i] == indices[i]);
+    }
+
+    for (bool valid : visual.triangleValid)
+    {
+        assert(valid);
+    }
+}
+
+void VisualMeshComponentBuildsBruteForceEmbedding()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    PhysiK::VisualMeshComponent visual(tetMesh, "test visual");
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
+        PhysiK::Vec3{2.0f, 2.0f, 2.0f}};
+
+    visual.SetVisualMesh(vertices, 2, nullptr, 0);
+    visual.BuildEmbedding(*static_cast<PhysiK::World*>(world));
+
+    assert(visual.embeddedVertices.size() == 2);
+    assert(visual.embeddedVertices[0].valid);
+    assert(visual.embeddedVertices[0].tetIndex == 0);
+    assert(NearlyEqual(visual.embeddedVertices[0].barycentric.x, 0.25f));
+    assert(NearlyEqual(visual.embeddedVertices[0].barycentric.y, 0.25f));
+    assert(NearlyEqual(visual.embeddedVertices[0].barycentric.z, 0.25f));
+    assert(NearlyEqual(visual.embeddedVertices[0].barycentric.w, 0.25f));
+    assert(!visual.embeddedVertices[1].valid);
+    assert(visual.embeddedVertices[1].tetIndex == -1);
+
+    PHYSIK_DeactivateTet(world, tetMesh, 0);
+    visual.BuildEmbedding(*static_cast<PhysiK::World*>(world));
+    assert(!visual.embeddedVertices[0].valid);
+    assert(visual.embeddedVertices[0].tetIndex == -1);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void VisualMeshComponentUpdatesDeformedVerticesFromHostTet()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    PhysiK::VisualMeshComponent visual(tetMesh, "test visual");
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
+        PhysiK::Vec3{2.0f, 2.0f, 2.0f}};
+
+    visual.SetVisualMesh(vertices, 2, nullptr, 0);
+    visual.BuildEmbedding(*static_cast<PhysiK::World*>(world));
+
+    PHYSIK_SetNodePosition(world, nodes[0], 0.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[1], 2.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[2], 0.0f, 2.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[3], 0.0f, 0.0f, 3.0f);
+
+    visual.UpdateDeformedVertices(*static_cast<PhysiK::World*>(world));
+
+    assert(NearlyEqual(
+        visual.GetDeformedVertices()[0],
+        PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
+    assert(NearlyEqual(visual.GetDeformedVertices()[1], vertices[1]));
+
+    visual.topologyDirty = true;
+    visual.PostUpdate(*static_cast<PhysiK::World*>(world), 0.0f);
+    assert(!visual.topologyDirty);
+    assert(NearlyEqual(
+        visual.GetDeformedVertices()[0],
+        PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
+
+    PHYSIK_DeactivateTet(world, tetMesh, 0);
+    PHYSIK_SetNodePosition(world, nodes[0], 10.0f, 10.0f, 10.0f);
+    visual.UpdateDeformedVertices(*static_cast<PhysiK::World*>(world));
+    assert(NearlyEqual(
+        visual.GetDeformedVertices()[0],
+        PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void VisualMeshComponentCAPIExportsMeshBuffers()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle visualHandle =
+        PHYSIK_CreateVisualMeshComponent(world, tetMesh);
+
+    assert(PHYSIK_IsComponentHandleValid(world, visualHandle) == 1);
+    assert(PHYSIK_GetVisualMeshVertexCount(world, visualHandle) == 0);
+    assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, visualHandle) == 0);
+
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
+        PhysiK::Vec3{0.5f, 0.25f, 0.25f},
+        PhysiK::Vec3{0.25f, 0.5f, 0.25f},
+        PhysiK::Vec3{2.0f, 2.0f, 2.0f}};
+    const int indices[] = {0, 1, 2, 0, 2, 3};
+    PHYSIK_SetVisualMeshData(world, visualHandle, vertices, 4, indices, 6);
+
+    assert(PHYSIK_GetVisualMeshVertexCount(world, visualHandle) == 4);
+    assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, visualHandle) == 6);
+    assert(PHYSIK_BuildVisualMeshEmbedding(world, visualHandle) == 1);
+    assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, visualHandle) == 3);
+
+    PHYSIK_SetNodePosition(world, nodes[0], 0.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[1], 2.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[2], 0.0f, 2.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[3], 0.0f, 0.0f, 3.0f);
+    PHYSIK_Step(world, 0.01f);
+
+    PhysiK::Vec3 copiedVertices[4] = {};
+    int copiedIndices[6] = {};
+    assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, copiedVertices, 4) == 4);
+    assert(NearlyEqual(copiedVertices[0], PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
+    assert(NearlyEqual(copiedVertices[1], PhysiK::Vec3{1.0f, 0.5f, 1.5f}, 0.1));
+    assert(NearlyEqual(copiedVertices[2], PhysiK::Vec3{0.5f, 1.0f, 1.5f}, 0.1));
+    assert(NearlyEqual(copiedVertices[3], vertices[3]));
+    assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, copiedIndices, 6) == 3);
+    assert(copiedIndices[0] == 0);
+    assert(copiedIndices[1] == 1);
+    assert(copiedIndices[2] == 2);
+
+    PHYSIK_DeactivateTet(world, tetMesh, 0);
+    PHYSIK_Step(world, 0.01f);
+    assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, visualHandle) == 0);
+    assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, copiedIndices, 6) == 0);
+
+    assert(PHYSIK_GetVisualMeshVertexCount(nullptr, visualHandle) == 0);
+    assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, tetMesh) == 0);
+    assert(PHYSIK_CreateVisualMeshComponent(nullptr, tetMesh).IsValid() == false);
+    assert(PHYSIK_CreateVisualMeshComponent(world, PhysiK::ComponentHandle{}).IsValid() == false);
+    assert(PHYSIK_CreateVisualMeshComponent(world, visualHandle).IsValid() == false);
+    assert(PHYSIK_BuildVisualMeshEmbedding(nullptr, visualHandle) == 0);
+    assert(PHYSIK_BuildVisualMeshEmbedding(world, tetMesh) == 0);
+    PHYSIK_SetVisualMeshData(nullptr, visualHandle, vertices, 4, indices, 6);
+    PHYSIK_SetVisualMeshData(world, tetMesh, vertices, 4, indices, 6);
+    assert(PHYSIK_CopyVisualMeshVertices(nullptr, visualHandle, copiedVertices, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshVertices(world, tetMesh, copiedVertices, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, nullptr, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshVertices(world, visualHandle, copiedVertices, 0) == 0);
+    assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, nullptr, 3) == 0);
+    assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, copiedIndices, 0) == 0);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -2593,6 +2812,12 @@ int main()
     TetMeshComponentDefaultFemModelIsLinear();
     TetMeshComponentStoresSelectedFemModel();
     EventSystemDeliversSubscribedEventsOnlyOnce();
+    VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag();
+    VisualMeshComponentCanBeCreatedThroughNativeApi();
+    VisualMeshComponentStoresVisualMeshData();
+    VisualMeshComponentBuildsBruteForceEmbedding();
+    VisualMeshComponentUpdatesDeformedVerticesFromHostTet();
+    VisualMeshComponentCAPIExportsMeshBuffers();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();

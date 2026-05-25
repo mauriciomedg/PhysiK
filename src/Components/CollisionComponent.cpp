@@ -2,19 +2,10 @@
 
 namespace PhysiK
 {
-    void CollisionComponent::QueryContacts(
-        World& world,
-        CollisionDetectionEngine& collisionDetectionEngine,
-        std::vector<Contact>& outContacts)
+    void CollisionComponent::PreUpdate(World& world, float dt)
     {
         (void)world;
-        (void)collisionDetectionEngine;
-        (void)outContacts;
-    }
-
-    void CollisionComponent::UpdateKinematicTarget(World& world)
-    {
-        (void)world;
+        (void)dt;
 
         Transform target;
         if (ConsumeKinematicTarget(target))

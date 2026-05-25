@@ -5,8 +5,10 @@
 #include <memory>
 
 #include "PhysiK/Components/TetMeshComponent.h"
-#include "PhysiK/Core/Collision/CollisionDetectionEngine.h"
+#include "PhysiK/Core/PhysicsConnections/PointConnection.h"
+#include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
+#include "PhysiK/PhysicsData/Contact.h"
 
 namespace PhysiK
 {
@@ -40,6 +42,26 @@ namespace PhysiK
             }
 
             return std::max(0.0f, value);
+        }
+
+        void AddPointConnectionFromContact(World& world, const Contact& contact)
+        {
+            if (contact.penetrationDepth <= 0.0f)
+            {
+                return;
+            }
+
+            PointConnection connection;
+            connection.node0 = contact.node0;
+            connection.node1 = contact.node1;
+            connection.node2 = contact.node2;
+            connection.node3 = contact.node3;
+            connection.barycentric = contact.barycentric;
+            connection.targetPosition =
+                contact.worldPoint + contact.normal * contact.penetrationDepth;
+            connection.stiffness = contact.stiffness;
+            connection.damping = contact.damping;
+            world.AddPointConnection(connection);
         }
     }
 
@@ -79,12 +101,13 @@ namespace PhysiK
         return contactDamping;
     }
 
-    void CollisionSphereComponent::QueryContacts(
+    void CollisionSphereComponent::UpdateSystem(
         World& world,
-        CollisionDetectionEngine& collisionDetectionEngine,
-        std::vector<Contact>& outContacts)
+        SolverData& solverData,
+        float dt)
     {
-        (void)collisionDetectionEngine;
+        (void)solverData;
+        (void)dt;
 
         if (!active || radius <= 0.0f)
         {
@@ -148,7 +171,7 @@ namespace PhysiK
                 contact.penetrationDepth = radius - distance;
                 contact.stiffness = GetConnectionStiffness();
                 contact.damping = GetConnectionDamping();
-                outContacts.push_back(contact);
+                AddPointConnectionFromContact(world, contact);
             }
         }
     }

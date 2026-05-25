@@ -14,7 +14,6 @@
 #include "PhysiK/Core/PhysicsConnections/PointConnection.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Math/Vec3.h"
-#include "PhysiK/PhysicsData/Contact.h"
 #include "PhysiK/PhysicsData/Node.h"
 
 namespace PhysiK
@@ -70,8 +69,8 @@ namespace PhysiK
     private:
         bool IsComponentHandleValid(ComponentHandle handle) const;
         void RunExternalLogic();
-        void UpdateFrameComponents(float frameDt);
-        void UpdateKinematicTargets();
+        void PreUpdateComponents(float frameDt);
+        void PostUpdateComponents(float frameDt);
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         void BuildSolverData(
             SolverData& solverData,
@@ -88,7 +87,6 @@ namespace PhysiK
 #endif
         void AddGravityForces(SolverData& solverData);
         void AssembleConnectionSystems(SolverData& solverData, float dt);
-        void GenerateCollisionConnections();
         void AssembleComponentSystems(SolverData& solverData, float dt);
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         void AssembleComponentSystems(
@@ -96,7 +94,6 @@ namespace PhysiK
             float dt,
             PerformanceLogRecord* performanceRecord);
 #endif
-        void GeneratePointConnectionFromContact(const Contact& contact);
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         void PrecomputeSolve(
             SolverData& solverData,

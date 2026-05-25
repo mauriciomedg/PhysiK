@@ -102,6 +102,6 @@ namespace PhysiK
             SolverData& solverData,
             float dt) override;
 
-        void Execute(World& world) override;
+        void PostUpdate(World& world, float dt) override;
     };
 }
