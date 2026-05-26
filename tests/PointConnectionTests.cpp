@@ -2,6 +2,7 @@
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Components/TopologyMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
+#include "PhysiK/Components/VisualTetMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Core/Events/EventSystem.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
@@ -2514,6 +2515,91 @@ void VisualMeshComponentCAPIExportsMeshBuffers()
     PHYSIK_DestroyWorld(world);
 }
 
+void VisualTetMeshComponentStoresVolumetricVisualMeshData()
+{
+    PhysiK::VisualTetMeshComponent visualTet;
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f},
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f}};
+    const int tetIndices[] = {0, 1, 2, 3, 0, 1, 2, 4};
+
+    visualTet.SetVisualTetMeshData(vertices, 5, tetIndices, 8);
+
+    assert(visualTet.restVisualVertices.size() == 5);
+    assert(visualTet.GetDeformedVertices().size() == 5);
+    assert(visualTet.GetVisualTetIndices().size() == 8);
+    assert(visualTet.embeddedVertices.size() == 5);
+    assert(visualTet.activeVisualTets.size() == 2);
+
+    for (int i = 0; i < 5; ++i)
+    {
+        assert(NearlyEqual(visualTet.restVisualVertices[i], vertices[i]));
+        assert(NearlyEqual(visualTet.GetDeformedVertices()[i], vertices[i]));
+        assert(visualTet.embeddedVertices[i].mechanicalTetIndex == -1);
+        assert(!visualTet.embeddedVertices[i].valid);
+    }
+
+    for (int i = 0; i < 8; ++i)
+    {
+        assert(visualTet.GetVisualTetIndices()[i] == tetIndices[i]);
+    }
+
+    for (bool active : visualTet.activeVisualTets)
+    {
+        assert(active);
+    }
+}
+
+void VisualTetMeshComponentEmbedsAndFollowsMechanicalTet()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    PhysiK::VisualTetMeshComponent visualTet(tetMesh);
+    const PhysiK::Vec3 vertices[] = {
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
+        PhysiK::Vec3{0.50f, 0.25f, 0.25f},
+        PhysiK::Vec3{0.25f, 0.50f, 0.25f},
+        PhysiK::Vec3{0.25f, 0.25f, 0.50f},
+        PhysiK::Vec3{2.0f, 2.0f, 2.0f}};
+    const int tetIndices[] = {0, 1, 2, 3};
+
+    visualTet.SetVisualTetMeshData(vertices, 5, tetIndices, 4);
+    visualTet.BuildEmbedding(*static_cast<PhysiK::World*>(world));
+
+    assert(visualTet.embeddedVertices.size() == 5);
+    assert(visualTet.embeddedVertices[0].valid);
+    assert(visualTet.embeddedVertices[0].mechanicalTetIndex == 0);
+    assert(NearlyEqual(visualTet.embeddedVertices[0].barycentric.x, 0.25f));
+    assert(NearlyEqual(visualTet.embeddedVertices[0].barycentric.y, 0.25f));
+    assert(NearlyEqual(visualTet.embeddedVertices[0].barycentric.z, 0.25f));
+    assert(NearlyEqual(visualTet.embeddedVertices[0].barycentric.w, 0.25f));
+    assert(!visualTet.embeddedVertices[4].valid);
+    assert(visualTet.embeddedVertices[4].mechanicalTetIndex == -1);
+
+    PHYSIK_SetNodePosition(world, nodes[0], 0.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[1], 2.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[2], 0.0f, 2.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, nodes[3], 0.0f, 0.0f, 3.0f);
+
+    visualTet.PostUpdate(*static_cast<PhysiK::World*>(world), 0.0f);
+
+    assert(NearlyEqual(
+        visualTet.GetDeformedVertices()[0],
+        PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
+    assert(NearlyEqual(
+        visualTet.GetDeformedVertices()[1],
+        PhysiK::Vec3{1.0f, 0.5f, 1.5f}));
+    assert(NearlyEqual(visualTet.GetDeformedVertices()[4], vertices[4]));
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
@@ -2905,6 +2991,8 @@ int main()
     VisualMeshComponentBuildsBruteForceEmbedding();
     VisualMeshComponentUpdatesDeformedVerticesFromHostTet();
     VisualMeshComponentCAPIExportsMeshBuffers();
+    VisualTetMeshComponentStoresVolumetricVisualMeshData();
+    VisualTetMeshComponentEmbedsAndFollowsMechanicalTet();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();
