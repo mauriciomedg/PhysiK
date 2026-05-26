@@ -68,6 +68,7 @@ target_sources(
         src/Components/CollisionSphereComponent.cpp
         src/Components/SurfaceExtractionComponent.cpp
         src/Components/TetMeshComponent.cpp
+        src/Components/TetMeshPhysicsComponent.cpp
         src/Components/TetMeshMapperComponent.cpp
         src/Components/TopologyMeshComponent.cpp
         src/Components/VisualMeshComponent.cpp

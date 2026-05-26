@@ -6,6 +6,7 @@
 
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Core/Physics/PhysicsModel.h"
+#include "PhysiK/PhysicsData/Material.h"
 #include "PhysiK/PhysicsData/Node.h"
 #include "PhysiK/PhysicsData/Tet.h"
 
@@ -84,6 +85,11 @@ namespace PhysiK
 
         static void AssembleLumpedMass(
             const TetMeshPhysicsComponent& component,
+            const World& world,
+            SolverData& solverData);
+        static void AssembleLumpedMass(
+            const Material& material,
+            const std::vector<Tet>& tets,
             const World& world,
             SolverData& solverData);
        

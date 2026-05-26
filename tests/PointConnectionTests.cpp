@@ -1,6 +1,7 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/SurfaceExtractionComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/TetMeshMapperComponent.h"
 #include "PhysiK/Components/TopologyMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
@@ -1719,7 +1720,7 @@ void TetMeshComponentCachesFemSparsePattern()
 {
     PhysiK::TetMeshPhysicsComponent component;
     PhysiK::Tet tet = CreateUnitTet();
-    component.worldTets.push_back(tet);
+    component.tets.push_back(tet);
     component.EnsureFemSparsePattern(4);
 
     assert(!component.femSparsePatternDirty);
@@ -2147,8 +2148,8 @@ void DeactivatedTetsAreSkippedByLumpedMassAssembly()
 void DeactivatingTetDoesNotDirtySparsePattern()
 {
     PhysiK::TetMeshPhysicsComponent component;
-    component.worldTets.push_back(CreateUnitTet());
-    component.worldTets.push_back(CreateLowerUnitTet());
+    component.tets.push_back(CreateUnitTet());
+    component.tets.push_back(CreateLowerUnitTet());
     component.tets.push_back(CreateUnitTet());
     component.tets.push_back(CreateLowerUnitTet());
     component.EnsureFemSparsePattern(5);

@@ -4,6 +4,7 @@
 #include "PhysiK/Components/CollisionSphereComponent.h"
 #include "PhysiK/Components/SurfaceExtractionComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/TetMeshMapperComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
@@ -304,7 +305,7 @@ extern "C"
             return PhysiK::ComponentHandle{};
         }
 
-        PhysiK::TetMeshComponentDesc desc;
+        PhysiK::TetMeshPhysicsComponentDesc desc;
         desc.material = ToMaterial(*material);
         desc.femModel = ToFemModel(femModel);
 

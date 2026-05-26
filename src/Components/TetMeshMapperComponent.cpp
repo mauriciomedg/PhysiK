@@ -3,6 +3,7 @@
 #include <cstddef>
 
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
 #include "PhysiK/PhysicsData/Node.h"
@@ -47,11 +48,12 @@ namespace PhysiK
             sourcePhysicsMesh->SyncCurrentPositionsFromWorld(world);
         }
 
-        embeddedDestinationVertices.resize(destinationTetMesh->nodeIndices.size());
+        embeddedDestinationVertices.resize(
+            static_cast<std::size_t>(destinationTetMesh->GetNodeCount()));
         constexpr float insideEpsilon = -0.0001f;
 
         for (std::size_t destinationVertex = 0;
-             destinationVertex < destinationTetMesh->nodeIndices.size();
+             destinationVertex < embeddedDestinationVertices.size();
              ++destinationVertex)
         {
             TetMeshMappedVertex& mappedVertex =
@@ -140,7 +142,7 @@ namespace PhysiK
         }
 
         if (embeddedDestinationVertices.size() !=
-            destinationTetMesh->nodeIndices.size())
+            static_cast<std::size_t>(destinationTetMesh->GetNodeCount()))
         {
             return;
         }

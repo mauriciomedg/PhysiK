@@ -6,7 +6,7 @@
 #include <iostream>
 #include <optional>
 
-#include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
 #include "PhysiK/Core/Performance/PerformanceLogger.h"
 #endif
@@ -563,9 +563,15 @@ namespace PhysiK
         float dt)
     {
         (void)dt;
+        const std::vector<Tet> mappedTets = owner.BuildWorldTets(world);
+        if (owner.tetFemCache.size() != mappedTets.size())
+        {
+            owner.RebuildTetFemCache(world);
+        }
+
         AccumulateForces(
             owner.GetFemModel(),
-            owner.worldTets,
+            mappedTets,
             owner.tetFemCache,
             world.GetNodes(),
             solverData);
@@ -890,13 +896,26 @@ namespace PhysiK
         const World& world,
         SolverData& solverData)
     {
-        const float density = std::max(0.0f, component.material.density);
+        AssembleLumpedMass(
+            component.material,
+            component.BuildWorldTets(world),
+            world,
+            solverData);
+    }
+
+    void FEMModel::AssembleLumpedMass(
+        const Material& material,
+        const std::vector<Tet>& tets,
+        const World& world,
+        SolverData& solverData)
+    {
+        const float density = std::max(0.0f, material.density);
         if (!std::isfinite(density))
         {
             return;
         }
 
-        for (const Tet& tet : component.worldTets)
+        for (const Tet& tet : tets)
         {
             if (!tet.active)
             {

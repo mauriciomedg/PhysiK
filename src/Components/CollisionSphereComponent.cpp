@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Core/PhysicsConnections/PointConnection.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
