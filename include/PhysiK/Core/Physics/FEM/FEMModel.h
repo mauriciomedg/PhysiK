@@ -32,7 +32,7 @@ namespace PhysiK
     };
 
     class SolverData;
-    class TetMeshComponent;
+    class TetMeshPhysicsComponent;
     class World;
 
     class PHYSIK_API FEMModel : public PhysicsModel
@@ -40,7 +40,7 @@ namespace PhysiK
     public:
         void UpdateSystem(
             World& world,
-            TetMeshComponent& owner,
+            TetMeshPhysicsComponent& owner,
             SolverData& solverData,
             float dt);
 
@@ -83,7 +83,7 @@ namespace PhysiK
             float mass);
 
         static void AssembleLumpedMass(
-            const TetMeshComponent& component,
+            const TetMeshPhysicsComponent& component,
             const World& world,
             SolverData& solverData);
        

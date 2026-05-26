@@ -100,7 +100,6 @@ namespace PhysiK
             return;
         }
 
-        const std::vector<Node>& nodes = world.GetNodes();
         constexpr float insideEpsilon = -0.0001f;
 
         for (std::size_t vertexIndex = 0; vertexIndex < restVisualVertices.size(); ++vertexIndex)
@@ -110,17 +109,20 @@ namespace PhysiK
 
             for (std::size_t tetIndex = 0; tetIndex < hostTetMesh->tets.size(); ++tetIndex)
             {
-                const Tet& tet = hostTetMesh->tets[tetIndex];
-                if (!tet.active)
+                if (!hostTetMesh->IsTetActive(static_cast<int>(tetIndex)))
                 {
                     continue;
                 }
 
-                const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+                const int nodeIndices[4] = {
+                    hostTetMesh->GetTetNodeIndex(static_cast<int>(tetIndex), 0),
+                    hostTetMesh->GetTetNodeIndex(static_cast<int>(tetIndex), 1),
+                    hostTetMesh->GetTetNodeIndex(static_cast<int>(tetIndex), 2),
+                    hostTetMesh->GetTetNodeIndex(static_cast<int>(tetIndex), 3)};
                 bool nodesAreValid = true;
                 for (int nodeIndex : nodeIndices)
                 {
-                    if (nodeIndex < 0 || nodeIndex >= static_cast<int>(nodes.size()))
+                    if (nodeIndex < 0 || nodeIndex >= hostTetMesh->GetNodeCount())
                     {
                         nodesAreValid = false;
                     }
@@ -134,10 +136,10 @@ namespace PhysiK
                 Vec4 barycentric;
                 if (!ComputeTetBarycentric(
                         restVisualVertices[vertexIndex],
-                        nodes[static_cast<std::size_t>(tet.node0)].restPosition,
-                        nodes[static_cast<std::size_t>(tet.node1)].restPosition,
-                        nodes[static_cast<std::size_t>(tet.node2)].restPosition,
-                        nodes[static_cast<std::size_t>(tet.node3)].restPosition,
+                        hostTetMesh->GetLocalRestPosition(nodeIndices[0]),
+                        hostTetMesh->GetLocalRestPosition(nodeIndices[1]),
+                        hostTetMesh->GetLocalRestPosition(nodeIndices[2]),
+                        hostTetMesh->GetLocalRestPosition(nodeIndices[3]),
                         barycentric))
                 {
                     continue;
@@ -200,8 +202,8 @@ namespace PhysiK
                     embeddedVertices[static_cast<std::size_t>(vertexIndex)];
                 if (!embeddedVertex.valid ||
                     embeddedVertex.tetIndex < 0 ||
-                    embeddedVertex.tetIndex >= static_cast<int>(hostTetMesh->tets.size()) ||
-                    !hostTetMesh->tets[static_cast<std::size_t>(embeddedVertex.tetIndex)].active)
+                    embeddedVertex.tetIndex >= hostTetMesh->GetTetCount() ||
+                    !hostTetMesh->IsTetActive(embeddedVertex.tetIndex))
                 {
                     valid = false;
                     break;
@@ -238,30 +240,30 @@ namespace PhysiK
             return;
         }
 
-        const std::vector<Node>& nodes = world.GetNodes();
-
         for (std::size_t vertexIndex = 0; vertexIndex < embeddedVertices.size(); ++vertexIndex)
         {
             const EmbeddedVertex& embeddedVertex = embeddedVertices[vertexIndex];
             if (!embeddedVertex.valid ||
                 embeddedVertex.tetIndex < 0 ||
-                embeddedVertex.tetIndex >= static_cast<int>(hostTetMesh->tets.size()))
+                embeddedVertex.tetIndex >= hostTetMesh->GetTetCount())
             {
                 continue;
             }
 
-            const Tet& tet =
-                hostTetMesh->tets[static_cast<std::size_t>(embeddedVertex.tetIndex)];
-            if (!tet.active)
+            if (!hostTetMesh->IsTetActive(embeddedVertex.tetIndex))
             {
                 continue;
             }
 
-            const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            const int nodeIndices[4] = {
+                hostTetMesh->GetTetNodeIndex(embeddedVertex.tetIndex, 0),
+                hostTetMesh->GetTetNodeIndex(embeddedVertex.tetIndex, 1),
+                hostTetMesh->GetTetNodeIndex(embeddedVertex.tetIndex, 2),
+                hostTetMesh->GetTetNodeIndex(embeddedVertex.tetIndex, 3)};
             bool nodesAreValid = true;
             for (int nodeIndex : nodeIndices)
             {
-                if (nodeIndex < 0 || nodeIndex >= static_cast<int>(nodes.size()))
+                if (nodeIndex < 0 || nodeIndex >= hostTetMesh->GetNodeCount())
                 {
                     nodesAreValid = false;
                 }
@@ -273,11 +275,27 @@ namespace PhysiK
             }
 
             const Vec4& weights = embeddedVertex.barycentric;
+            const int worldNode0 = hostTetMesh->GetWorldNodeIndex(nodeIndices[0]);
+            const int worldNode1 = hostTetMesh->GetWorldNodeIndex(nodeIndices[1]);
+            const int worldNode2 = hostTetMesh->GetWorldNodeIndex(nodeIndices[2]);
+            const int worldNode3 = hostTetMesh->GetWorldNodeIndex(nodeIndices[3]);
+            const Vec3& current0 = worldNode0 >= 0 ?
+                world.GetNode(worldNode0).position :
+                hostTetMesh->GetLocalCurrentPosition(nodeIndices[0]);
+            const Vec3& current1 = worldNode1 >= 0 ?
+                world.GetNode(worldNode1).position :
+                hostTetMesh->GetLocalCurrentPosition(nodeIndices[1]);
+            const Vec3& current2 = worldNode2 >= 0 ?
+                world.GetNode(worldNode2).position :
+                hostTetMesh->GetLocalCurrentPosition(nodeIndices[2]);
+            const Vec3& current3 = worldNode3 >= 0 ?
+                world.GetNode(worldNode3).position :
+                hostTetMesh->GetLocalCurrentPosition(nodeIndices[3]);
             deformedVisualVertices[vertexIndex] =
-                nodes[static_cast<std::size_t>(tet.node0)].position * weights.x +
-                nodes[static_cast<std::size_t>(tet.node1)].position * weights.y +
-                nodes[static_cast<std::size_t>(tet.node2)].position * weights.z +
-                nodes[static_cast<std::size_t>(tet.node3)].position * weights.w;
+                current0 * weights.x +
+                current1 * weights.y +
+                current2 * weights.z +
+                current3 * weights.w;
         }
     }
 

@@ -28,7 +28,7 @@ namespace PhysiK
         ComponentHandle destinationTetMeshHandle;
         std::vector<TetMeshMappedVertex> embeddedDestinationVertices;
 
-        void BuildTetMeshMapping(const World& world);
+        void BuildTetMeshMapping(World& world);
         void UpdateDestinationNodes(World& world);
         void PostUpdate(World& world, float dt) override;
     };

@@ -41,6 +41,7 @@ target_sources(
         include/PhysiK/Components/CollisionSphereComponent.h
         include/PhysiK/Components/SurfaceExtractionComponent.h
         include/PhysiK/Components/TetMeshComponent.h
+        include/PhysiK/Components/TetMeshPhysicsComponent.h
         include/PhysiK/Components/TetMeshMapperComponent.h
         include/PhysiK/Components/TopologyMeshComponent.h
         include/PhysiK/Components/VisualMeshComponent.h
@@ -105,6 +106,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Components/CollisionSphereComponent.h
     include/PhysiK/Components/SurfaceExtractionComponent.h
     include/PhysiK/Components/TetMeshComponent.h
+    include/PhysiK/Components/TetMeshPhysicsComponent.h
     include/PhysiK/Components/TetMeshMapperComponent.h
     include/PhysiK/Components/TopologyMeshComponent.h
     include/PhysiK/Components/VisualMeshComponent.h

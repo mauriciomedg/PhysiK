@@ -558,14 +558,14 @@ namespace PhysiK
 
     void FEMModel::UpdateSystem(
         World& world,
-        TetMeshComponent& owner,
+        TetMeshPhysicsComponent& owner,
         SolverData& solverData,
         float dt)
     {
         (void)dt;
         AccumulateForces(
             owner.GetFemModel(),
-            owner.tets,
+            owner.worldTets,
             owner.tetFemCache,
             world.GetNodes(),
             solverData);
@@ -886,7 +886,7 @@ namespace PhysiK
     }
 
     void FEMModel::AssembleLumpedMass(
-        const TetMeshComponent& component,
+        const TetMeshPhysicsComponent& component,
         const World& world,
         SolverData& solverData)
     {
@@ -896,7 +896,7 @@ namespace PhysiK
             return;
         }
 
-        for (const Tet& tet : component.tets)
+        for (const Tet& tet : component.worldTets)
         {
             if (!tet.active)
             {

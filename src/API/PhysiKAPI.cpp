@@ -111,6 +111,19 @@ namespace
             world->GetComponent(tetMeshComponent));
     }
 
+    PhysiK::TetMeshPhysicsComponent* AsTetMeshPhysics(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle tetMeshComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::TetMeshPhysicsComponent*>(
+            world->GetComponent(tetMeshComponent));
+    }
+
     PhysiK::VisualMeshComponent* AsVisualMesh(
         PhysiK::World* world,
         PhysiK::ComponentHandle visualMeshComponent)
@@ -295,7 +308,7 @@ extern "C"
         desc.material = ToMaterial(*material);
         desc.femModel = ToFemModel(femModel);
 
-        auto component = PhysiK::TetMeshComponent::CreateFromGlobalNodes(
+        auto component = PhysiK::TetMeshPhysicsComponent::CreateFromGlobalNodes(
             *worldPtr,
             nodeIndices,
             nodeCount,
@@ -574,7 +587,8 @@ extern "C"
             return;
         }
 
-        auto* tetMesh = dynamic_cast<PhysiK::TetMeshComponent*>(worldPtr->GetComponent(component));
+        auto* tetMesh = dynamic_cast<PhysiK::TetMeshPhysicsComponent*>(
+            worldPtr->GetComponent(component));
         if (tetMesh == nullptr)
         {
             return;

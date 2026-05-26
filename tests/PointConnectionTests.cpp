@@ -1717,9 +1717,9 @@ void SparseBlockMatrixAdjacentTetsReuseSharedBlocks()
 
 void TetMeshComponentCachesFemSparsePattern()
 {
-    PhysiK::TetMeshComponent component;
+    PhysiK::TetMeshPhysicsComponent component;
     PhysiK::Tet tet = CreateUnitTet();
-    component.tets.push_back(tet);
+    component.worldTets.push_back(tet);
     component.EnsureFemSparsePattern(4);
 
     assert(!component.femSparsePatternDirty);
@@ -2017,6 +2017,31 @@ void TetActiveStateDefaultsAndNoOpsAreSafe()
     assert(component.GetActiveTetCount() == 2);
 }
 
+void TetMeshComponentStoresGeometryWithoutWorldNodes()
+{
+    PhysiK::TetMeshComponent component;
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {0, 1, 2, 3};
+
+    component.SetGeometry(positions, 4, tetIndices, 1);
+
+    assert(component.GetNodeCount() == 4);
+    assert(component.GetTetCount() == 1);
+    assert(component.GetTetNodeIndex(0, 2) == 2);
+    assert(component.GetWorldNodeIndex(0) == -1);
+    assert(NearlyEqual(component.GetLocalRestPosition(3), positions[3]));
+    assert(NearlyEqual(component.GetLocalCurrentPosition(3), positions[3]));
+
+    component.SetLocalCurrentPosition(3, PhysiK::Vec3{0.0f, 0.0f, 2.0f});
+    assert(NearlyEqual(
+        component.GetLocalCurrentPosition(3),
+        PhysiK::Vec3{0.0f, 0.0f, 2.0f}));
+}
+
 void TetActiveStateIsExposedThroughNativeApi()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -2121,7 +2146,9 @@ void DeactivatedTetsAreSkippedByLumpedMassAssembly()
 
 void DeactivatingTetDoesNotDirtySparsePattern()
 {
-    PhysiK::TetMeshComponent component;
+    PhysiK::TetMeshPhysicsComponent component;
+    component.worldTets.push_back(CreateUnitTet());
+    component.worldTets.push_back(CreateLowerUnitTet());
     component.tets.push_back(CreateUnitTet());
     component.tets.push_back(CreateLowerUnitTet());
     component.EnsureFemSparsePattern(5);
@@ -2168,14 +2195,14 @@ void SmallTetMeshSimulatesAfterTetDeactivation()
 
 void TetMeshComponentDefaultFemModelIsLinear()
 {
-    PhysiK::TetMeshComponent component;
+    PhysiK::TetMeshPhysicsComponent component;
 
     assert(component.GetFemModel() == PhysiK::FemModel::Linear);
 }
 
 void TetMeshComponentStoresSelectedFemModel()
 {
-    PhysiK::TetMeshComponent component;
+    PhysiK::TetMeshPhysicsComponent component;
 
     component.SetFemModel(PhysiK::FemModel::Linear);
     assert(component.GetFemModel() == PhysiK::FemModel::Linear);
@@ -3066,6 +3093,7 @@ int main()
     DeactivatedTetsAreSkippedByLumpedMassAssembly();
     DeactivatingTetDoesNotDirtySparsePattern();
     SmallTetMeshSimulatesAfterTetDeactivation();
+    TetMeshComponentStoresGeometryWithoutWorldNodes();
     TetMeshComponentDefaultFemModelIsLinear();
     TetMeshComponentStoresSelectedFemModel();
     EventSystemDeliversSubscribedEventsOnlyOnce();

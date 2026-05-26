@@ -14,13 +14,13 @@ namespace PhysiK
 {
     namespace
     {
-        bool HasValidTetNodes(const Tet& tet, const World& world)
+        bool HasValidWorldNodes(const int nodes[4], const World& world)
         {
             const int nodeCount = static_cast<int>(world.GetNodes().size());
-            return tet.node0 >= 0 && tet.node0 < nodeCount &&
-                tet.node1 >= 0 && tet.node1 < nodeCount &&
-                tet.node2 >= 0 && tet.node2 < nodeCount &&
-                tet.node3 >= 0 && tet.node3 < nodeCount;
+            return nodes[0] >= 0 && nodes[0] < nodeCount &&
+                nodes[1] >= 0 && nodes[1] < nodeCount &&
+                nodes[2] >= 0 && nodes[2] < nodeCount &&
+                nodes[3] >= 0 && nodes[3] < nodeCount;
         }
 
         Vec3 NormalizeOrFallback(const Vec3& value)
@@ -123,28 +123,40 @@ namespace PhysiK
 
         for (const std::unique_ptr<Component>& component : world.GetComponents())
         {
-            const auto* tetMesh = dynamic_cast<const TetMeshComponent*>(component.get());
+            const auto* tetMesh =
+                dynamic_cast<const TetMeshPhysicsComponent*>(component.get());
             if (tetMesh == nullptr || !tetMesh->active)
             {
                 continue;
             }
 
-            for (const Tet& tet : tetMesh->tets)
+            for (int tetIndex = 0; tetIndex < tetMesh->GetTetCount(); ++tetIndex)
             {
-                if (!tet.active)
+                if (!tetMesh->IsTetActive(tetIndex))
                 {
                     continue;
                 }
 
-                if (!HasValidTetNodes(tet, world))
+                const int localNodes[4] = {
+                    tetMesh->GetTetNodeIndex(tetIndex, 0),
+                    tetMesh->GetTetNodeIndex(tetIndex, 1),
+                    tetMesh->GetTetNodeIndex(tetIndex, 2),
+                    tetMesh->GetTetNodeIndex(tetIndex, 3)};
+                const int worldNodes[4] = {
+                    tetMesh->GetWorldNodeIndex(localNodes[0]),
+                    tetMesh->GetWorldNodeIndex(localNodes[1]),
+                    tetMesh->GetWorldNodeIndex(localNodes[2]),
+                    tetMesh->GetWorldNodeIndex(localNodes[3])};
+
+                if (!HasValidWorldNodes(worldNodes, world))
                 {
                     continue;
                 }
 
-                const Node& node0 = world.GetNode(tet.node0);
-                const Node& node1 = world.GetNode(tet.node1);
-                const Node& node2 = world.GetNode(tet.node2);
-                const Node& node3 = world.GetNode(tet.node3);
+                const Node& node0 = world.GetNode(worldNodes[0]);
+                const Node& node1 = world.GetNode(worldNodes[1]);
+                const Node& node2 = world.GetNode(worldNodes[2]);
+                const Node& node3 = world.GetNode(worldNodes[3]);
 
                 const Vec3 point = node0.position * centroidWeights.x +
                     node1.position * centroidWeights.y +
@@ -161,10 +173,10 @@ namespace PhysiK
                 const Vec3 normal = NormalizeOrFallback(centerToPoint);
 
                 Contact contact;
-                contact.node0 = tet.node0;
-                contact.node1 = tet.node1;
-                contact.node2 = tet.node2;
-                contact.node3 = tet.node3;
+                contact.node0 = worldNodes[0];
+                contact.node1 = worldNodes[1];
+                contact.node2 = worldNodes[2];
+                contact.node3 = worldNodes[3];
                 contact.barycentric = centroidWeights;
                 contact.worldPoint = point;
                 contact.normal = normal;
@@ -193,21 +205,34 @@ namespace PhysiK
         {
             const std::unique_ptr<Component>& component =
                 components[static_cast<std::size_t>(componentIndex)];
-            const auto* tetMesh = dynamic_cast<const TetMeshComponent*>(component.get());
+            const auto* tetMesh =
+                dynamic_cast<const TetMeshPhysicsComponent*>(component.get());
             if (tetMesh == nullptr || !tetMesh->active)
             {
                 continue;
             }
 
-            for (int tetIndex = 0; tetIndex < static_cast<int>(tetMesh->tets.size()); ++tetIndex)
+            for (int tetIndex = 0; tetIndex < tetMesh->GetTetCount(); ++tetIndex)
             {
-                const Tet& tet = tetMesh->tets[static_cast<std::size_t>(tetIndex)];
-                if (!tet.active || !HasValidTetNodes(tet, world))
+                if (!tetMesh->IsTetActive(tetIndex))
                 {
                     continue;
                 }
 
-                const int nodes[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+                const int localNodes[4] = {
+                    tetMesh->GetTetNodeIndex(tetIndex, 0),
+                    tetMesh->GetTetNodeIndex(tetIndex, 1),
+                    tetMesh->GetTetNodeIndex(tetIndex, 2),
+                    tetMesh->GetTetNodeIndex(tetIndex, 3)};
+                const int nodes[4] = {
+                    tetMesh->GetWorldNodeIndex(localNodes[0]),
+                    tetMesh->GetWorldNodeIndex(localNodes[1]),
+                    tetMesh->GetWorldNodeIndex(localNodes[2]),
+                    tetMesh->GetWorldNodeIndex(localNodes[3])};
+                if (!HasValidWorldNodes(nodes, world))
+                {
+                    continue;
+                }
                 int overlappedNodeMask = 0;
                 int overlappedNodeCount = 0;
                 float minNodeDistance = 0.0f;
@@ -241,10 +266,10 @@ namespace PhysiK
                 overlap.geometryType = OverlapGeometryType::Tetrahedron;
                 overlap.component = world.GetComponentHandleByIndex(componentIndex);
                 overlap.primitiveIndex = tetIndex;
-                overlap.node0 = tet.node0;
-                overlap.node1 = tet.node1;
-                overlap.node2 = tet.node2;
-                overlap.node3 = tet.node3;
+                overlap.node0 = nodes[0];
+                overlap.node1 = nodes[1];
+                overlap.node2 = nodes[2];
+                overlap.node3 = nodes[3];
                 overlap.overlappedNodeMask = overlappedNodeMask;
                 overlap.overlappedNodeCount = overlappedNodeCount;
                 overlap.sphereCenter = sphereCenter;

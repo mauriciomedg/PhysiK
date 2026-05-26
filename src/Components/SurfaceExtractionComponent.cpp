@@ -17,19 +17,31 @@ namespace PhysiK
             int node2 = -1;
         };
 
-        TetFace GetTetFace(const Tet& tet, int faceIndex)
+        TetFace GetTetFace(const TetMeshComponent& tetMesh, int tetIndex, int faceIndex)
         {
             switch (faceIndex)
             {
             case 0:
-                return TetFace{tet.node0, tet.node1, tet.node2};
+                return TetFace{
+                    tetMesh.GetTetNodeIndex(tetIndex, 0),
+                    tetMesh.GetTetNodeIndex(tetIndex, 1),
+                    tetMesh.GetTetNodeIndex(tetIndex, 2)};
             case 1:
-                return TetFace{tet.node0, tet.node3, tet.node1};
+                return TetFace{
+                    tetMesh.GetTetNodeIndex(tetIndex, 0),
+                    tetMesh.GetTetNodeIndex(tetIndex, 3),
+                    tetMesh.GetTetNodeIndex(tetIndex, 1)};
             case 2:
-                return TetFace{tet.node0, tet.node2, tet.node3};
+                return TetFace{
+                    tetMesh.GetTetNodeIndex(tetIndex, 0),
+                    tetMesh.GetTetNodeIndex(tetIndex, 2),
+                    tetMesh.GetTetNodeIndex(tetIndex, 3)};
             case 3:
             default:
-                return TetFace{tet.node1, tet.node3, tet.node2};
+                return TetFace{
+                    tetMesh.GetTetNodeIndex(tetIndex, 1),
+                    tetMesh.GetTetNodeIndex(tetIndex, 3),
+                    tetMesh.GetTetNodeIndex(tetIndex, 2)};
             }
         }
 
@@ -60,22 +72,23 @@ namespace PhysiK
         }
 
         bool HasActiveNeighborSharingFace(
-            const std::vector<Tet>& tets,
+            const TetMeshComponent& tetMesh,
             int sourceTetIndex,
             const TetFace& face)
         {
-            for (int tetIndex = 0; tetIndex < static_cast<int>(tets.size()); ++tetIndex)
+            for (int tetIndex = 0; tetIndex < tetMesh.GetTetCount(); ++tetIndex)
             {
                 if (tetIndex == sourceTetIndex ||
-                    !tets[static_cast<std::size_t>(tetIndex)].active)
+                    !tetMesh.IsTetActive(tetIndex))
                 {
                     continue;
                 }
 
-                const Tet& candidateTet = tets[static_cast<std::size_t>(tetIndex)];
                 for (int faceIndex = 0; faceIndex < 4; ++faceIndex)
                 {
-                    if (HasSameUndirectedNodes(face, GetTetFace(candidateTet, faceIndex)))
+                    if (HasSameUndirectedNodes(
+                            face,
+                            GetTetFace(tetMesh, tetIndex, faceIndex)))
                     {
                         return true;
                     }
@@ -109,21 +122,20 @@ namespace PhysiK
             return;
         }
 
-        const std::vector<Tet>& tets = hostTetMesh->tets;
-        surfaceTriangleIndices.reserve(tets.size() * 12u);
+        surfaceTriangleIndices.reserve(
+            static_cast<std::size_t>(hostTetMesh->GetTetCount()) * 12u);
 
-        for (int tetIndex = 0; tetIndex < static_cast<int>(tets.size()); ++tetIndex)
+        for (int tetIndex = 0; tetIndex < hostTetMesh->GetTetCount(); ++tetIndex)
         {
-            const Tet& tet = tets[static_cast<std::size_t>(tetIndex)];
-            if (!tet.active)
+            if (!hostTetMesh->IsTetActive(tetIndex))
             {
                 continue;
             }
 
             for (int faceIndex = 0; faceIndex < 4; ++faceIndex)
             {
-                const TetFace face = GetTetFace(tet, faceIndex);
-                if (HasActiveNeighborSharingFace(tets, tetIndex, face))
+                const TetFace face = GetTetFace(*hostTetMesh, tetIndex, faceIndex);
+                if (HasActiveNeighborSharingFace(*hostTetMesh, tetIndex, face))
                 {
                     continue;
                 }
