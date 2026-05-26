@@ -865,4 +865,75 @@ namespace PhysiK
         }
 #endif
     }
+
+    void FEMModel::AddLumpedMassToSolverData(
+        const World& world,
+        SolverData& solverData,
+        int nodeIndex,
+        float mass)
+    {
+        if (nodeIndex < 0 || !std::isfinite(mass))
+        {
+            return;
+        }
+
+        if (world.IsNodeFixed(nodeIndex))
+        {
+            return;
+        }
+
+        solverData.AddNodeMass(nodeIndex, std::max(0.0f, mass));
+    }
+
+    void FEMModel::AssembleLumpedMass(
+        const TetMeshComponent& component,
+        const World& world,
+        SolverData& solverData)
+    {
+        const float density = std::max(0.0f, component.material.density);
+        if (!std::isfinite(density))
+        {
+            return;
+        }
+
+        for (const Tet& tet : component.tets)
+        {
+            if (!tet.active)
+            {
+                continue;
+            }
+
+            if (!std::isfinite(tet.restVolume) || tet.restVolume <= 0.0f)
+            {
+                continue;
+            }
+
+            const float nodalMass = density * tet.restVolume * 0.25f;
+            AddLumpedMassToSolverData(world, solverData, tet.node0, nodalMass);
+            AddLumpedMassToSolverData(world, solverData, tet.node1, nodalMass);
+            AddLumpedMassToSolverData(world, solverData, tet.node2, nodalMass);
+            AddLumpedMassToSolverData(world, solverData, tet.node3, nodalMass);
+        }
+    }
+
+    std::vector<std::pair<int, int>> FEMModel::BuildSparsePatternFromTetConnectivity(
+        const std::vector<Tet>& tets)
+    {
+        std::vector<std::pair<int, int>> blockCoordinates;
+        blockCoordinates.reserve(tets.size() * 16u);
+
+        for (const Tet& tet : tets)
+        {
+            const int nodes[4] = { tet.node0, tet.node1, tet.node2, tet.node3 };
+            for (int row = 0; row < 4; ++row)
+            {
+                for (int column = 0; column < 4; ++column)
+                {
+                    blockCoordinates.push_back({ nodes[row], nodes[column] });
+                }
+            }
+        }
+
+        return blockCoordinates;
+    }
 }

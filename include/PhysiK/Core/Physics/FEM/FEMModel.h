@@ -75,6 +75,21 @@ namespace PhysiK
             const std::vector<TetFemCache>& tetFemCache,
             const std::vector<Node>& nodes,
             SolverData& solverData);
+
+        static void AddLumpedMassToSolverData(
+            const World& world,
+            SolverData& solverData,
+            int nodeIndex,
+            float mass);
+
+        static void AssembleLumpedMass(
+            const TetMeshComponent& component,
+            const World& world,
+            SolverData& solverData);
+       
+        static std::vector<std::pair<int, int>> BuildSparsePatternFromTetConnectivity(
+            const std::vector<Tet>& tets);
+
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         static void SetPerformanceLogRecord(PerformanceLogRecord* record);
         static PerformanceLogRecord* GetPerformanceLogRecord();
