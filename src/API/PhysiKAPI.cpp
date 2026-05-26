@@ -2,6 +2,7 @@
 
 #include "PhysiK/Components/CollisionComponent.h"
 #include "PhysiK/Components/CollisionSphereComponent.h"
+#include "PhysiK/Components/SurfaceExtractionComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
@@ -321,6 +322,21 @@ extern "C"
         auto component = std::make_unique<PhysiK::VisualMeshComponent>(
             hostTetMesh,
             std::string{});
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceExtractionComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle hostTetMesh)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr || AsTetMesh(worldPtr, hostTetMesh) == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component =
+            std::make_unique<PhysiK::SurfaceExtractionComponent>(hostTetMesh);
         return worldPtr->AddComponent(std::move(component));
     }
 

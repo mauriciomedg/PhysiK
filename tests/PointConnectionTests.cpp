@@ -1,4 +1,5 @@
 #include "PhysiK/API/PhysiKAPI.h"
+#include "PhysiK/Components/SurfaceExtractionComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Components/TopologyMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
@@ -2297,6 +2298,58 @@ void TopologyMeshComponentBuildsActiveTetIslands()
     PHYSIK_DestroyWorld(worldHandle);
 }
 
+void SurfaceExtractionComponentExtractsActiveBoundaryFaces()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[5] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateTwoTetMesh(world, nodes);
+    PhysiK::SurfaceExtractionComponent surface(tetMesh);
+
+    surface.RebuildSurface(*static_cast<PhysiK::World*>(world));
+    assert(surface.GetSurfaceTriangleIndices().size() == 18);
+
+    const std::vector<int>& indices = surface.GetSurfaceTriangleIndices();
+    for (std::size_t index = 0; index < indices.size(); ++index)
+    {
+        assert(indices[index] >= 0);
+    }
+
+    PHYSIK_DeactivateTet(world, tetMesh, 0);
+    surface.surfaceDirty = true;
+    surface.PostUpdate(*static_cast<PhysiK::World*>(world), 0.0f);
+
+    assert(!surface.surfaceDirty);
+    assert(surface.GetSurfaceTriangleIndices().size() == 12);
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void SurfaceExtractionComponentCanBeCreatedThroughNativeApi()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle surface =
+        PHYSIK_CreateSurfaceExtractionComponent(world, tetMesh);
+
+    assert(PHYSIK_IsComponentHandleValid(world, surface) == 1);
+    assert(PHYSIK_CreateSurfaceExtractionComponent(nullptr, tetMesh).IsValid() == false);
+    assert(PHYSIK_CreateSurfaceExtractionComponent(
+        world,
+        PhysiK::ComponentHandle{}).IsValid() == false);
+
+    const PhysiK::ComponentHandle visual =
+        PHYSIK_CreateVisualMeshComponent(world, tetMesh);
+    assert(PHYSIK_IsComponentHandleValid(world, visual) == 1);
+    assert(PHYSIK_CreateSurfaceExtractionComponent(world, visual).IsValid() == false);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -2985,6 +3038,8 @@ int main()
     EventSystemDeliversSubscribedEventsOnlyOnce();
     TopologyMeshComponentDeclaresEventsAndClearsDirtyFlag();
     TopologyMeshComponentBuildsActiveTetIslands();
+    SurfaceExtractionComponentExtractsActiveBoundaryFaces();
+    SurfaceExtractionComponentCanBeCreatedThroughNativeApi();
     VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag();
     VisualMeshComponentCanBeCreatedThroughNativeApi();
     VisualMeshComponentStoresVisualMeshData();

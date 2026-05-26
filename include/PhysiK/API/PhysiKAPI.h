@@ -113,6 +113,10 @@ extern "C"
         float z,
         float radius);
 
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceExtractionComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle hostTetMesh);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateVisualMeshComponent(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle hostTetMesh);
