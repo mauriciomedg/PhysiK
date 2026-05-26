@@ -1,9 +1,9 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/SurfaceExtractionComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TetMeshMapperComponent.h"
 #include "PhysiK/Components/TopologyMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
-#include "PhysiK/Components/VisualTetMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Core/Events/EventSystem.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
@@ -2568,87 +2568,120 @@ void VisualMeshComponentCAPIExportsMeshBuffers()
     PHYSIK_DestroyWorld(world);
 }
 
-void VisualTetMeshComponentStoresVolumetricVisualMeshData()
-{
-    PhysiK::VisualTetMeshComponent visualTet;
-    const PhysiK::Vec3 vertices[] = {
-        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
-        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
-        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
-        PhysiK::Vec3{0.0f, 0.0f, 1.0f},
-        PhysiK::Vec3{0.25f, 0.25f, 0.25f}};
-    const int tetIndices[] = {0, 1, 2, 3, 0, 1, 2, 4};
-
-    visualTet.SetVisualTetMeshData(vertices, 5, tetIndices, 8);
-
-    assert(visualTet.restVisualVertices.size() == 5);
-    assert(visualTet.GetDeformedVertices().size() == 5);
-    assert(visualTet.GetVisualTetIndices().size() == 8);
-    assert(visualTet.embeddedVertices.size() == 5);
-    assert(visualTet.activeVisualTets.size() == 2);
-
-    for (int i = 0; i < 5; ++i)
-    {
-        assert(NearlyEqual(visualTet.restVisualVertices[i], vertices[i]));
-        assert(NearlyEqual(visualTet.GetDeformedVertices()[i], vertices[i]));
-        assert(visualTet.embeddedVertices[i].mechanicalTetIndex == -1);
-        assert(!visualTet.embeddedVertices[i].valid);
-    }
-
-    for (int i = 0; i < 8; ++i)
-    {
-        assert(visualTet.GetVisualTetIndices()[i] == tetIndices[i]);
-    }
-
-    for (bool active : visualTet.activeVisualTets)
-    {
-        assert(active);
-    }
-}
-
-void VisualTetMeshComponentEmbedsAndFollowsMechanicalTet()
+void TetMeshMapperComponentEmbedsDestinationAndFollowsSource()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    int nodes[4] = {};
-    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
-    PhysiK::VisualTetMeshComponent visualTet(tetMesh);
-    const PhysiK::Vec3 vertices[] = {
-        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
-        PhysiK::Vec3{0.50f, 0.25f, 0.25f},
-        PhysiK::Vec3{0.25f, 0.50f, 0.25f},
-        PhysiK::Vec3{0.25f, 0.25f, 0.50f},
-        PhysiK::Vec3{2.0f, 2.0f, 2.0f}};
-    const int tetIndices[] = {0, 1, 2, 3};
+    int sourceNodes[4] = {};
+    const PhysiK::ComponentHandle sourceTetMesh =
+        CreateSingleTetMesh(world, sourceNodes);
 
-    visualTet.SetVisualTetMeshData(vertices, 5, tetIndices, 4);
-    visualTet.BuildEmbedding(*static_cast<PhysiK::World*>(world));
+    const int destinationNodes[] = {
+        AddNode(world, 0.25f, 0.25f, 0.25f),
+        AddNode(world, 0.50f, 0.25f, 0.25f),
+        AddNode(world, 0.25f, 0.50f, 0.25f),
+        AddNode(world, 0.25f, 0.25f, 0.50f),
+        AddNode(world, 2.0f, 2.0f, 2.0f)};
+    const int destinationTetIndices[] = {
+        destinationNodes[0],
+        destinationNodes[1],
+        destinationNodes[2],
+        destinationNodes[3]};
+    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
+    const PhysiK::ComponentHandle destinationTetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            destinationNodes,
+            5,
+            destinationTetIndices,
+            1,
+            &material,
+            0);
+    assert(PHYSIK_IsComponentHandleValid(world, destinationTetMesh) == 1);
 
-    assert(visualTet.embeddedVertices.size() == 5);
-    assert(visualTet.embeddedVertices[0].valid);
-    assert(visualTet.embeddedVertices[0].mechanicalTetIndex == 0);
-    assert(NearlyEqual(visualTet.embeddedVertices[0].barycentric.x, 0.25f));
-    assert(NearlyEqual(visualTet.embeddedVertices[0].barycentric.y, 0.25f));
-    assert(NearlyEqual(visualTet.embeddedVertices[0].barycentric.z, 0.25f));
-    assert(NearlyEqual(visualTet.embeddedVertices[0].barycentric.w, 0.25f));
-    assert(!visualTet.embeddedVertices[4].valid);
-    assert(visualTet.embeddedVertices[4].mechanicalTetIndex == -1);
+    PhysiK::TetMeshMapperComponent mapper(sourceTetMesh, destinationTetMesh);
+    mapper.BuildTetMeshMapping(*static_cast<PhysiK::World*>(world));
 
-    PHYSIK_SetNodePosition(world, nodes[0], 0.0f, 0.0f, 1.0f);
-    PHYSIK_SetNodePosition(world, nodes[1], 2.0f, 0.0f, 1.0f);
-    PHYSIK_SetNodePosition(world, nodes[2], 0.0f, 2.0f, 1.0f);
-    PHYSIK_SetNodePosition(world, nodes[3], 0.0f, 0.0f, 3.0f);
+    assert(mapper.embeddedDestinationVertices.size() == 5);
+    assert(mapper.embeddedDestinationVertices[0].valid);
+    assert(mapper.embeddedDestinationVertices[0].sourceTetIndex == 0);
+    assert(NearlyEqual(mapper.embeddedDestinationVertices[0].barycentric.x, 0.25f));
+    assert(NearlyEqual(mapper.embeddedDestinationVertices[0].barycentric.y, 0.25f));
+    assert(NearlyEqual(mapper.embeddedDestinationVertices[0].barycentric.z, 0.25f));
+    assert(NearlyEqual(mapper.embeddedDestinationVertices[0].barycentric.w, 0.25f));
+    assert(!mapper.embeddedDestinationVertices[4].valid);
+    assert(mapper.embeddedDestinationVertices[4].sourceTetIndex == -1);
 
-    visualTet.PostUpdate(*static_cast<PhysiK::World*>(world), 0.0f);
+    PHYSIK_SetNodePosition(world, sourceNodes[0], 0.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, sourceNodes[1], 2.0f, 0.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, sourceNodes[2], 0.0f, 2.0f, 1.0f);
+    PHYSIK_SetNodePosition(world, sourceNodes[3], 0.0f, 0.0f, 3.0f);
 
-    assert(NearlyEqual(
-        visualTet.GetDeformedVertices()[0],
-        PhysiK::Vec3{0.5f, 0.5f, 1.5f}));
-    assert(NearlyEqual(
-        visualTet.GetDeformedVertices()[1],
-        PhysiK::Vec3{1.0f, 0.5f, 1.5f}));
-    assert(NearlyEqual(visualTet.GetDeformedVertices()[4], vertices[4]));
+    mapper.PostUpdate(*static_cast<PhysiK::World*>(world), 0.0f);
+
+    const Point mapped0 = GetNodePosition(world, destinationNodes[0]);
+    const Point mapped1 = GetNodePosition(world, destinationNodes[1]);
+    const Point unmapped = GetNodePosition(world, destinationNodes[4]);
+    assert(NearlyEqual(mapped0.x, 0.5f));
+    assert(NearlyEqual(mapped0.y, 0.5f));
+    assert(NearlyEqual(mapped0.z, 1.5f));
+    assert(NearlyEqual(mapped1.x, 1.0f));
+    assert(NearlyEqual(mapped1.y, 0.5f));
+    assert(NearlyEqual(mapped1.z, 1.5f));
+    assert(NearlyEqual(unmapped.x, 2.0f));
+    assert(NearlyEqual(unmapped.y, 2.0f));
+    assert(NearlyEqual(unmapped.z, 2.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void TetMeshMapperComponentCanBeCreatedThroughNativeApi()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    int sourceNodes[4] = {};
+    const PhysiK::ComponentHandle sourceTetMesh =
+        CreateSingleTetMesh(world, sourceNodes);
+    const int destinationNodes[] = {
+        AddNode(world, 0.25f, 0.25f, 0.25f),
+        AddNode(world, 0.50f, 0.25f, 0.25f),
+        AddNode(world, 0.25f, 0.50f, 0.25f),
+        AddNode(world, 0.25f, 0.25f, 0.50f)};
+    const int destinationTetIndices[] = {
+        destinationNodes[0],
+        destinationNodes[1],
+        destinationNodes[2],
+        destinationNodes[3]};
+    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
+    const PhysiK::ComponentHandle destinationTetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            destinationNodes,
+            4,
+            destinationTetIndices,
+            1,
+            &material,
+            0);
+    assert(PHYSIK_IsComponentHandleValid(world, destinationTetMesh) == 1);
+
+    const PhysiK::ComponentHandle mapper =
+        PHYSIK_CreateTetMeshMapperComponent(
+            world,
+            sourceTetMesh,
+            destinationTetMesh);
+    assert(PHYSIK_IsComponentHandleValid(world, mapper) == 1);
+    assert(PHYSIK_BuildTetMeshMapping(world, mapper) == 1);
+    assert(PHYSIK_CreateTetMeshMapperComponent(
+        nullptr,
+        sourceTetMesh,
+        destinationTetMesh).IsValid() == false);
+    assert(PHYSIK_CreateTetMeshMapperComponent(
+        world,
+        PhysiK::ComponentHandle{},
+        destinationTetMesh).IsValid() == false);
+    assert(PHYSIK_BuildTetMeshMapping(world, sourceTetMesh) == 0);
 
     PHYSIK_DestroyWorld(world);
 }
@@ -3046,8 +3079,8 @@ int main()
     VisualMeshComponentBuildsBruteForceEmbedding();
     VisualMeshComponentUpdatesDeformedVerticesFromHostTet();
     VisualMeshComponentCAPIExportsMeshBuffers();
-    VisualTetMeshComponentStoresVolumetricVisualMeshData();
-    VisualTetMeshComponentEmbedsAndFollowsMechanicalTet();
+    TetMeshMapperComponentEmbedsDestinationAndFollowsSource();
+    TetMeshMapperComponentCanBeCreatedThroughNativeApi();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();

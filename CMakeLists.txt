@@ -41,9 +41,9 @@ target_sources(
         include/PhysiK/Components/CollisionSphereComponent.h
         include/PhysiK/Components/SurfaceExtractionComponent.h
         include/PhysiK/Components/TetMeshComponent.h
+        include/PhysiK/Components/TetMeshMapperComponent.h
         include/PhysiK/Components/TopologyMeshComponent.h
         include/PhysiK/Components/VisualMeshComponent.h
-        include/PhysiK/Components/VisualTetMeshComponent.h
 
         include/PhysiK/Core/Collision/CollisionDetectionEngine.h
         include/PhysiK/Core/Events/EventSystem.h
@@ -67,9 +67,9 @@ target_sources(
         src/Components/CollisionSphereComponent.cpp
         src/Components/SurfaceExtractionComponent.cpp
         src/Components/TetMeshComponent.cpp
+        src/Components/TetMeshMapperComponent.cpp
         src/Components/TopologyMeshComponent.cpp
         src/Components/VisualMeshComponent.cpp
-        src/Components/VisualTetMeshComponent.cpp
         src/Core/Collision/CollisionDetectionEngine.cpp
         src/Core/Events/EventSystem.cpp
         src/Core/Physics/FEM/FEMModel.cpp
@@ -105,9 +105,9 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Components/CollisionSphereComponent.h
     include/PhysiK/Components/SurfaceExtractionComponent.h
     include/PhysiK/Components/TetMeshComponent.h
+    include/PhysiK/Components/TetMeshMapperComponent.h
     include/PhysiK/Components/TopologyMeshComponent.h
     include/PhysiK/Components/VisualMeshComponent.h
-    include/PhysiK/Components/VisualTetMeshComponent.h
     include/PhysiK/Core/Collision/CollisionDetectionEngine.h
     include/PhysiK/Core/Events/EventSystem.h
     include/PhysiK/Core/Events/PhysicsEvent.h

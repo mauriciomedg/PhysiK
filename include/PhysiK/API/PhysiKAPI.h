@@ -117,6 +117,15 @@ extern "C"
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle hostTetMesh);
 
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshMapperComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sourceTetMesh,
+        PhysiK::ComponentHandle destinationTetMesh);
+
+    PHYSIK_API int PHYSIK_BuildTetMeshMapping(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle mapper);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateVisualMeshComponent(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle hostTetMesh);

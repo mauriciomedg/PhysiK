@@ -4,6 +4,7 @@
 #include "PhysiK/Components/CollisionSphereComponent.h"
 #include "PhysiK/Components/SurfaceExtractionComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TetMeshMapperComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
 
@@ -134,6 +135,19 @@ namespace
 
         return dynamic_cast<const PhysiK::VisualMeshComponent*>(
             world->GetComponent(visualMeshComponent));
+    }
+
+    PhysiK::TetMeshMapperComponent* AsTetMeshMapper(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle mapperComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::TetMeshMapperComponent*>(
+            world->GetComponent(mapperComponent));
     }
 }
 
@@ -338,6 +352,50 @@ extern "C"
         auto component =
             std::make_unique<PhysiK::SurfaceExtractionComponent>(hostTetMesh);
         return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshMapperComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sourceTetMesh,
+        PhysiK::ComponentHandle destinationTetMesh)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr ||
+            AsTetMesh(worldPtr, sourceTetMesh) == nullptr ||
+            AsTetMesh(worldPtr, destinationTetMesh) == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component = std::make_unique<PhysiK::TetMeshMapperComponent>(
+            sourceTetMesh,
+            destinationTetMesh);
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API int PHYSIK_BuildTetMeshMapping(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle mapper)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        PhysiK::TetMeshMapperComponent* mapperComponent =
+            AsTetMeshMapper(worldPtr, mapper);
+        if (worldPtr == nullptr || mapperComponent == nullptr)
+        {
+            return 0;
+        }
+
+        mapperComponent->BuildTetMeshMapping(*worldPtr);
+        for (const PhysiK::TetMeshMappedVertex& mappedVertex :
+             mapperComponent->embeddedDestinationVertices)
+        {
+            if (mappedVertex.valid)
+            {
+                return 1;
+            }
+        }
+
+        return 0;
     }
 
     PHYSIK_API void PHYSIK_SetVisualMeshData(
