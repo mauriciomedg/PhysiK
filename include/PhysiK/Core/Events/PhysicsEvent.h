@@ -7,7 +7,8 @@ namespace PhysiK
 
     enum class PhysicsEventType
     {
-        TetMeshTopologyChanged
+        TetMeshTopologyChanged,
+        TopologyMeshUpdated
     };
 
     struct PhysicsEvent

@@ -1,11 +1,13 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TopologyMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Core/Events/EventSystem.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 #include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
+#include "PhysiK/Core/World/World.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <cassert>
@@ -2211,6 +2213,89 @@ void EventSystemDeliversSubscribedEventsOnlyOnce()
     assert(listener.eventCount == 1);
 }
 
+void TopologyMeshComponentDeclaresEventsAndClearsDirtyFlag()
+{
+    PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
+    assert(worldHandle != nullptr);
+    PhysiK::World& world = *static_cast<PhysiK::World*>(worldHandle);
+
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(worldHandle, nodes);
+
+    PhysiK::TopologyMeshComponent topology(tetMesh);
+
+    assert(!topology.listenedEvents.empty());
+    assert(topology.listenedEvents.size() == 1);
+    assert(topology.listenedEvents[0] ==
+        PhysiK::PhysicsEventType::TetMeshTopologyChanged);
+    assert(topology.emittedEvents.size() == 1);
+    assert(topology.emittedEvents[0] ==
+        PhysiK::PhysicsEventType::TopologyMeshUpdated);
+    assert(topology.topologyDirty);
+
+    topology.PostUpdate(world, 0.0f);
+    assert(!topology.topologyDirty);
+    assert(topology.GetIslandCount() == 1);
+
+    PHYSIK_DestroyWorld(worldHandle);
+}
+
+void TopologyMeshComponentBuildsActiveTetIslands()
+{
+    PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
+    assert(worldHandle != nullptr);
+    PhysiK::World& world = *static_cast<PhysiK::World*>(worldHandle);
+
+    const int node0 = AddNode(worldHandle, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddNode(worldHandle, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddNode(worldHandle, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(worldHandle, 0.0f, 0.0f, 1.0f);
+    const int node4 = AddNode(worldHandle, 0.0f, 0.0f, -1.0f);
+    const int node5 = AddNode(worldHandle, 4.0f, 0.0f, 0.0f);
+    const int node6 = AddNode(worldHandle, 5.0f, 0.0f, 0.0f);
+    const int node7 = AddNode(worldHandle, 4.0f, 1.0f, 0.0f);
+    const int node8 = AddNode(worldHandle, 4.0f, 0.0f, 1.0f);
+    const int nodes[] = {
+        node0, node1, node2, node3, node4, node5, node6, node7, node8};
+    const int tetNodeIndices[] = {
+        node0, node1, node2, node3,
+        node0, node1, node2, node4,
+        node5, node6, node7, node8};
+    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
+
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            worldHandle,
+            nodes,
+            9,
+            tetNodeIndices,
+            3,
+            &material,
+            0);
+    assert(PHYSIK_IsComponentHandleValid(worldHandle, tetMesh) == 1);
+
+    PhysiK::TopologyMeshComponent topology(tetMesh);
+    topology.PostUpdate(world, 0.0f);
+
+    assert(topology.GetIslandCount() == 2);
+    assert(topology.GetTetIslandId(0) == 0);
+    assert(topology.GetTetIslandId(1) == 0);
+    assert(topology.GetTetIslandId(2) == 1);
+    assert(topology.GetTetIslandId(-1) == -1);
+    assert(topology.GetTetIslandId(3) == -1);
+
+    PHYSIK_DeactivateTet(worldHandle, tetMesh, 0);
+    topology.topologyDirty = true;
+    topology.PostUpdate(world, 0.0f);
+
+    assert(topology.GetIslandCount() == 2);
+    assert(topology.GetTetIslandId(0) == -1);
+    assert(topology.GetTetIslandId(1) == 0);
+    assert(topology.GetTetIslandId(2) == 1);
+
+    PHYSIK_DestroyWorld(worldHandle);
+}
+
 void VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -2812,6 +2897,8 @@ int main()
     TetMeshComponentDefaultFemModelIsLinear();
     TetMeshComponentStoresSelectedFemModel();
     EventSystemDeliversSubscribedEventsOnlyOnce();
+    TopologyMeshComponentDeclaresEventsAndClearsDirtyFlag();
+    TopologyMeshComponentBuildsActiveTetIslands();
     VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag();
     VisualMeshComponentCanBeCreatedThroughNativeApi();
     VisualMeshComponentStoresVisualMeshData();
