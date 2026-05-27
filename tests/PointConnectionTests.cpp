@@ -1926,6 +1926,7 @@ void SparseBlockMatrixAdjacentTetsReuseSharedBlocks()
 void TetMeshComponentCachesFemSparsePattern()
 {
     PhysiK::TetMeshPhysicsComponent component;
+    component.localToGlobalNodeIndex = {0, 1, 2, 3};
     PhysiK::Tet tet = CreateUnitTet();
     component.tets.push_back(tet);
     component.EnsureFemSparsePattern(4);
@@ -2371,6 +2372,7 @@ void DeactivatedTetsAreSkippedByLumpedMassAssembly()
 void DeactivatingTetDoesNotDirtySparsePattern()
 {
     PhysiK::TetMeshPhysicsComponent component;
+    component.localToGlobalNodeIndex = {0, 1, 2, 3, 4};
     component.tets.push_back(CreateUnitTet());
     component.tets.push_back(CreateLowerUnitTet());
     component.tets.push_back(CreateUnitTet());

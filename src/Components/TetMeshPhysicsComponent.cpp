@@ -50,17 +50,8 @@ namespace PhysiK
             const std::vector<int>& localToGlobalNodeIndex,
             int localNodeIndex)
         {
-            if (localNodeIndex < 0)
-            {
-                return -1;
-            }
-
-            if (localToGlobalNodeIndex.empty())
-            {
-                return localNodeIndex;
-            }
-
-            if (localNodeIndex >= static_cast<int>(localToGlobalNodeIndex.size()))
+            if (localNodeIndex < 0 ||
+                localNodeIndex >= static_cast<int>(localToGlobalNodeIndex.size()))
             {
                 return -1;
             }
@@ -100,6 +91,8 @@ namespace PhysiK
             SolverData& solverData,
             const std::vector<int>& localToGlobalNodeIndex)
         {
+            // FEM data is local to the component; SolverData assembly must explicitly
+            // map local node indices to global node indices.
             for (int node = 0; node < 4; ++node)
             {
                 const int globalNodeIndex = MapLocalToGlobal(
