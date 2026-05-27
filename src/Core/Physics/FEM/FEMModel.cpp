@@ -3,13 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <iostream>
-#include <optional>
 
 #include "PhysiK/Components/TetMeshPhysicsComponent.h"
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-#include "PhysiK/Core/Performance/PerformanceLogger.h"
-#endif
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
 
@@ -22,56 +17,6 @@ namespace PhysiK
 
         constexpr float MinTetVolume = 1.0e-8f;
         constexpr float MinPolarDeterminant = 1.0e-8f;
-
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        thread_local PerformanceLogRecord* currentPerformanceRecord = nullptr;
-
-
-        void AddElapsed(double& target, const PerformanceTimer& timer)
-        {
-            target += timer.ElapsedMilliseconds();
-        }
-
-        void RecordPolarCall(int iterations, bool earlyExit)
-        {
-            if (currentPerformanceRecord == nullptr)
-            {
-                return;
-            }
-
-            ++currentPerformanceRecord->polarCallCount;
-            const int callCount = currentPerformanceRecord->polarCallCount;
-            currentPerformanceRecord->averagePolarIterations +=
-                (static_cast<double>(iterations) -
-                 currentPerformanceRecord->averagePolarIterations) /
-                static_cast<double>(callCount);
-            currentPerformanceRecord->maxPolarIterationsObserved = std::max(
-                currentPerformanceRecord->maxPolarIterationsObserved,
-                iterations);
-            if (earlyExit)
-            {
-                ++currentPerformanceRecord->polarEarlyExitCount;
-            }
-        }
-
-        void AddPolarElapsed(double elapsedMilliseconds)
-        {
-            if (currentPerformanceRecord == nullptr)
-            {
-                return;
-            }
-
-            currentPerformanceRecord->extractRotationPolarMs += elapsedMilliseconds;
-            const int callCount = currentPerformanceRecord->polarCallCount;
-            if (callCount > 0)
-            {
-                currentPerformanceRecord->averageExtractRotationPolarMs +=
-                    (elapsedMilliseconds -
-                     currentPerformanceRecord->averageExtractRotationPolarMs) /
-                    static_cast<double>(callCount);
-            }
-        }
-#endif
 
         Mat3 BuildDm(const Tet& tet, const std::vector<Node>& nodes)
         {
@@ -176,9 +121,6 @@ namespace PhysiK
             if (!IsFinite(deformationGradient) ||
                 std::abs(Determinant(deformationGradient)) <= MinPolarDeterminant)
             {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-                RecordPolarCall(0, true);
-#endif
                 return Mat3::Identity();
             }
 
@@ -192,18 +134,12 @@ namespace PhysiK
                 if (!IsFinite(transposeInverse) ||
                     std::abs(Determinant(transposeInverse)) <= MinPolarDeterminant)
                 {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-                    RecordPolarCall(iterationCount, true);
-#endif
                     return Mat3::Identity();
                 }
 
                 const Mat3 nextRotation = Scale(Add(rotation, transposeInverse), 0.5f);
                 if (!IsFinite(nextRotation))
                 {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-                    RecordPolarCall(iterationCount, true);
-#endif
                     return Mat3::Identity();
                 }
 
@@ -219,9 +155,6 @@ namespace PhysiK
 
             if (!IsFinite(rotation))
             {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-                RecordPolarCall(iterationCount, true);
-#endif
                 return Mat3::Identity();
             }
 
@@ -230,9 +163,6 @@ namespace PhysiK
                 rotation.columns[2] *= -1.0f;
             }
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            RecordPolarCall(iterationCount, earlyExit);
-#endif
             return rotation;
         }
 
@@ -415,17 +345,6 @@ namespace PhysiK
             const Mat3 rotationTranspose =
                 rotation != nullptr ? Transpose(*rotation) : Mat3::Identity();
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
-            const bool logPerformance = performanceRecord != nullptr;
-
-            std::optional<PerformanceTimer> assembleStiffnessTimer;
-            if (logPerformance)
-            {
-                assembleStiffnessTimer.emplace();
-            }
-#endif
-
             for (int rowNode = 0; rowNode < 4; ++rowNode)
             {
                 for (int columnNode = 0; columnNode < 4; ++columnNode)
@@ -456,15 +375,6 @@ namespace PhysiK
                         block);
                 }
             }
-
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (logPerformance)
-            {
-                AddElapsed(
-                    performanceRecord->assembleStiffnessBlocksMs,
-                    *assembleStiffnessTimer);
-            }
-#endif
         }
 
         void AddElasticForcesAndStiffness(
@@ -475,15 +385,6 @@ namespace PhysiK
             const Vector12& displacement,
             const Mat3* rotation)
         {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
-            const bool logPerformance = performanceRecord != nullptr;
-            std::optional<PerformanceTimer> forceTimer;
-            if (logPerformance)
-            {
-                forceTimer.emplace();
-            }
-#endif
             // epsilon = B * u_e.
             const Vector6 strain = Multiply(cache.B, displacement);
 
@@ -496,20 +397,6 @@ namespace PhysiK
             {
                 value *= tet.restVolume;
             }
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (logPerformance)
-            {
-                const double forceMilliseconds = forceTimer->ElapsedMilliseconds();
-                performanceRecord->assembleTetForceMs += forceMilliseconds;
-                performanceRecord->computeElasticForcesMs += forceMilliseconds;
-            }
-
-            std::optional<PerformanceTimer> rhsWriteTimer;
-            if (logPerformance)
-            {
-                rhsWriteTimer.emplace();
-            }
-#endif
 
             const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
             for (int node = 0; node < 4; ++node)
@@ -531,28 +418,10 @@ namespace PhysiK
                 // A future milestone should replace this with a proper damping model.
                 solverData.AddNodeForce(nodeIndex, elasticForce + dampingForce);
             }
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (logPerformance)
-            {
-                AddElapsed(performanceRecord->assembleRhsWriteMs, *rhsWriteTimer);
-            }
-
-            std::optional<PerformanceTimer> stiffnessTimer;
-            if (logPerformance)
-            {
-                stiffnessTimer.emplace();
-            }
-#endif
 
             // Store positive element stiffness K_e.
             // The implicit solver decides how to combine it into the global system.
             AssembleStiffness(tet, cache.Ke, solverData, rotation);
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (logPerformance)
-            {
-                AddElapsed(performanceRecord->assembleTetStiffnessMs, *stiffnessTimer);
-            }
-#endif
         }
     }
 
@@ -630,25 +499,11 @@ namespace PhysiK
             AccumulateCorotationalElasticForces(tets, tetFemCache, nodes, solverData);
             return true;
         case FemModel::NeoHookean:
-            std::cerr << GetNotImplementedMessage(femModel) << '\n';
             return false;
         }
 
-        std::cerr << GetNotImplementedMessage(femModel) << '\n';
         return false;
     }
-
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-    void FEMModel::SetPerformanceLogRecord(PerformanceLogRecord* record)
-    {
-        currentPerformanceRecord = record;
-    }
-
-    PerformanceLogRecord* FEMModel::GetPerformanceLogRecord()
-    {
-        return currentPerformanceRecord;
-    }
-#endif
 
     void FEMModel::InitializeTetRestData(Tet& tet, const std::vector<Node>& nodes)
     {
@@ -724,15 +579,6 @@ namespace PhysiK
         const std::vector<Node>& nodes,
         SolverData& solverData)
     {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
-        const bool logPerformance = performanceRecord != nullptr;
-        std::optional<PerformanceTimer> linearTimer;
-        if (logPerformance)
-        {
-            linearTimer.emplace();
-        }
-#endif
         const std::size_t count = std::min(tets.size(), tetFemCache.size());
         for (std::size_t tetIndex = 0; tetIndex < count; ++tetIndex)
         {
@@ -747,12 +593,6 @@ namespace PhysiK
                 continue;
             }
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (logPerformance)
-            {
-                ++performanceRecord->assembleTetCount;
-            }
-#endif
             const Vector12 displacement = BuildDisplacementVector(tet, nodes);
             AddElasticForcesAndStiffness(
                 tet,
@@ -762,12 +602,6 @@ namespace PhysiK
                 displacement,
                 nullptr);
         }
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        if (logPerformance)
-        {
-            AddElapsed(performanceRecord->assembleLinearFemMs, *linearTimer);
-        }
-#endif
     }
 
     void FEMModel::AccumulateCorotationalElasticForces(
@@ -791,15 +625,6 @@ namespace PhysiK
         const std::vector<Node>& nodes,
         SolverData& solverData)
     {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        PerformanceLogRecord* performanceRecord = currentPerformanceRecord;
-        const bool logPerformance = performanceRecord != nullptr;
-        std::optional<PerformanceTimer> corotationalTimer;
-        if (logPerformance)
-        {
-            corotationalTimer.emplace();
-        }
-#endif
         const std::size_t count = std::min(tets.size(), tetFemCache.size());
         for (std::size_t tetIndex = 0; tetIndex < count; ++tetIndex)
         {
@@ -814,51 +639,17 @@ namespace PhysiK
                 continue;
             }
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (logPerformance)
-            {
-                ++performanceRecord->assembleTetCount;
-            }
-#endif
             Mat3 deformationGradient;
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            std::optional<PerformanceTimer> deformationGradientTimer;
-            if (logPerformance)
-            {
-                deformationGradientTimer.emplace();
-            }
-#endif
             {
                 const Mat3 ds = BuildDm(tet, nodes);
                 deformationGradient = ds * tet.restDmInverse;
             }
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (logPerformance)
-            {
-                AddElapsed(
-                    performanceRecord->computeDeformationGradientMs,
-                    *deformationGradientTimer);
-            }
-#endif
             if (!IsFinite(deformationGradient))
             {
                 continue;
             }
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            std::optional<PerformanceTimer> polarTimer;
-            if (logPerformance)
-            {
-                polarTimer.emplace();
-            }
-#endif
             const Mat3 rotation = ExtractRotationPolar(deformationGradient);
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (logPerformance)
-            {
-                AddPolarElapsed(polarTimer->ElapsedMilliseconds());
-            }
-#endif
             const Vector12 displacement = BuildCorotatedDisplacementVector(tet, nodes, rotation);
             AddElasticForcesAndStiffness(
                 tet,
@@ -868,12 +659,6 @@ namespace PhysiK
                 displacement,
                 &rotation);
         }
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        if (logPerformance)
-        {
-            AddElapsed(performanceRecord->assembleCorotationalFemMs, *corotationalTimer);
-        }
-#endif
     }
 
     void FEMModel::AddLumpedMassToSolverData(

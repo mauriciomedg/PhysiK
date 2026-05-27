@@ -12,8 +12,6 @@
 
 namespace PhysiK
 {
-    struct PerformanceLogRecord;
-
     using Matrix6 = std::array<std::array<float, 6>, 6>;
     using Matrix6x12 = std::array<std::array<float, 12>, 6>;
     using Matrix12 = std::array<std::array<float, 12>, 12>;
@@ -96,10 +94,6 @@ namespace PhysiK
         static std::vector<std::pair<int, int>> BuildSparsePatternFromTetConnectivity(
             const std::vector<Tet>& tets);
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        static void SetPerformanceLogRecord(PerformanceLogRecord* record);
-        static PerformanceLogRecord* GetPerformanceLogRecord();
-#endif
         static bool IsFemModelImplemented(FemModel femModel);
         static const char* GetNotImplementedMessage(FemModel femModel);
     };

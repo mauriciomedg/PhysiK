@@ -1,9 +1,5 @@
 #include "PhysiK/Core/World/World.h"
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-#include "PhysiK/Core/Physics/FEM/FEMModel.h"
-#endif
-
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -597,8 +593,6 @@ namespace PhysiK
         float dt,
         PerformanceLogRecord* performanceRecord)
     {
-        FEMModel::SetPerformanceLogRecord(performanceRecord);
-
         int componentCount = 0;
         for (const std::unique_ptr<Component>& component : components)
         {
@@ -609,7 +603,6 @@ namespace PhysiK
             }
         }
 
-        FEMModel::SetPerformanceLogRecord(nullptr);
         if (performanceRecord != nullptr)
         {
             performanceRecord->assembleComponentCount = componentCount;
