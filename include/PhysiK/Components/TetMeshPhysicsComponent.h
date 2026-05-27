@@ -54,6 +54,7 @@ namespace PhysiK
             const TetMeshPhysicsComponentDesc& desc);
 
         std::vector<int> worldNodeIndices;
+        std::vector<Tet> worldTets;
         std::vector<TetFemCache> tetFemCache;
 
         Material material;
@@ -79,14 +80,16 @@ namespace PhysiK
             femSparsePatternDirty = true;
         }
 
-        std::vector<Tet> BuildWorldTets(const World& world) const;
-        std::vector<Tet> BuildWorldTetTopology() const;
-        void RebuildTetFemCache(const World& world);
+        void RebuildWorldTets(const World& world);
+        void RebuildTetFemCache();
         void EnsureFemSparsePattern(int worldNodeCount);
+        void SyncWorldTetActiveStates();
         void SyncCurrentPositionsFromWorld(const World& world);
 
         int GetWorldNodeIndex(int localNodeIndex) const override;
         void SetLocalCurrentPosition(int localNodeIndex, const Vec3& position) override;
+        void SetTetActive(int tetIndex, bool active) override;
+        void DeactivateTet(int tetIndex) override;
 
         const SparseBlockMatrix& GetFemSparseMatrix() const
         {

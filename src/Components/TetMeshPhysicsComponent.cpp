@@ -158,7 +158,7 @@ namespace PhysiK
             }
         }
 
-        component->RebuildTetFemCache(world);
+        component->RebuildWorldTets(world);
         return component;
     }
 
@@ -211,49 +211,41 @@ namespace PhysiK
         }
 
         component->SetGeometry(positions, nodeCount, tetLocalNodeIndices, tetCount);
-        component->RebuildTetFemCache(world);
+        component->RebuildWorldTets(world);
         return component;
     }
 
     void TetMeshPhysicsComponent::SetMaterial(const Material& value)
     {
         material = value;
-        tetFemCache.clear();
+        for (Tet& tet : worldTets)
+        {
+            ApplyMaterialToTet(tet, material);
+        }
+        RebuildTetFemCache();
     }
 
-    std::vector<Tet> TetMeshPhysicsComponent::BuildWorldTets(const World& world) const
+    void TetMeshPhysicsComponent::RebuildWorldTets(const World& world)
     {
-        std::vector<Tet> mappedTets;
-        mappedTets.reserve(tets.size());
+        worldTets.clear();
+        worldTets.reserve(tets.size());
         for (const Tet& localTet : tets)
         {
             Tet mappedTet = BuildMappedTet(localTet, worldNodeIndices);
             ApplyMaterialToTet(mappedTet, material);
             FEMModel::InitializeTetRestData(mappedTet, world.GetNodes());
-            mappedTets.push_back(mappedTet);
+            worldTets.push_back(mappedTet);
         }
 
-        return mappedTets;
+        RebuildTetFemCache();
+        femSparsePatternDirty = true;
     }
 
-    std::vector<Tet> TetMeshPhysicsComponent::BuildWorldTetTopology() const
+    void TetMeshPhysicsComponent::RebuildTetFemCache()
     {
-        std::vector<Tet> worldTetTopology;
-        worldTetTopology.reserve(tets.size());
-        for (const Tet& localTet : tets)
-        {
-            worldTetTopology.push_back(BuildMappedTet(localTet, worldNodeIndices));
-        }
-
-        return worldTetTopology;
-    }
-
-    void TetMeshPhysicsComponent::RebuildTetFemCache(const World& world)
-    {
-        const std::vector<Tet> mappedTets = BuildWorldTets(world);
         tetFemCache.clear();
-        tetFemCache.reserve(mappedTets.size());
-        for (const Tet& tet : mappedTets)
+        tetFemCache.reserve(worldTets.size());
+        for (const Tet& tet : worldTets)
         {
             tetFemCache.push_back(FEMModel::BuildTetFemCache(tet));
         }
@@ -268,8 +260,17 @@ namespace PhysiK
 
         femSparseMatrix.BuildPattern(
             worldNodeCount,
-            FEMModel::BuildSparsePatternFromTetConnectivity(BuildWorldTetTopology()));
+            FEMModel::BuildSparsePatternFromTetConnectivity(worldTets));
         femSparsePatternDirty = false;
+    }
+
+    void TetMeshPhysicsComponent::SyncWorldTetActiveStates()
+    {
+        const std::size_t count = std::min(tets.size(), worldTets.size());
+        for (std::size_t tetIndex = 0; tetIndex < count; ++tetIndex)
+        {
+            worldTets[tetIndex].active = tets[tetIndex].active;
+        }
     }
 
     void TetMeshPhysicsComponent::SyncCurrentPositionsFromWorld(const World& world)
@@ -309,6 +310,22 @@ namespace PhysiK
         TetMeshComponent::SetLocalCurrentPosition(localNodeIndex, position);
     }
 
+    void TetMeshPhysicsComponent::SetTetActive(int tetIndex, bool active)
+    {
+        TetMeshComponent::SetTetActive(tetIndex, active);
+        if (tetIndex < 0 || tetIndex >= static_cast<int>(worldTets.size()))
+        {
+            return;
+        }
+
+        worldTets[static_cast<std::size_t>(tetIndex)].active = active;
+    }
+
+    void TetMeshPhysicsComponent::DeactivateTet(int tetIndex)
+    {
+        SetTetActive(tetIndex, false);
+    }
+
     void TetMeshPhysicsComponent::UpdateSystem(
         World& world,
         SolverData& solverData,
@@ -321,18 +338,18 @@ namespace PhysiK
             return;
         }
 
-        const std::vector<Tet> mappedTets = BuildWorldTets(world);
-        FEMModel::AssembleLumpedMass(material, mappedTets, world, solverData);
+        SyncWorldTetActiveStates();
+        FEMModel::AssembleLumpedMass(material, worldTets, world, solverData);
         EnsureFemSparsePattern(static_cast<int>(world.GetNodes().size()));
-        if (tetFemCache.size() != mappedTets.size())
+        if (tetFemCache.size() != worldTets.size())
         {
-            RebuildTetFemCache(world);
+            RebuildTetFemCache();
         }
 
         SolverData femSolverData;
         FEMModel::AccumulateForces(
             GetFemModel(),
-            mappedTets,
+            worldTets,
             tetFemCache,
             world.GetNodes(),
             femSolverData);

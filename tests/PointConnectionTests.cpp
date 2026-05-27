@@ -247,6 +247,10 @@ namespace
         nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
         nodes[2].position = PhysiK::Vec3{0.0f, 1.0f, 0.0f};
         nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.0f};
+        for (PhysiK::Node& node : nodes)
+        {
+            node.restPosition = node.position;
+        }
         return nodes;
     }
 
@@ -271,6 +275,10 @@ namespace
         nodes[2].position = PhysiK::Vec3{0.0f, 1.0f, 0.0f};
         nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.0f};
         nodes[4].position = PhysiK::Vec3{0.0f, 0.0f, -1.0f};
+        for (PhysiK::Node& node : nodes)
+        {
+            node.restPosition = node.position;
+        }
         return nodes;
     }
 
@@ -888,6 +896,45 @@ void FEMUsesWorldNodeMappingWhenLocalTetIndicesDiffer()
     assert(NearlyEqual(dummy.x, 100.0f));
     assert(NearlyEqual(dummy.y, 100.0f));
     assert(NearlyEqual(dummy.z, 100.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void TetMeshPhysicsUsesCreationRestDataForRuntimeForces()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+    PHYSIK_SetGravity(world, 0.0f, 0.0f, 0.0f);
+
+    const int node0 = AddFixedNode(world, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddFixedNode(world, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddFixedNode(world, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(world, 0.0f, 0.0f, 1.0f);
+
+    const int nodes[] = {node0, node1, node2, node3};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
+    PhysikMaterialDesc material = MakeMaterialDesc(24.0f, 25.0f, 0.3f, 0.0f);
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            nodes,
+            4,
+            tetNodeIndices,
+            1,
+            &material,
+            0);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+
+    PHYSIK_SetNodePosition(world, node3, 0.0f, 0.0f, 1.25f);
+    PHYSIK_Step(world, 0.01f);
+    const float firstStepZ = GetNodePosition(world, node3).z;
+    assert(firstStepZ < 1.25f);
+
+    PHYSIK_SetNodePosition(world, node3, 0.0f, 0.0f, 1.50f);
+    PHYSIK_SetNodeVelocity(world, node3, 0.0f, 0.0f, 0.0f);
+    PHYSIK_Step(world, 0.01f);
+    const float secondStepZ = GetNodePosition(world, node3).z;
+    assert(secondStepZ < 1.50f);
 
     PHYSIK_DestroyWorld(world);
 }
@@ -1788,6 +1835,7 @@ void TetMeshComponentCachesFemSparsePattern()
     PhysiK::TetMeshPhysicsComponent component;
     PhysiK::Tet tet = CreateUnitTet();
     component.tets.push_back(tet);
+    component.worldTets.push_back(tet);
     component.EnsureFemSparsePattern(4);
 
     assert(!component.femSparsePatternDirty);
@@ -2219,6 +2267,10 @@ void DeactivatingTetDoesNotDirtySparsePattern()
     component.tets.push_back(CreateLowerUnitTet());
     component.tets.push_back(CreateUnitTet());
     component.tets.push_back(CreateLowerUnitTet());
+    component.worldTets.push_back(CreateUnitTet());
+    component.worldTets.push_back(CreateLowerUnitTet());
+    component.worldTets.push_back(CreateUnitTet());
+    component.worldTets.push_back(CreateLowerUnitTet());
     component.EnsureFemSparsePattern(5);
 
     const std::vector<int> rowStart = component.GetFemSparseMatrix().rowStart;
@@ -3120,6 +3172,7 @@ int main()
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();
     FEMUsesWorldNodeMappingWhenLocalTetIndicesDiffer();
+    TetMeshPhysicsUsesCreationRestDataForRuntimeForces();
     ImplicitEulerFEMTetMovesDistortedNodeTowardRestShape();
     ImplicitEulerAllDynamicTetResistsRestShapeVelocity();
     ImplicitEulerPointAnchoredTetRecoversFreeNodes();

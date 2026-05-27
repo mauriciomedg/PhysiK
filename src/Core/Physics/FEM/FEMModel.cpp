@@ -563,15 +563,15 @@ namespace PhysiK
         float dt)
     {
         (void)dt;
-        const std::vector<Tet> mappedTets = owner.BuildWorldTets(world);
-        if (owner.tetFemCache.size() != mappedTets.size())
+        owner.SyncWorldTetActiveStates();
+        if (owner.tetFemCache.size() != owner.worldTets.size())
         {
-            owner.RebuildTetFemCache(world);
+            owner.RebuildTetFemCache();
         }
 
         AccumulateForces(
             owner.GetFemModel(),
-            mappedTets,
+            owner.worldTets,
             owner.tetFemCache,
             world.GetNodes(),
             solverData);
@@ -657,12 +657,16 @@ namespace PhysiK
             return;
         }
 
-        const Mat3 restDm = BuildDm(tet, nodes);
+        const Vec3& rest0 = nodes[static_cast<std::size_t>(tet.node0)].restPosition;
+        const Vec3& rest1 = nodes[static_cast<std::size_t>(tet.node1)].restPosition;
+        const Vec3& rest2 = nodes[static_cast<std::size_t>(tet.node2)].restPosition;
+        const Vec3& rest3 = nodes[static_cast<std::size_t>(tet.node3)].restPosition;
+        const Mat3 restDm = Mat3::FromColumns(rest1 - rest0, rest2 - rest0, rest3 - rest0);
         const float determinant = Determinant(restDm);
-        tet.restPositions[0] = nodes[static_cast<std::size_t>(tet.node0)].position;
-        tet.restPositions[1] = nodes[static_cast<std::size_t>(tet.node1)].position;
-        tet.restPositions[2] = nodes[static_cast<std::size_t>(tet.node2)].position;
-        tet.restPositions[3] = nodes[static_cast<std::size_t>(tet.node3)].position;
+        tet.restPositions[0] = rest0;
+        tet.restPositions[1] = rest1;
+        tet.restPositions[2] = rest2;
+        tet.restPositions[3] = rest3;
 
         const float volume = std::abs(determinant) / 6.0f;
         if (volume <= MinTetVolume)
@@ -898,7 +902,7 @@ namespace PhysiK
     {
         AssembleLumpedMass(
             component.material,
-            component.BuildWorldTets(world),
+            component.worldTets,
             world,
             solverData);
     }
