@@ -53,8 +53,8 @@ namespace PhysiK
             int tetCount,
             const TetMeshPhysicsComponentDesc& desc);
 
-        std::vector<int> globalNodeIndices;
-        std::vector<Tet> globalTets;
+        std::vector<int> localToGlobalNodeIndex;
+        std::vector<Vec3> nodeVelocities;
         std::vector<TetFemCache> tetFemCache;
 
         Material material;
@@ -80,10 +80,9 @@ namespace PhysiK
             femSparsePatternDirty = true;
         }
 
-        void RebuildWorldTets(const World& world);
+        void RebuildFemRestData();
         void RebuildTetFemCache();
         void EnsureFemSparsePattern(int worldNodeCount);
-        void SyncWorldTetActiveStates();
         void SyncCurrentPositionsFromWorld(const World& world);
 
         int GetGlobalNodeIndex(int localNodeIndex) const override;

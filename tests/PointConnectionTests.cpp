@@ -240,6 +240,99 @@ namespace
         return nullptr;
     }
 
+    std::vector<PhysiK::Vec3> RestPositionsFromNodes(
+        const std::vector<PhysiK::Node>& nodes)
+    {
+        std::vector<PhysiK::Vec3> positions;
+        positions.reserve(nodes.size());
+        for (const PhysiK::Node& node : nodes)
+        {
+            positions.push_back(node.restPosition);
+        }
+        return positions;
+    }
+
+    std::vector<PhysiK::Vec3> PositionsFromNodes(
+        const std::vector<PhysiK::Node>& nodes)
+    {
+        std::vector<PhysiK::Vec3> positions;
+        positions.reserve(nodes.size());
+        for (const PhysiK::Node& node : nodes)
+        {
+            positions.push_back(node.position);
+        }
+        return positions;
+    }
+
+    std::vector<PhysiK::Vec3> VelocitiesFromNodes(
+        const std::vector<PhysiK::Node>& nodes)
+    {
+        std::vector<PhysiK::Vec3> velocities;
+        velocities.reserve(nodes.size());
+        for (const PhysiK::Node& node : nodes)
+        {
+            velocities.push_back(node.velocity);
+        }
+        return velocities;
+    }
+
+    void AssembleLocalFemContributions(
+        const std::vector<PhysiK::TetElementContribution>& contributions,
+        PhysiK::SolverData& solverData)
+    {
+        for (const PhysiK::TetElementContribution& contribution : contributions)
+        {
+            for (int node = 0; node < 4; ++node)
+            {
+                solverData.AddNodeForce(
+                    contribution.localNodeIndices[node],
+                    contribution.forces[node]);
+            }
+
+            for (int rowNode = 0; rowNode < 4; ++rowNode)
+            {
+                for (int columnNode = 0; columnNode < 4; ++columnNode)
+                {
+                    solverData.AddStiffnessBlock(
+                        contribution.localNodeIndices[rowNode],
+                        contribution.localNodeIndices[columnNode],
+                        contribution.stiffness[rowNode][columnNode]);
+                }
+            }
+        }
+    }
+
+    bool ComputeFemForcesIntoSolverData(
+        PhysiK::FemModel femModel,
+        const std::vector<PhysiK::Tet>& tets,
+        const std::vector<PhysiK::Node>& nodes,
+        PhysiK::SolverData& solverData)
+    {
+        std::vector<PhysiK::TetElementContribution> contributions;
+        const bool implemented = PhysiK::FEMModel::ComputeForces(
+            femModel,
+            tets,
+            PositionsFromNodes(nodes),
+            VelocitiesFromNodes(nodes),
+            contributions);
+        AssembleLocalFemContributions(contributions, solverData);
+        return implemented;
+    }
+
+    void ComputeLinearFemForcesIntoSolverData(
+        const std::vector<PhysiK::Tet>& tets,
+        const std::vector<PhysiK::Node>& nodes,
+        PhysiK::SolverData& solverData)
+    {
+        std::vector<PhysiK::TetElementContribution> contributions;
+        PhysiK::FEMModel::ComputeElasticForces(
+            tets,
+            PositionsFromNodes(nodes),
+            VelocitiesFromNodes(nodes),
+            contributions);
+        AssembleLocalFemContributions(contributions, solverData);
+    }
+
     std::vector<PhysiK::Node> CreateUnitTetNodes()
     {
         std::vector<PhysiK::Node> nodes(4);
@@ -1835,7 +1928,6 @@ void TetMeshComponentCachesFemSparsePattern()
     PhysiK::TetMeshPhysicsComponent component;
     PhysiK::Tet tet = CreateUnitTet();
     component.tets.push_back(tet);
-    component.globalTets.push_back(tet);
     component.EnsureFemSparsePattern(4);
 
     assert(!component.femSparsePatternDirty);
@@ -1850,6 +1942,22 @@ void TetMeshComponentCachesFemSparsePattern()
     component.EnsureFemSparsePattern(5);
     assert(!component.femSparsePatternDirty);
     assert(component.GetFemSparseMatrix().blockCount == 5);
+}
+
+void TetMeshComponentMapsLocalFemPatternToGlobalSolverNodes()
+{
+    PhysiK::TetMeshPhysicsComponent component;
+    component.localToGlobalNodeIndex = {2, 4, 5, 7};
+    component.tets.push_back(CreateUnitTet());
+    component.EnsureFemSparsePattern(8);
+
+    const PhysiK::SparseBlockMatrix& matrix = component.GetFemSparseMatrix();
+    assert(matrix.blockCount == 8);
+    assert(matrix.values.size() == 16);
+    assert(HasSparseBlock(matrix, 2, 4));
+    assert(HasSparseBlock(matrix, 7, 5));
+    assert(!HasSparseBlock(matrix, 0, 1));
+    assert(!HasSparseBlock(matrix, 1, 1));
 }
 
 void ConjugateGradientSolvesDiagonalSparseSystem()
@@ -2194,15 +2302,15 @@ void InactiveTetsAreSkippedByFemForceAndStiffnessAssembly()
     std::vector<PhysiK::Node> nodes = CreateTwoTetNodes();
     PhysiK::Tet activeTet = CreateUnitTet(200.0f);
     PhysiK::Tet inactiveTet = CreateLowerUnitTet(200.0f);
-    PhysiK::FEMModel::InitializeTetRestData(activeTet, nodes);
-    PhysiK::FEMModel::InitializeTetRestData(inactiveTet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(activeTet, RestPositionsFromNodes(nodes));
+    PhysiK::FEMModel::InitializeTetRestData(inactiveTet, RestPositionsFromNodes(nodes));
     inactiveTet.active = false;
     nodes[4].position.z -= 0.25f;
 
     for (PhysiK::FemModel model : {PhysiK::FemModel::Linear, PhysiK::FemModel::Corotational})
     {
         PhysiK::SolverData solverData;
-        const bool implemented = PhysiK::FEMModel::AccumulateForces(
+        const bool implemented = ComputeFemForcesIntoSolverData(
             model,
             {activeTet, inactiveTet},
             nodes,
@@ -2267,10 +2375,6 @@ void DeactivatingTetDoesNotDirtySparsePattern()
     component.tets.push_back(CreateLowerUnitTet());
     component.tets.push_back(CreateUnitTet());
     component.tets.push_back(CreateLowerUnitTet());
-    component.globalTets.push_back(CreateUnitTet());
-    component.globalTets.push_back(CreateLowerUnitTet());
-    component.globalTets.push_back(CreateUnitTet());
-    component.globalTets.push_back(CreateLowerUnitTet());
     component.EnsureFemSparsePattern(5);
 
     const std::vector<int> rowStart = component.GetFemSparseMatrix().rowStart;
@@ -2837,11 +2941,11 @@ void FemModelLinearRouteUsesExistingAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet();
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
     nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.1f};
 
     PhysiK::SolverData solverData;
-    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+    const bool implemented = ComputeFemForcesIntoSolverData(
         PhysiK::FemModel::Linear,
         {tet},
         nodes,
@@ -2857,11 +2961,11 @@ void FemModelCorotationalRouteUsesCorotationalAssembly()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet();
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
     nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.1f};
 
     PhysiK::SolverData solverData;
-    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+    const bool implemented = ComputeFemForcesIntoSolverData(
         PhysiK::FemModel::Corotational,
         {tet},
         nodes,
@@ -2878,11 +2982,11 @@ void FemModelNeoHookeanRouteIsExplicitlyNotImplemented()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet();
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
     nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.1f};
 
     PhysiK::SolverData solverData;
-    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+    const bool implemented = ComputeFemForcesIntoSolverData(
         PhysiK::FemModel::NeoHookean,
         {tet},
         nodes,
@@ -2898,7 +3002,7 @@ void CorotationalFemHasNearZeroForceForRigidRotation()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet(1000.0f);
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
 
     for (PhysiK::Node& node : nodes)
     {
@@ -2906,7 +3010,7 @@ void CorotationalFemHasNearZeroForceForRigidRotation()
     }
 
     PhysiK::SolverData solverData;
-    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+    const bool implemented = ComputeFemForcesIntoSolverData(
         PhysiK::FemModel::Corotational,
         {tet},
         nodes,
@@ -2920,7 +3024,7 @@ void LinearFemProducesForceForRigidRotation()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet(1000.0f);
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
 
     for (PhysiK::Node& node : nodes)
     {
@@ -2928,7 +3032,7 @@ void LinearFemProducesForceForRigidRotation()
     }
 
     PhysiK::SolverData solverData;
-    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+    const bool implemented = ComputeFemForcesIntoSolverData(
         PhysiK::FemModel::Linear,
         {tet},
         nodes,
@@ -2942,11 +3046,11 @@ void CorotationalFemProducesRestoringForceForSmallDeformation()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet(1000.0f);
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
     nodes[3].position.z += 0.1f;
 
     PhysiK::SolverData solverData;
-    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+    const bool implemented = ComputeFemForcesIntoSolverData(
         PhysiK::FemModel::Corotational,
         {tet},
         nodes,
@@ -2962,7 +3066,7 @@ void CorotationalAssemblySmokeTestStaysFinite()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet(250.0f);
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
 
     for (PhysiK::Node& node : nodes)
     {
@@ -2971,7 +3075,7 @@ void CorotationalAssemblySmokeTestStaysFinite()
     nodes[3].position.z += 0.05f;
 
     PhysiK::SolverData solverData;
-    const bool implemented = PhysiK::FEMModel::AccumulateForces(
+    const bool implemented = ComputeFemForcesIntoSolverData(
         PhysiK::FemModel::Corotational,
         {tet},
         nodes,
@@ -2994,11 +3098,11 @@ void LinearTetAssemblyProducesForcesAndSymmetricStiffness()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet();
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
 
     std::vector<PhysiK::Tet> tets = {tet};
     PhysiK::SolverData solverData;
-    PhysiK::FEMModel::AccumulateElasticForces(tets, nodes, solverData);
+    ComputeLinearFemForcesIntoSolverData(tets, nodes, solverData);
 
     for (int node = 0; node < 4; ++node)
     {
@@ -3034,7 +3138,7 @@ void LinearTetAssemblyProducesForcesAndSymmetricStiffness()
 
     solverData.Clear();
     nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 1.1f};
-    PhysiK::FEMModel::AccumulateElasticForces(tets, nodes, solverData);
+    ComputeLinearFemForcesIntoSolverData(tets, nodes, solverData);
 
     const PhysiK::Vec3 node3Force = SumForcesForNode(solverData, 3);
     assert(LengthSquared(node3Force) > 0.000001f);
@@ -3045,7 +3149,7 @@ void UnitTetShapeFunctionGradientsMatchExpectedConvention()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet();
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
 
     assert(NearlyEqual(tet.restVolume, 1.0f / 6.0f));
     assert(NearlyEqual(tet.shapeFunctionGradients[0], PhysiK::Vec3{-1.0f, -1.0f, -1.0f}));
@@ -3063,7 +3167,7 @@ void DegenerateTetIsSkippedWithoutInvalidAssembly()
     nodes[3].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
 
     PhysiK::Tet tet = CreateUnitTet();
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
 
     assert(tet.restVolume == 0.0f);
     for (const PhysiK::Vec3& gradient : tet.shapeFunctionGradients)
@@ -3073,7 +3177,7 @@ void DegenerateTetIsSkippedWithoutInvalidAssembly()
 
     std::vector<PhysiK::Tet> tets = {tet};
     PhysiK::SolverData solverData;
-    PhysiK::FEMModel::AccumulateElasticForces(tets, nodes, solverData);
+    ComputeLinearFemForcesIntoSolverData(tets, nodes, solverData);
 
     assert(solverData.GetNodeForces().empty());
     assert(solverData.GetStiffnessBlocks().empty());
@@ -3083,11 +3187,11 @@ void LinearTetMaterialSanitizationAvoidsInvalidForces()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet noElasticity = CreateUnitTet(-10.0f, 0.25f);
-    PhysiK::FEMModel::InitializeTetRestData(noElasticity, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(noElasticity, RestPositionsFromNodes(nodes));
     nodes[1].position.x += 0.1f;
 
     PhysiK::SolverData solverData;
-    PhysiK::FEMModel::AccumulateElasticForces({noElasticity}, nodes, solverData);
+    ComputeLinearFemForcesIntoSolverData({noElasticity}, nodes, solverData);
 
     for (const PhysiK::SolverData::NodeForce& force : solverData.GetNodeForces())
     {
@@ -3097,10 +3201,10 @@ void LinearTetMaterialSanitizationAvoidsInvalidForces()
 
     nodes = CreateUnitTetNodes();
     PhysiK::Tet clampedPoisson = CreateUnitTet(100.0f, 0.99f);
-    PhysiK::FEMModel::InitializeTetRestData(clampedPoisson, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(clampedPoisson, RestPositionsFromNodes(nodes));
     nodes[1].position.x += 0.1f;
     solverData.Clear();
-    PhysiK::FEMModel::AccumulateElasticForces({clampedPoisson}, nodes, solverData);
+    ComputeLinearFemForcesIntoSolverData({clampedPoisson}, nodes, solverData);
 
     for (const PhysiK::SolverData::NodeForce& force : solverData.GetNodeForces())
     {
@@ -3117,11 +3221,11 @@ void LinearTetDisplacedNodeReceivesRestoringForce()
 {
     std::vector<PhysiK::Node> nodes = CreateUnitTetNodes();
     PhysiK::Tet tet = CreateUnitTet();
-    PhysiK::FEMModel::InitializeTetRestData(tet, nodes);
+    PhysiK::FEMModel::InitializeTetRestData(tet, RestPositionsFromNodes(nodes));
     nodes[1].position.x += 0.1f;
 
     PhysiK::SolverData solverData;
-    PhysiK::FEMModel::AccumulateElasticForces({tet}, nodes, solverData);
+    ComputeLinearFemForcesIntoSolverData({tet}, nodes, solverData);
 
     const PhysiK::Vec3 node1Force = SumForcesForNode(solverData, 1);
     assert(LengthSquared(node1Force) > 0.000001f);
@@ -3202,6 +3306,7 @@ int main()
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
     TetMeshComponentCachesFemSparsePattern();
+    TetMeshComponentMapsLocalFemPatternToGlobalSolverNodes();
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
     CurrentLinearSolverSolvesKnownSparseSystem();

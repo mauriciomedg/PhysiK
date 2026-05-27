@@ -4,10 +4,6 @@
 #include <array>
 #include <cmath>
 
-#include "PhysiK/Components/TetMeshPhysicsComponent.h"
-#include "PhysiK/Core/Solvers/SolverData.h"
-#include "PhysiK/Core/World/World.h"
-
 namespace PhysiK
 {
     namespace
@@ -18,12 +14,12 @@ namespace PhysiK
         constexpr float MinTetVolume = 1.0e-8f;
         constexpr float MinPolarDeterminant = 1.0e-8f;
 
-        Mat3 BuildDm(const Tet& tet, const std::vector<Node>& nodes)
+        Mat3 BuildDm(const Tet& tet, const std::vector<Vec3>& positions)
         {
-            const Vec3& x0 = nodes[static_cast<std::size_t>(tet.node0)].position;
-            const Vec3& x1 = nodes[static_cast<std::size_t>(tet.node1)].position;
-            const Vec3& x2 = nodes[static_cast<std::size_t>(tet.node2)].position;
-            const Vec3& x3 = nodes[static_cast<std::size_t>(tet.node3)].position;
+            const Vec3& x0 = positions[static_cast<std::size_t>(tet.node0)];
+            const Vec3& x1 = positions[static_cast<std::size_t>(tet.node1)];
+            const Vec3& x2 = positions[static_cast<std::size_t>(tet.node2)];
+            const Vec3& x3 = positions[static_cast<std::size_t>(tet.node3)];
             return Mat3::FromColumns(x1 - x0, x2 - x0, x3 - x0);
         }
 
@@ -166,9 +162,9 @@ namespace PhysiK
             return rotation;
         }
 
-        bool HasValidNodes(const Tet& tet, const std::vector<Node>& nodes)
+        bool HasValidLocalPositions(const Tet& tet, const std::vector<Vec3>& positions)
         {
-            const int nodeCount = static_cast<int>(nodes.size());
+            const int nodeCount = static_cast<int>(positions.size());
             return tet.node0 >= 0 && tet.node0 < nodeCount &&
                 tet.node1 >= 0 && tet.node1 < nodeCount &&
                 tet.node2 >= 0 && tet.node2 < nodeCount &&
@@ -228,7 +224,9 @@ namespace PhysiK
             return b;
         }
 
-        Vector12 BuildDisplacementVector(const Tet& tet, const std::vector<Node>& nodes)
+        Vector12 BuildDisplacementVector(
+            const Tet& tet,
+            const std::vector<Vec3>& positions)
         {
             const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
             Vector12 displacement{};
@@ -236,7 +234,7 @@ namespace PhysiK
             for (int node = 0; node < 4; ++node)
             {
                 const Vec3 u =
-                    nodes[static_cast<std::size_t>(nodeIndices[node])].position -
+                    positions[static_cast<std::size_t>(nodeIndices[node])] -
                     tet.restPositions[node];
                 displacement[node * 3 + 0] = u.x;
                 displacement[node * 3 + 1] = u.y;
@@ -248,11 +246,11 @@ namespace PhysiK
 
         Vector12 BuildCorotatedDisplacementVector(
             const Tet& tet,
-            const std::vector<Node>& nodes,
+            const std::vector<Vec3>& positions,
             const Mat3& rotation)
         {
             const int nodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
-            const Vec3& currentOrigin = nodes[static_cast<std::size_t>(tet.node0)].position;
+            const Vec3& currentOrigin = positions[static_cast<std::size_t>(tet.node0)];
             const Vec3& restOrigin = tet.restPositions[0];
             const Mat3 inverseRotation = Transpose(rotation);
             Vector12 displacement{};
@@ -261,7 +259,7 @@ namespace PhysiK
             {
                 const Vec3 localCurrent =
                     inverseRotation *
-                    (nodes[static_cast<std::size_t>(nodeIndices[node])].position - currentOrigin) +
+                    (positions[static_cast<std::size_t>(nodeIndices[node])] - currentOrigin) +
                     restOrigin;
                 const Vec3 u = localCurrent - tet.restPositions[node];
                 displacement[node * 3 + 0] = u.x;
@@ -338,7 +336,7 @@ namespace PhysiK
         void AssembleStiffness(
             const Tet& tet,
             const Matrix12& stiffness,
-            SolverData& solverData,
+            TetElementContribution& contribution,
             const Mat3* rotation = nullptr)
         {
             const int nodeIndices[4] = { tet.node0, tet.node1, tet.node2, tet.node3 };
@@ -369,29 +367,28 @@ namespace PhysiK
                         block = (*rotation) * block * rotationTranspose;
                     }
 
-                    solverData.AddStiffnessBlock(
-                        nodeIndices[rowNode],
-                        nodeIndices[columnNode],
-                        block);
+                    contribution.localNodeIndices[rowNode] = nodeIndices[rowNode];
+                    contribution.localNodeIndices[columnNode] = nodeIndices[columnNode];
+                    contribution.stiffness[rowNode][columnNode] = block;
                 }
             }
         }
 
-        void AddElasticForcesAndStiffness(
+        TetElementContribution ComputeElasticForcesAndStiffness(
             const Tet& tet,
             const TetFemCache& cache,
-            const std::vector<Node>& nodes,
-            SolverData& solverData,
+            const std::vector<Vec3>& velocities,
             const Vector12& displacement,
             const Mat3* rotation)
         {
+            TetElementContribution contribution;
             // epsilon = B * u_e.
             const Vector6 strain = Multiply(cache.B, displacement);
 
             // sigma = D * epsilon.
             const Vector6 stress = Multiply(cache.D, strain);
 
-            // f_int = V * B^T * sigma. SolverData stores total force, so assemble -f_int.
+            // f_int = V * B^T * sigma. Return external force contribution -f_int.
             Vector12 internalForce = MultiplyTranspose(cache.B, stress);
             for (float& value : internalForce)
             {
@@ -402,6 +399,7 @@ namespace PhysiK
             for (int node = 0; node < 4; ++node)
             {
                 const int nodeIndex = nodeIndices[node];
+                contribution.localNodeIndices[node] = nodeIndex;
                 Vec3 elasticForce{
                     -internalForce[node * 3 + 0],
                     -internalForce[node * 3 + 1],
@@ -412,38 +410,18 @@ namespace PhysiK
                 }
 
                 const Vec3 dampingForce =
-                    nodes[static_cast<std::size_t>(nodeIndex)].velocity * (-tet.damping);
+                    velocities[static_cast<std::size_t>(nodeIndex)] * (-tet.damping);
                 // Temporary per-node damping for stability.
                 // This is not Rayleigh damping or element-level damping.
                 // A future milestone should replace this with a proper damping model.
-                solverData.AddNodeForce(nodeIndex, elasticForce + dampingForce);
+                contribution.forces[node] = elasticForce + dampingForce;
             }
 
             // Store positive element stiffness K_e.
-            // The implicit solver decides how to combine it into the global system.
-            AssembleStiffness(tet, cache.Ke, solverData, rotation);
+            // The component-level assembly decides how to combine it into the solver.
+            AssembleStiffness(tet, cache.Ke, contribution, rotation);
+            return contribution;
         }
-    }
-
-    void FEMModel::UpdateSystem(
-        World& world,
-        TetMeshPhysicsComponent& owner,
-        SolverData& solverData,
-        float dt)
-    {
-        (void)dt;
-        owner.SyncWorldTetActiveStates();
-        if (owner.tetFemCache.size() != owner.globalTets.size())
-        {
-            owner.RebuildTetFemCache();
-        }
-
-        AccumulateForces(
-            owner.GetFemModel(),
-            owner.globalTets,
-            owner.tetFemCache,
-            world.GetNodes(),
-            solverData);
     }
 
     bool FEMModel::IsFemModelImplemented(FemModel femModel)
@@ -467,11 +445,12 @@ namespace PhysiK
         return "Unknown FEM model is not implemented";
     }
 
-    bool FEMModel::AccumulateForces(
+    bool FEMModel::ComputeForces(
         FemModel femModel,
         const std::vector<Tet>& tets,
-        const std::vector<Node>& nodes,
-        SolverData& solverData)
+        const std::vector<Vec3>& positions,
+        const std::vector<Vec3>& velocities,
+        std::vector<TetElementContribution>& outContributions)
     {
         std::vector<TetFemCache> tetFemCache;
         tetFemCache.reserve(tets.size());
@@ -480,23 +459,40 @@ namespace PhysiK
             tetFemCache.push_back(BuildTetFemCache(tet));
         }
 
-        return AccumulateForces(femModel, tets, tetFemCache, nodes, solverData);
+        return ComputeForces(
+            femModel,
+            tets,
+            tetFemCache,
+            positions,
+            velocities,
+            outContributions);
     }
 
-    bool FEMModel::AccumulateForces(
+    bool FEMModel::ComputeForces(
         FemModel femModel,
         const std::vector<Tet>& tets,
         const std::vector<TetFemCache>& tetFemCache,
-        const std::vector<Node>& nodes,
-        SolverData& solverData)
+        const std::vector<Vec3>& positions,
+        const std::vector<Vec3>& velocities,
+        std::vector<TetElementContribution>& outContributions)
     {
         switch (femModel)
         {
         case FemModel::Linear:
-            AccumulateElasticForces(tets, tetFemCache, nodes, solverData);
+            ComputeElasticForces(
+                tets,
+                tetFemCache,
+                positions,
+                velocities,
+                outContributions);
             return true;
         case FemModel::Corotational:
-            AccumulateCorotationalElasticForces(tets, tetFemCache, nodes, solverData);
+            ComputeCorotationalElasticForces(
+                tets,
+                tetFemCache,
+                positions,
+                velocities,
+                outContributions);
             return true;
         case FemModel::NeoHookean:
             return false;
@@ -505,17 +501,19 @@ namespace PhysiK
         return false;
     }
 
-    void FEMModel::InitializeTetRestData(Tet& tet, const std::vector<Node>& nodes)
+    void FEMModel::InitializeTetRestData(
+        Tet& tet,
+        const std::vector<Vec3>& restPositions)
     {
-        if (!HasValidNodes(tet, nodes))
+        if (!HasValidLocalPositions(tet, restPositions))
         {
             return;
         }
 
-        const Vec3& rest0 = nodes[static_cast<std::size_t>(tet.node0)].restPosition;
-        const Vec3& rest1 = nodes[static_cast<std::size_t>(tet.node1)].restPosition;
-        const Vec3& rest2 = nodes[static_cast<std::size_t>(tet.node2)].restPosition;
-        const Vec3& rest3 = nodes[static_cast<std::size_t>(tet.node3)].restPosition;
+        const Vec3& rest0 = restPositions[static_cast<std::size_t>(tet.node0)];
+        const Vec3& rest1 = restPositions[static_cast<std::size_t>(tet.node1)];
+        const Vec3& rest2 = restPositions[static_cast<std::size_t>(tet.node2)];
+        const Vec3& rest3 = restPositions[static_cast<std::size_t>(tet.node3)];
         const Mat3 restDm = Mat3::FromColumns(rest1 - rest0, rest2 - rest0, rest3 - rest0);
         const float determinant = Determinant(restDm);
         tet.restPositions[0] = rest0;
@@ -558,10 +556,11 @@ namespace PhysiK
         return cache;
     }
 
-    void FEMModel::AccumulateElasticForces(
+    void FEMModel::ComputeElasticForces(
         const std::vector<Tet>& tets,
-        const std::vector<Node>& nodes,
-        SolverData& solverData)
+        const std::vector<Vec3>& positions,
+        const std::vector<Vec3>& velocities,
+        std::vector<TetElementContribution>& outContributions)
     {
         std::vector<TetFemCache> tetFemCache;
         tetFemCache.reserve(tets.size());
@@ -570,14 +569,20 @@ namespace PhysiK
             tetFemCache.push_back(BuildTetFemCache(tet));
         }
 
-        AccumulateElasticForces(tets, tetFemCache, nodes, solverData);
+        ComputeElasticForces(
+            tets,
+            tetFemCache,
+            positions,
+            velocities,
+            outContributions);
     }
 
-    void FEMModel::AccumulateElasticForces(
+    void FEMModel::ComputeElasticForces(
         const std::vector<Tet>& tets,
         const std::vector<TetFemCache>& tetFemCache,
-        const std::vector<Node>& nodes,
-        SolverData& solverData)
+        const std::vector<Vec3>& positions,
+        const std::vector<Vec3>& velocities,
+        std::vector<TetElementContribution>& outContributions)
     {
         const std::size_t count = std::min(tets.size(), tetFemCache.size());
         for (std::size_t tetIndex = 0; tetIndex < count; ++tetIndex)
@@ -588,26 +593,29 @@ namespace PhysiK
                 continue;
             }
 
-            if (!HasValidNodes(tet, nodes) || tet.restVolume <= 0.0f)
+            if (!HasValidLocalPositions(tet, positions) ||
+                !HasValidLocalPositions(tet, velocities) ||
+                tet.restVolume <= 0.0f)
             {
                 continue;
             }
 
-            const Vector12 displacement = BuildDisplacementVector(tet, nodes);
-            AddElasticForcesAndStiffness(
-                tet,
-                tetFemCache[tetIndex],
-                nodes,
-                solverData,
-                displacement,
-                nullptr);
+            const Vector12 displacement = BuildDisplacementVector(tet, positions);
+            outContributions.push_back(
+                ComputeElasticForcesAndStiffness(
+                    tet,
+                    tetFemCache[tetIndex],
+                    velocities,
+                    displacement,
+                    nullptr));
         }
     }
 
-    void FEMModel::AccumulateCorotationalElasticForces(
+    void FEMModel::ComputeCorotationalElasticForces(
         const std::vector<Tet>& tets,
-        const std::vector<Node>& nodes,
-        SolverData& solverData)
+        const std::vector<Vec3>& positions,
+        const std::vector<Vec3>& velocities,
+        std::vector<TetElementContribution>& outContributions)
     {
         std::vector<TetFemCache> tetFemCache;
         tetFemCache.reserve(tets.size());
@@ -616,14 +624,20 @@ namespace PhysiK
             tetFemCache.push_back(BuildTetFemCache(tet));
         }
 
-        AccumulateCorotationalElasticForces(tets, tetFemCache, nodes, solverData);
+        ComputeCorotationalElasticForces(
+            tets,
+            tetFemCache,
+            positions,
+            velocities,
+            outContributions);
     }
 
-    void FEMModel::AccumulateCorotationalElasticForces(
+    void FEMModel::ComputeCorotationalElasticForces(
         const std::vector<Tet>& tets,
         const std::vector<TetFemCache>& tetFemCache,
-        const std::vector<Node>& nodes,
-        SolverData& solverData)
+        const std::vector<Vec3>& positions,
+        const std::vector<Vec3>& velocities,
+        std::vector<TetElementContribution>& outContributions)
     {
         const std::size_t count = std::min(tets.size(), tetFemCache.size());
         for (std::size_t tetIndex = 0; tetIndex < count; ++tetIndex)
@@ -634,14 +648,16 @@ namespace PhysiK
                 continue;
             }
 
-            if (!HasValidNodes(tet, nodes) || tet.restVolume <= 0.0f)
+            if (!HasValidLocalPositions(tet, positions) ||
+                !HasValidLocalPositions(tet, velocities) ||
+                tet.restVolume <= 0.0f)
             {
                 continue;
             }
 
             Mat3 deformationGradient;
             {
-                const Mat3 ds = BuildDm(tet, nodes);
+                const Mat3 ds = BuildDm(tet, positions);
                 deformationGradient = ds * tet.restDmInverse;
             }
             if (!IsFinite(deformationGradient))
@@ -650,53 +666,22 @@ namespace PhysiK
             }
 
             const Mat3 rotation = ExtractRotationPolar(deformationGradient);
-            const Vector12 displacement = BuildCorotatedDisplacementVector(tet, nodes, rotation);
-            AddElasticForcesAndStiffness(
-                tet,
-                tetFemCache[tetIndex],
-                nodes,
-                solverData,
-                displacement,
-                &rotation);
+            const Vector12 displacement =
+                BuildCorotatedDisplacementVector(tet, positions, rotation);
+            outContributions.push_back(
+                ComputeElasticForcesAndStiffness(
+                    tet,
+                    tetFemCache[tetIndex],
+                    velocities,
+                    displacement,
+                    &rotation));
         }
     }
 
-    void FEMModel::AddLumpedMassToSolverData(
-        const World& world,
-        SolverData& solverData,
-        int nodeIndex,
-        float mass)
-    {
-        if (nodeIndex < 0 || !std::isfinite(mass))
-        {
-            return;
-        }
-
-        if (world.IsNodeFixed(nodeIndex))
-        {
-            return;
-        }
-
-        solverData.AddNodeMass(nodeIndex, std::max(0.0f, mass));
-    }
-
-    void FEMModel::AssembleLumpedMass(
-        const TetMeshPhysicsComponent& component,
-        const World& world,
-        SolverData& solverData)
-    {
-        AssembleLumpedMass(
-            component.material,
-            component.globalTets,
-            world,
-            solverData);
-    }
-
-    void FEMModel::AssembleLumpedMass(
+    void FEMModel::ComputeLumpedMass(
         const Material& material,
         const std::vector<Tet>& tets,
-        const World& world,
-        SolverData& solverData)
+        std::vector<TetMassContribution>& outContributions)
     {
         const float density = std::max(0.0f, material.density);
         if (!std::isfinite(density))
@@ -717,10 +702,13 @@ namespace PhysiK
             }
 
             const float nodalMass = density * tet.restVolume * 0.25f;
-            AddLumpedMassToSolverData(world, solverData, tet.node0, nodalMass);
-            AddLumpedMassToSolverData(world, solverData, tet.node1, nodalMass);
-            AddLumpedMassToSolverData(world, solverData, tet.node2, nodalMass);
-            AddLumpedMassToSolverData(world, solverData, tet.node3, nodalMass);
+            TetMassContribution contribution;
+            contribution.localNodeIndices[0] = tet.node0;
+            contribution.localNodeIndices[1] = tet.node1;
+            contribution.localNodeIndices[2] = tet.node2;
+            contribution.localNodeIndices[3] = tet.node3;
+            contribution.nodalMass = nodalMass;
+            outContributions.push_back(contribution);
         }
     }
 
