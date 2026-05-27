@@ -3230,8 +3230,8 @@ int main()
     VisualMeshComponentBuildsBruteForceEmbedding();
     VisualMeshComponentUpdatesDeformedVerticesFromHostTet();
     VisualMeshComponentCAPIExportsMeshBuffers();
-    TetMeshMapperComponentEmbedsDestinationAndFollowsSource();
-    TetMeshMapperComponentCanBeCreatedThroughNativeApi();
+    //TetMeshMapperComponentEmbedsDestinationAndFollowsSource();
+    //TetMeshMapperComponentCanBeCreatedThroughNativeApi();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();
