@@ -144,10 +144,10 @@ namespace PhysiK
                     tetMesh->GetTetNodeIndex(tetIndex, 2),
                     tetMesh->GetTetNodeIndex(tetIndex, 3)};
                 const int worldNodes[4] = {
-                    tetMesh->GetWorldNodeIndex(localNodes[0]),
-                    tetMesh->GetWorldNodeIndex(localNodes[1]),
-                    tetMesh->GetWorldNodeIndex(localNodes[2]),
-                    tetMesh->GetWorldNodeIndex(localNodes[3])};
+                    tetMesh->GetGlobalNodeIndex(localNodes[0]),
+                    tetMesh->GetGlobalNodeIndex(localNodes[1]),
+                    tetMesh->GetGlobalNodeIndex(localNodes[2]),
+                    tetMesh->GetGlobalNodeIndex(localNodes[3])};
 
                 if (!HasValidWorldNodes(worldNodes, world))
                 {
@@ -226,10 +226,10 @@ namespace PhysiK
                     tetMesh->GetTetNodeIndex(tetIndex, 2),
                     tetMesh->GetTetNodeIndex(tetIndex, 3)};
                 const int nodes[4] = {
-                    tetMesh->GetWorldNodeIndex(localNodes[0]),
-                    tetMesh->GetWorldNodeIndex(localNodes[1]),
-                    tetMesh->GetWorldNodeIndex(localNodes[2]),
-                    tetMesh->GetWorldNodeIndex(localNodes[3])};
+                    tetMesh->GetGlobalNodeIndex(localNodes[0]),
+                    tetMesh->GetGlobalNodeIndex(localNodes[1]),
+                    tetMesh->GetGlobalNodeIndex(localNodes[2]),
+                    tetMesh->GetGlobalNodeIndex(localNodes[3])};
                 if (!HasValidWorldNodes(nodes, world))
                 {
                     continue;

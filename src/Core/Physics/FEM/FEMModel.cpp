@@ -564,14 +564,14 @@ namespace PhysiK
     {
         (void)dt;
         owner.SyncWorldTetActiveStates();
-        if (owner.tetFemCache.size() != owner.worldTets.size())
+        if (owner.tetFemCache.size() != owner.globalTets.size())
         {
             owner.RebuildTetFemCache();
         }
 
         AccumulateForces(
             owner.GetFemModel(),
-            owner.worldTets,
+            owner.globalTets,
             owner.tetFemCache,
             world.GetNodes(),
             solverData);
@@ -902,7 +902,7 @@ namespace PhysiK
     {
         AssembleLumpedMass(
             component.material,
-            component.worldTets,
+            component.globalTets,
             world,
             solverData);
     }

@@ -53,8 +53,8 @@ namespace PhysiK
             int tetCount,
             const TetMeshPhysicsComponentDesc& desc);
 
-        std::vector<int> worldNodeIndices;
-        std::vector<Tet> worldTets;
+        std::vector<int> globalNodeIndices;
+        std::vector<Tet> globalTets;
         std::vector<TetFemCache> tetFemCache;
 
         Material material;
@@ -86,7 +86,7 @@ namespace PhysiK
         void SyncWorldTetActiveStates();
         void SyncCurrentPositionsFromWorld(const World& world);
 
-        int GetWorldNodeIndex(int localNodeIndex) const override;
+        int GetGlobalNodeIndex(int localNodeIndex) const override;
         void SetLocalCurrentPosition(int localNodeIndex, const Vec3& position) override;
         void SetTetActive(int tetIndex, bool active) override;
         void DeactivateTet(int tetIndex) override;

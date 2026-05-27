@@ -1835,7 +1835,7 @@ void TetMeshComponentCachesFemSparsePattern()
     PhysiK::TetMeshPhysicsComponent component;
     PhysiK::Tet tet = CreateUnitTet();
     component.tets.push_back(tet);
-    component.worldTets.push_back(tet);
+    component.globalTets.push_back(tet);
     component.EnsureFemSparsePattern(4);
 
     assert(!component.femSparsePatternDirty);
@@ -2148,7 +2148,7 @@ void TetMeshComponentStoresGeometryWithoutWorldNodes()
     assert(component.GetNodeCount() == 4);
     assert(component.GetTetCount() == 1);
     assert(component.GetTetNodeIndex(0, 2) == 2);
-    assert(component.GetWorldNodeIndex(0) == -1);
+    assert(component.GetGlobalNodeIndex(0) == -1);
     assert(NearlyEqual(component.GetLocalRestPosition(3), positions[3]));
     assert(NearlyEqual(component.GetLocalCurrentPosition(3), positions[3]));
 
@@ -2267,10 +2267,10 @@ void DeactivatingTetDoesNotDirtySparsePattern()
     component.tets.push_back(CreateLowerUnitTet());
     component.tets.push_back(CreateUnitTet());
     component.tets.push_back(CreateLowerUnitTet());
-    component.worldTets.push_back(CreateUnitTet());
-    component.worldTets.push_back(CreateLowerUnitTet());
-    component.worldTets.push_back(CreateUnitTet());
-    component.worldTets.push_back(CreateLowerUnitTet());
+    component.globalTets.push_back(CreateUnitTet());
+    component.globalTets.push_back(CreateLowerUnitTet());
+    component.globalTets.push_back(CreateUnitTet());
+    component.globalTets.push_back(CreateLowerUnitTet());
     component.EnsureFemSparsePattern(5);
 
     const std::vector<int> rowStart = component.GetFemSparseMatrix().rowStart;

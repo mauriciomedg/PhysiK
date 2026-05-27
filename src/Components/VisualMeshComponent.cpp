@@ -275,10 +275,10 @@ namespace PhysiK
             }
 
             const Vec4& weights = embeddedVertex.barycentric;
-            const int worldNode0 = hostTetMesh->GetWorldNodeIndex(nodeIndices[0]);
-            const int worldNode1 = hostTetMesh->GetWorldNodeIndex(nodeIndices[1]);
-            const int worldNode2 = hostTetMesh->GetWorldNodeIndex(nodeIndices[2]);
-            const int worldNode3 = hostTetMesh->GetWorldNodeIndex(nodeIndices[3]);
+            const int worldNode0 = hostTetMesh->GetGlobalNodeIndex(nodeIndices[0]);
+            const int worldNode1 = hostTetMesh->GetGlobalNodeIndex(nodeIndices[1]);
+            const int worldNode2 = hostTetMesh->GetGlobalNodeIndex(nodeIndices[2]);
+            const int worldNode3 = hostTetMesh->GetGlobalNodeIndex(nodeIndices[3]);
             const Vec3& current0 = worldNode0 >= 0 ?
                 world.GetNode(worldNode0).position :
                 hostTetMesh->GetLocalCurrentPosition(nodeIndices[0]);

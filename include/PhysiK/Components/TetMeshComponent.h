@@ -30,7 +30,7 @@ namespace PhysiK
         int GetTetNodeIndex(int tetIndex, int cornerIndex) const;
         const Vec3& GetLocalRestPosition(int localNodeIndex) const;
         const Vec3& GetLocalCurrentPosition(int localNodeIndex) const;
-        virtual int GetWorldNodeIndex(int localNodeIndex) const;
+        virtual int GetGlobalNodeIndex(int localNodeIndex) const;
         virtual void SetLocalCurrentPosition(int localNodeIndex, const Vec3& position);
 
         bool IsTetActive(int tetIndex) const;

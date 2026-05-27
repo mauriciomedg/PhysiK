@@ -197,7 +197,7 @@ namespace PhysiK
                 sourceTetMesh->GetLocalCurrentPosition(sourceNodes[2]) * weights.z +
                 sourceTetMesh->GetLocalCurrentPosition(sourceNodes[3]) * weights.w;
             destinationTetMesh->SetLocalCurrentPosition(destinationNode, mappedPosition);
-            if (const int worldNode = destinationTetMesh->GetWorldNodeIndex(destinationNode);
+            if (const int worldNode = destinationTetMesh->GetGlobalNodeIndex(destinationNode);
                 worldNode >= 0)
             {
                 Node& destination = world.GetNode(worldNode);

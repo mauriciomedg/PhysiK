@@ -116,7 +116,7 @@ namespace PhysiK
         return currentNodePositions[static_cast<std::size_t>(localNodeIndex)];
     }
 
-    int TetMeshComponent::GetWorldNodeIndex(int localNodeIndex) const
+    int TetMeshComponent::GetGlobalNodeIndex(int localNodeIndex) const
     {
         (void)localNodeIndex;
         return -1;
