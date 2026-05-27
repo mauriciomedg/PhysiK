@@ -292,6 +292,34 @@ extern "C"
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,
+        const PhysiK::Vec3* positions,
+        int nodeCount,
+        const int* tetLocalNodeIndices,
+        int tetCount)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr ||
+            positions == nullptr ||
+            nodeCount <= 0 ||
+            tetLocalNodeIndices == nullptr ||
+            tetCount <= 0)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component = std::make_unique<PhysiK::TetMeshComponent>();
+
+        component->SetGeometry(
+            positions,
+            nodeCount,
+            tetLocalNodeIndices,
+            tetCount);
+
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshPhysicsComponent(
+        PhysiK::WorldHandle world,
         const int* nodeIndices,
         int nodeCount,
         const int* tetNodeIndices,
