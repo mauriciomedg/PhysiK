@@ -111,11 +111,9 @@ namespace PhysiK
 
         if (globalNodeIndices != nullptr && nodeCount > 0)
         {
-            component->worldNodeIndices.assign(
-                globalNodeIndices,
-                globalNodeIndices + nodeCount);
             component->restNodePositions.reserve(static_cast<std::size_t>(nodeCount));
             component->currentNodePositions.reserve(static_cast<std::size_t>(nodeCount));
+            component->worldNodeIndices.reserve(static_cast<std::size_t>(nodeCount));
             for (int i = 0; i < nodeCount; ++i)
             {
                 const int worldNodeIndex = globalNodeIndices[i];
@@ -125,6 +123,7 @@ namespace PhysiK
                     continue;
                 }
 
+                component->worldNodeIndices.push_back(worldNodeIndex);
                 component->restNodePositions.push_back(
                     world.GetNode(worldNodeIndex).restPosition);
                 component->currentNodePositions.push_back(

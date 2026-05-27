@@ -637,7 +637,7 @@ extern "C"
             return 0;
         }
 
-        return static_cast<int>(tetMesh->tets.size());
+        return tetMesh->GetTetCount();
     }
 
     PHYSIK_API int PHYSIK_IsTetActive(

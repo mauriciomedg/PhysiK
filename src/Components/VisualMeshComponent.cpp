@@ -107,18 +107,18 @@ namespace PhysiK
             EmbeddedVertex& embeddedVertex = embeddedVertices[vertexIndex];
             embeddedVertex = EmbeddedVertex{};
 
-            for (std::size_t tetIndex = 0; tetIndex < hostTetMesh->tets.size(); ++tetIndex)
+            for (int tetIndex = 0; tetIndex < hostTetMesh->GetTetCount(); ++tetIndex)
             {
-                if (!hostTetMesh->IsTetActive(static_cast<int>(tetIndex)))
+                if (!hostTetMesh->IsTetActive(tetIndex))
                 {
                     continue;
                 }
 
                 const int nodeIndices[4] = {
-                    hostTetMesh->GetTetNodeIndex(static_cast<int>(tetIndex), 0),
-                    hostTetMesh->GetTetNodeIndex(static_cast<int>(tetIndex), 1),
-                    hostTetMesh->GetTetNodeIndex(static_cast<int>(tetIndex), 2),
-                    hostTetMesh->GetTetNodeIndex(static_cast<int>(tetIndex), 3)};
+                    hostTetMesh->GetTetNodeIndex(tetIndex, 0),
+                    hostTetMesh->GetTetNodeIndex(tetIndex, 1),
+                    hostTetMesh->GetTetNodeIndex(tetIndex, 2),
+                    hostTetMesh->GetTetNodeIndex(tetIndex, 3)};
                 bool nodesAreValid = true;
                 for (int nodeIndex : nodeIndices)
                 {
@@ -150,7 +150,7 @@ namespace PhysiK
                     barycentric.z >= insideEpsilon &&
                     barycentric.w >= insideEpsilon)
                 {
-                    embeddedVertex.tetIndex = static_cast<int>(tetIndex);
+                    embeddedVertex.tetIndex = tetIndex;
                     embeddedVertex.barycentric = barycentric;
                     embeddedVertex.valid = true;
                     break;

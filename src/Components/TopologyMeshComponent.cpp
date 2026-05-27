@@ -5,16 +5,26 @@
 
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
-#include "PhysiK/PhysicsData/Tet.h"
 
 namespace PhysiK
 {
     namespace
     {
-        int CountSharedNodes(const Tet& a, const Tet& b)
+        int CountSharedNodes(
+            const TetMeshComponent& tetMesh,
+            int tetA,
+            int tetB)
         {
-            const int aNodes[4] = {a.node0, a.node1, a.node2, a.node3};
-            const int bNodes[4] = {b.node0, b.node1, b.node2, b.node3};
+            const int aNodes[4] = {
+                tetMesh.GetTetNodeIndex(tetA, 0),
+                tetMesh.GetTetNodeIndex(tetA, 1),
+                tetMesh.GetTetNodeIndex(tetA, 2),
+                tetMesh.GetTetNodeIndex(tetA, 3)};
+            const int bNodes[4] = {
+                tetMesh.GetTetNodeIndex(tetB, 0),
+                tetMesh.GetTetNodeIndex(tetB, 1),
+                tetMesh.GetTetNodeIndex(tetB, 2),
+                tetMesh.GetTetNodeIndex(tetB, 3)};
 
             int sharedCount = 0;
             for (int aNode : aNodes)
@@ -32,9 +42,12 @@ namespace PhysiK
             return sharedCount;
         }
 
-        bool AreTetNeighbors(const Tet& a, const Tet& b)
+        bool AreTetNeighbors(
+            const TetMeshComponent& tetMesh,
+            int tetA,
+            int tetB)
         {
-            return CountSharedNodes(a, b) >= 3;
+            return CountSharedNodes(tetMesh, tetA, tetB) >= 3;
         }
     }
 
@@ -113,13 +126,13 @@ namespace PhysiK
             return;
         }
 
-        const std::vector<Tet>& tets = hostTetMesh->tets;
-        tetIslandIds.assign(tets.size(), -1);
+        const int tetCount = hostTetMesh->GetTetCount();
+        tetIslandIds.assign(static_cast<std::size_t>(tetCount), -1);
 
         std::queue<int> pendingTets;
-        for (int startTet = 0; startTet < static_cast<int>(tets.size()); ++startTet)
+        for (int startTet = 0; startTet < tetCount; ++startTet)
         {
-            if (!tets[static_cast<std::size_t>(startTet)].active ||
+            if (!hostTetMesh->IsTetActive(startTet) ||
                 tetIslandIds[static_cast<std::size_t>(startTet)] != -1)
             {
                 continue;
@@ -136,18 +149,19 @@ namespace PhysiK
                 pendingTets.pop();
 
                 for (int candidateTet = 0;
-                     candidateTet < static_cast<int>(tets.size());
+                     candidateTet < tetCount;
                      ++candidateTet)
                 {
-                    if (!tets[static_cast<std::size_t>(candidateTet)].active ||
+                    if (!hostTetMesh->IsTetActive(candidateTet) ||
                         tetIslandIds[static_cast<std::size_t>(candidateTet)] != -1)
                     {
                         continue;
                     }
 
                     if (!AreTetNeighbors(
-                            tets[static_cast<std::size_t>(currentTet)],
-                            tets[static_cast<std::size_t>(candidateTet)]))
+                            *hostTetMesh,
+                            currentTet,
+                            candidateTet))
                     {
                         continue;
                     }

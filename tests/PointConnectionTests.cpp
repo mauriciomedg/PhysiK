@@ -850,6 +850,48 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
     PHYSIK_DestroyWorld(world);
 }
 
+void FEMUsesWorldNodeMappingWhenLocalTetIndicesDiffer()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+    PHYSIK_SetGravity(world, 0.0f, 0.0f, 0.0f);
+
+    AddNode(world, 100.0f, 100.0f, 100.0f);
+    const int node0 = AddFixedNode(world, 0.0f, 0.0f, 0.0f);
+    const int node1 = AddFixedNode(world, 1.0f, 0.0f, 0.0f);
+    const int node2 = AddFixedNode(world, 0.0f, 1.0f, 0.0f);
+    const int node3 = AddNode(world, 0.0f, 0.0f, 1.0f);
+
+    const int nodes[] = {node0, node1, node2, node3};
+    const int tetNodeIndices[] = {node0, node1, node2, node3};
+    PhysikMaterialDesc material = MakeMaterialDesc(24.0f, 25.0f, 0.3f, 0.25f);
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            nodes,
+            4,
+            tetNodeIndices,
+            1,
+            &material,
+            0);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+    assert(node0 == 1);
+    assert(node3 == 4);
+
+    PHYSIK_SetNodePosition(world, node3, 0.0f, 0.0f, 1.25f);
+    PHYSIK_Step(world, 0.01f);
+
+    const Point after = GetNodePosition(world, node3);
+    assert(after.z < 1.25f);
+
+    const Point dummy = GetNodePosition(world, 0);
+    assert(NearlyEqual(dummy.x, 100.0f));
+    assert(NearlyEqual(dummy.y, 100.0f));
+    assert(NearlyEqual(dummy.z, 100.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void ImplicitEulerFEMTetMovesDistortedNodeTowardRestShape()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -1497,6 +1539,31 @@ void CollisionSphereOverlapQueryOverlapsOneTetNode()
     assert(NearlyEqual(overlaps[0].sphereCenterX, 0.0f));
     assert(NearlyEqual(overlaps[0].sphereRadius, 0.05f));
     assert(NearlyEqual(overlaps[0].minDistance, 0.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void CollisionSphereOverlapUsesWorldNodeMapping()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    AddNode(world, 100.0f, 100.0f, 100.0f);
+    int nodes[4] = {};
+    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::ComponentHandle sphere =
+        PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
+
+    assert(nodes[0] == 1);
+    assert(PHYSIK_GetCollisionSphereOverlapCount(world, sphere) == 1);
+    PhysikCollisionSphereOverlap overlaps[1] = {};
+    assert(PHYSIK_GetCollisionSphereOverlaps(world, sphere, overlaps, 1) == 1);
+    assert(overlaps[0].component.index == tetMesh.index);
+    assert(overlaps[0].node0 == nodes[0]);
+    assert(overlaps[0].node1 == nodes[1]);
+    assert(overlaps[0].node2 == nodes[2]);
+    assert(overlaps[0].node3 == nodes[3]);
+    assert(overlaps[0].node0 != 0);
 
     PHYSIK_DestroyWorld(world);
 }
@@ -3052,6 +3119,7 @@ int main()
     ExternalLogicHookRunsOnceBeforeSubsteps();
     KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();
+    FEMUsesWorldNodeMappingWhenLocalTetIndicesDiffer();
     ImplicitEulerFEMTetMovesDistortedNodeTowardRestShape();
     ImplicitEulerAllDynamicTetResistsRestShapeVelocity();
     ImplicitEulerPointAnchoredTetRecoversFreeNodes();
@@ -3068,6 +3136,7 @@ int main()
     ImplicitAnchoredTetPointConnectionsRemainStableUnderGravity();
     TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem();
     CollisionSphereOverlapQueryOverlapsOneTetNode();
+    CollisionSphereOverlapUsesWorldNodeMapping();
     CollisionSphereOverlapQueryReturnsZeroWhenNoNodesOverlap();
     CollisionSphereOverlapQueryIgnoresInactiveTets();
     CollisionSphereOverlapQueryIgnoresDestroyedTetMesh();

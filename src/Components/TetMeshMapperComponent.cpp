@@ -70,20 +70,20 @@ namespace PhysiK
             const Vec3& destinationRestPosition =
                 destinationTetMesh->GetLocalRestPosition(destinationNode);
 
-            for (std::size_t sourceTetIndex = 0;
-                 sourceTetIndex < sourceTetMesh->tets.size();
+            for (int sourceTetIndex = 0;
+                 sourceTetIndex < sourceTetMesh->GetTetCount();
                  ++sourceTetIndex)
             {
-                if (!sourceTetMesh->IsTetActive(static_cast<int>(sourceTetIndex)))
+                if (!sourceTetMesh->IsTetActive(sourceTetIndex))
                 {
                     continue;
                 }
 
                 const int sourceNodes[4] = {
-                    sourceTetMesh->GetTetNodeIndex(static_cast<int>(sourceTetIndex), 0),
-                    sourceTetMesh->GetTetNodeIndex(static_cast<int>(sourceTetIndex), 1),
-                    sourceTetMesh->GetTetNodeIndex(static_cast<int>(sourceTetIndex), 2),
-                    sourceTetMesh->GetTetNodeIndex(static_cast<int>(sourceTetIndex), 3)};
+                    sourceTetMesh->GetTetNodeIndex(sourceTetIndex, 0),
+                    sourceTetMesh->GetTetNodeIndex(sourceTetIndex, 1),
+                    sourceTetMesh->GetTetNodeIndex(sourceTetIndex, 2),
+                    sourceTetMesh->GetTetNodeIndex(sourceTetIndex, 3)};
                 bool sourceNodesAreValid = true;
                 for (int sourceNode : sourceNodes)
                 {
@@ -117,8 +117,7 @@ namespace PhysiK
                     barycentric.z >= insideEpsilon &&
                     barycentric.w >= insideEpsilon)
                 {
-                    mappedVertex.sourceTetIndex =
-                        static_cast<int>(sourceTetIndex);
+                    mappedVertex.sourceTetIndex = sourceTetIndex;
                     mappedVertex.barycentric = barycentric;
                     mappedVertex.valid = true;
                     break;

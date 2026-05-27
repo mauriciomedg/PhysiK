@@ -37,7 +37,7 @@ namespace PhysiK
                     continue;
                 }
 
-                record.tetCount += static_cast<int>(tetMesh->tets.size());
+                record.tetCount += tetMesh->GetTetCount();
                 record.activeTetCount += tetMesh->GetActiveTetCount();
             }
         }
