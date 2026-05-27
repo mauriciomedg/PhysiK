@@ -141,6 +141,14 @@ extern "C"
         float y,
         float z);
 
+    PHYSIK_API int PHYSIK_GetTetMeshLocalCurrentPosition(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMesh,
+        int localNodeIndex,
+        float* outX,
+        float* outY,
+        float* outZ);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateVisualMeshComponent(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle hostTetMesh);

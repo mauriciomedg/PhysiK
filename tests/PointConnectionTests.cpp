@@ -54,6 +54,23 @@ namespace
         return point;
     }
 
+    Point GetTetMeshLocalCurrentPosition(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMesh,
+        int localNodeIndex)
+    {
+        Point point;
+        const int read = PHYSIK_GetTetMeshLocalCurrentPosition(
+            world,
+            tetMesh,
+            localNodeIndex,
+            &point.x,
+            &point.y,
+            &point.z);
+        assert(read == 1);
+        return point;
+    }
+
     bool IsNodeFixed(PhysiK::WorldHandle world, int nodeIndex)
     {
         return PHYSIK_IsNodeFixed(world, nodeIndex) != 0;
@@ -398,7 +415,7 @@ namespace
         const int tetNodeIndices[] = {outNodes[0], outNodes[1], outNodes[2], outNodes[3]};
         PhysikMaterialDesc material = MakeMaterialDesc(24.0f, 25.0f, 0.3f, 0.25f);
         const PhysiK::ComponentHandle tetMesh =
-            PHYSIK_CreateTetMeshComponent(
+            PHYSIK_CreateTetMeshPhysicsComponent(
                 world,
                 outNodes,
                 4,
@@ -424,7 +441,7 @@ namespace
         const int tetNodeIndices[] = {outNodes[0], outNodes[1], outNodes[2], outNodes[3]};
         PhysikMaterialDesc material = MakeMaterialDesc(density, youngModulus, 0.3f, damping);
         const PhysiK::ComponentHandle tetMesh =
-            PHYSIK_CreateTetMeshComponent(
+            PHYSIK_CreateTetMeshPhysicsComponent(
                 world,
                 outNodes,
                 4,
@@ -447,7 +464,7 @@ namespace
         const int tetNodeIndices[] = {outNodes[0], outNodes[1], outNodes[2], outNodes[3]};
         PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 25.0f, 0.3f, 0.0f);
         const PhysiK::ComponentHandle tetMesh =
-            PHYSIK_CreateTetMeshComponent(
+            PHYSIK_CreateTetMeshPhysicsComponent(
                 world,
                 outNodes,
                 4,
@@ -476,7 +493,7 @@ namespace
             outNodes[0], outNodes[1], outNodes[2], outNodes[4]};
         PhysikMaterialDesc material = MakeMaterialDesc(density, youngModulus, 0.3f, 0.0f);
         const PhysiK::ComponentHandle tetMesh =
-            PHYSIK_CreateTetMeshComponent(
+            PHYSIK_CreateTetMeshPhysicsComponent(
                 world,
                 outNodes,
                 5,
@@ -926,7 +943,7 @@ void FEMElasticityMovesDistortedTetTowardRestShape()
     const int tetNodeIndices[] = {node0, node1, node2, node3};
     PhysikMaterialDesc material = MakeMaterialDesc(24.0f, 25.0f, 0.3f, 0.25f);
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             4,
@@ -967,7 +984,7 @@ void FEMUsesWorldNodeMappingWhenLocalTetIndicesDiffer()
     const int tetNodeIndices[] = {node0, node1, node2, node3};
     PhysikMaterialDesc material = MakeMaterialDesc(24.0f, 25.0f, 0.3f, 0.25f);
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             4,
@@ -1008,7 +1025,7 @@ void TetMeshPhysicsUsesCreationRestDataForRuntimeForces()
     const int tetNodeIndices[] = {node0, node1, node2, node3};
     PhysikMaterialDesc material = MakeMaterialDesc(24.0f, 25.0f, 0.3f, 0.0f);
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             4,
@@ -1046,7 +1063,7 @@ void ImplicitEulerFEMTetMovesDistortedNodeTowardRestShape()
     const int tetNodeIndices[] = {node0, node1, node2, node3};
     PhysikMaterialDesc material = MakeMaterialDesc(24.0f, 25.0f, 0.3f, 0.25f);
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             4,
@@ -1230,7 +1247,7 @@ void TetMeshMaterialDescCrossesNativeBoundary()
     PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
 
     const PhysiK::ComponentHandle invalidTetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             4,
@@ -1241,7 +1258,7 @@ void TetMeshMaterialDescCrossesNativeBoundary()
     assert(PHYSIK_IsComponentHandleValid(world, invalidTetMesh) == 0);
 
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             4,
@@ -1288,7 +1305,7 @@ void TetMeshMaterialCanBeUpdatedThroughNativeDescriptor()
     PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
 
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             4,
@@ -1378,7 +1395,7 @@ void FEMLumpedMassPreservesFixedNodes()
     PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f, 0.3f, 0.0f);
 
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             nodes,
             4,
@@ -1460,7 +1477,7 @@ void ImplicitEulerUsesStiffnessBlocks()
     const int tetNodeIndices[] = {node0, node1, node2, node3};
     PhysikMaterialDesc material = MakeMaterialDesc(24.0f, 100.0f, 0.3f, 0.0f);
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             stiffnessWorld,
             componentNodes,
             4,
@@ -1644,7 +1661,7 @@ void TetMeshComponentOwnsTetsAndWorldStepUsesComponentSystem()
     const int tetNodeIndices[] = {node0, node1, node2, node3};
     PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 25.0f, 0.3f, 0.25f);
     const PhysiK::ComponentHandle handle =
-        PHYSIK_CreateTetMeshComponent(world, nodes, 4, tetNodeIndices, 1, &material, 0);
+        PHYSIK_CreateTetMeshPhysicsComponent(world, nodes, 4, tetNodeIndices, 1, &material, 0);
 
     assert(PHYSIK_IsComponentHandleValid(world, handle) == 1);
     assert(PHYSIK_GetTetMeshTetCount(world, handle) == 1);
@@ -2155,7 +2172,7 @@ void ImplicitEulerCorotationalTetUsesSparseCgPath()
     const int tetNodeIndices[] = {node0, node1, node2, node3};
     PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 100.0f, 0.3f, 0.0f);
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(world, nodes, 4, tetNodeIndices, 1, &material, 1);
+        PHYSIK_CreateTetMeshPhysicsComponent(world, nodes, 4, tetNodeIndices, 1, &material, 1);
     assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
 
     PHYSIK_SetSolverMode(world, 1);
@@ -2194,7 +2211,7 @@ void MultiTetImplicitEulerSparseCgSmokeTest()
         nodes[2], nodes[3], nodes[4], nodes[6]};
     PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 75.0f, 0.3f, 0.0f);
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(world, nodes, 7, tetNodeIndices, 4, &material, 0);
+        PHYSIK_CreateTetMeshPhysicsComponent(world, nodes, 7, tetNodeIndices, 4, &material, 0);
     assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
 
     PHYSIK_SetSolverMode(world, 1);
@@ -2519,7 +2536,7 @@ void TopologyMeshComponentBuildsActiveTetIslands()
     PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
 
     const PhysiK::ComponentHandle tetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             worldHandle,
             nodes,
             9,
@@ -2826,31 +2843,35 @@ void TetMeshMapperComponentEmbedsDestinationAndFollowsSource()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    int sourceNodes[4] = {};
+    const PhysiK::Vec3 sourcePositions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int sourceTetIndices[] = {0, 1, 2, 3};
     const PhysiK::ComponentHandle sourceTetMesh =
-        CreateSingleTetMesh(world, sourceNodes);
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            sourcePositions,
+            4,
+            sourceTetIndices,
+            1);
+    assert(PHYSIK_IsComponentHandleValid(world, sourceTetMesh) == 1);
 
-    const int destinationNodes[] = {
-        AddNode(world, 0.25f, 0.25f, 0.25f),
-        AddNode(world, 0.50f, 0.25f, 0.25f),
-        AddNode(world, 0.25f, 0.50f, 0.25f),
-        AddNode(world, 0.25f, 0.25f, 0.50f),
-        AddNode(world, 2.0f, 2.0f, 2.0f)};
-    const int destinationTetIndices[] = {
-        destinationNodes[0],
-        destinationNodes[1],
-        destinationNodes[2],
-        destinationNodes[3]};
-    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
+    const PhysiK::Vec3 destinationPositions[] = {
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
+        PhysiK::Vec3{0.50f, 0.25f, 0.25f},
+        PhysiK::Vec3{0.25f, 0.50f, 0.25f},
+        PhysiK::Vec3{0.25f, 0.25f, 0.50f},
+        PhysiK::Vec3{2.0f, 2.0f, 2.0f}};
+    const int destinationTetIndices[] = {0, 1, 2, 3};
     const PhysiK::ComponentHandle destinationTetMesh =
         PHYSIK_CreateTetMeshComponent(
             world,
-            destinationNodes,
+            destinationPositions,
             5,
             destinationTetIndices,
-            1,
-            &material,
-            0);
+            1);
     assert(PHYSIK_IsComponentHandleValid(world, destinationTetMesh) == 1);
 
     const PhysiK::ComponentHandle mapper =
@@ -2913,9 +2934,12 @@ void TetMeshMapperComponentEmbedsDestinationAndFollowsSource()
 
     PHYSIK_Step(world, 0.0f);
 
-    const Point mapped0 = GetNodePosition(world, destinationNodes[0]);
-    const Point mapped1 = GetNodePosition(world, destinationNodes[1]);
-    const Point unmapped = GetNodePosition(world, destinationNodes[4]);
+    const Point mapped0 =
+        GetTetMeshLocalCurrentPosition(world, destinationTetMesh, 0);
+    const Point mapped1 =
+        GetTetMeshLocalCurrentPosition(world, destinationTetMesh, 1);
+    const Point unmapped =
+        GetTetMeshLocalCurrentPosition(world, destinationTetMesh, 4);
     assert(NearlyEqual(mapped0.x, 0.5f));
     assert(NearlyEqual(mapped0.y, 0.5f));
     assert(NearlyEqual(mapped0.z, 1.5f));
@@ -2925,7 +2949,38 @@ void TetMeshMapperComponentEmbedsDestinationAndFollowsSource()
     assert(NearlyEqual(unmapped.x, 2.0f));
     assert(NearlyEqual(unmapped.y, 2.0f));
     assert(NearlyEqual(unmapped.z, 2.0f));
-    assert(NearlyEqual(GetNodePosition(world, sourceNodes[0]).z, 0.0f));
+    assert(NearlyEqual(
+        GetTetMeshLocalCurrentPosition(world, sourceTetMesh, 0).z,
+        1.0f));
+    Point scratch;
+    assert(PHYSIK_GetTetMeshLocalCurrentPosition(
+        nullptr,
+        destinationTetMesh,
+        0,
+        &scratch.x,
+        &scratch.y,
+        &scratch.z) == 0);
+    assert(PHYSIK_GetTetMeshLocalCurrentPosition(
+        world,
+        mapper,
+        0,
+        &scratch.x,
+        &scratch.y,
+        &scratch.z) == 0);
+    assert(PHYSIK_GetTetMeshLocalCurrentPosition(
+        world,
+        destinationTetMesh,
+        -1,
+        &scratch.x,
+        &scratch.y,
+        &scratch.z) == 0);
+    assert(PHYSIK_GetTetMeshLocalCurrentPosition(
+        world,
+        destinationTetMesh,
+        0,
+        nullptr,
+        &scratch.y,
+        &scratch.z) == 0);
 
     PHYSIK_DestroyWorld(world);
 }
@@ -2950,7 +3005,7 @@ void TetMeshMapperComponentCanBeCreatedThroughNativeApi()
         destinationNodes[3]};
     PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 0.0f);
     const PhysiK::ComponentHandle destinationTetMesh =
-        PHYSIK_CreateTetMeshComponent(
+        PHYSIK_CreateTetMeshPhysicsComponent(
             world,
             destinationNodes,
             4,

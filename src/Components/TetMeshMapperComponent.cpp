@@ -6,7 +6,6 @@
 #include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
-#include "PhysiK/PhysicsData/Node.h"
 #include "PhysiK/PhysicsData/Tet.h"
 
 namespace PhysiK
@@ -146,7 +145,6 @@ namespace PhysiK
             return;
         }
 
-        const std::vector<Node>& nodes = world.GetNodes();
         for (std::size_t destinationVertex = 0;
              destinationVertex < embeddedDestinationVertices.size();
              ++destinationVertex)
@@ -197,13 +195,6 @@ namespace PhysiK
                 sourceTetMesh->GetLocalCurrentPosition(sourceNodes[2]) * weights.z +
                 sourceTetMesh->GetLocalCurrentPosition(sourceNodes[3]) * weights.w;
             destinationTetMesh->SetLocalCurrentPosition(destinationNode, mappedPosition);
-            if (const int worldNode = destinationTetMesh->GetGlobalNodeIndex(destinationNode);
-                worldNode >= 0)
-            {
-                Node& destination = world.GetNode(worldNode);
-                destination.position = mappedPosition;
-                destination.velocity = Vec3{};
-            }
         }
     }
 

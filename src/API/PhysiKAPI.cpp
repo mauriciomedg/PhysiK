@@ -469,6 +469,40 @@ extern "C"
         return 1;
     }
 
+    PHYSIK_API int PHYSIK_GetTetMeshLocalCurrentPosition(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMesh,
+        int localNodeIndex,
+        float* outX,
+        float* outY,
+        float* outZ)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr ||
+            outX == nullptr ||
+            outY == nullptr ||
+            outZ == nullptr)
+        {
+            return 0;
+        }
+
+        const auto* tetMeshComponent = dynamic_cast<const PhysiK::TetMeshComponent*>(
+            worldPtr->GetComponent(tetMesh));
+        if (tetMeshComponent == nullptr ||
+            localNodeIndex < 0 ||
+            localNodeIndex >= tetMeshComponent->GetNodeCount())
+        {
+            return 0;
+        }
+
+        const PhysiK::Vec3& position =
+            tetMeshComponent->GetLocalCurrentPosition(localNodeIndex);
+        *outX = position.x;
+        *outY = position.y;
+        *outZ = position.z;
+        return 1;
+    }
+
     PHYSIK_API void PHYSIK_SetVisualMeshData(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle visualMesh,
