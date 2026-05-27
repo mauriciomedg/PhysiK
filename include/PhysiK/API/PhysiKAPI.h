@@ -126,10 +126,6 @@ extern "C"
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle mapper);
 
-    PHYSIK_API int PHYSIK_UpdateTetMeshMapping(
-        PhysiK::WorldHandle world,
-        PhysiK::ComponentHandle mapper);
-
     PHYSIK_API int PHYSIK_SetTetMeshLocalCurrentPosition(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle tetMesh,

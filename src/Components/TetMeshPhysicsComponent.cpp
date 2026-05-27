@@ -460,7 +460,10 @@ namespace PhysiK
 
     void TetMeshPhysicsComponent::PostUpdate(World& world, float dt)
     {
-        SyncCurrentPositionsFromWorld(world);
+        if (dt > 0.0f)
+        {
+            SyncCurrentPositionsFromWorld(world);
+        }
         TetMeshComponent::PostUpdate(world, dt);
     }
 }

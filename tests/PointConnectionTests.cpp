@@ -2911,7 +2911,7 @@ void TetMeshMapperComponentEmbedsDestinationAndFollowsSource()
         0.0f,
         0.0f) == 0);
 
-    assert(PHYSIK_UpdateTetMeshMapping(world, mapper) == 1);
+    PHYSIK_Step(world, 0.0f);
 
     const Point mapped0 = GetNodePosition(world, destinationNodes[0]);
     const Point mapped1 = GetNodePosition(world, destinationNodes[1]);
@@ -2967,7 +2967,6 @@ void TetMeshMapperComponentCanBeCreatedThroughNativeApi()
             destinationTetMesh);
     assert(PHYSIK_IsComponentHandleValid(world, mapper) == 1);
     assert(PHYSIK_BuildTetMeshMapping(world, mapper) == 1);
-    assert(PHYSIK_UpdateTetMeshMapping(world, mapper) == 1);
     assert(PHYSIK_CreateTetMeshMapperComponent(
         nullptr,
         sourceTetMesh,
@@ -2977,7 +2976,6 @@ void TetMeshMapperComponentCanBeCreatedThroughNativeApi()
         PhysiK::ComponentHandle{},
         destinationTetMesh).IsValid() == false);
     assert(PHYSIK_BuildTetMeshMapping(world, sourceTetMesh) == 0);
-    assert(PHYSIK_UpdateTetMeshMapping(world, sourceTetMesh) == 0);
 
     PHYSIK_DestroyWorld(world);
 }

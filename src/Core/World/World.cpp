@@ -45,13 +45,18 @@ namespace PhysiK
 
     void World::Step(float frameDt)
     {
-        if (frameDt <= 0.0f)
+        if (frameDt < 0.0f)
         {
             return;
         }
 
         RunExternalLogic();
         PreUpdateComponents(frameDt);
+        if (frameDt == 0.0f)
+        {
+            PostUpdateComponents(frameDt);
+            return;
+        }
 
         const int steps = std::max(1, substepCount);
         const float substepDt = frameDt / static_cast<float>(steps);
