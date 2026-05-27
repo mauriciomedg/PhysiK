@@ -112,7 +112,7 @@ namespace PhysiK
         if (globalNodeIndices != nullptr && nodeCount > 0)
         {
             component->restNodePositions.reserve(static_cast<std::size_t>(nodeCount));
-            component->currentNodePositions.reserve(static_cast<std::size_t>(nodeCount));
+            component->nodePositions.reserve(static_cast<std::size_t>(nodeCount));
             component->globalNodeIndices.reserve(static_cast<std::size_t>(nodeCount));
             for (int i = 0; i < nodeCount; ++i)
             {
@@ -126,7 +126,7 @@ namespace PhysiK
                 component->globalNodeIndices.push_back(worldNodeIndex);
                 component->restNodePositions.push_back(
                     world.GetNode(worldNodeIndex).restPosition);
-                component->currentNodePositions.push_back(
+                component->nodePositions.push_back(
                     world.GetNode(worldNodeIndex).position);
             }
         }
@@ -275,7 +275,7 @@ namespace PhysiK
 
     void TetMeshPhysicsComponent::SyncCurrentPositionsFromWorld(const World& world)
     {
-        currentNodePositions.resize(globalNodeIndices.size());
+        nodePositions.resize(globalNodeIndices.size());
         for (int localIndex = 0;
              localIndex < static_cast<int>(globalNodeIndices.size());
              ++localIndex)
@@ -287,7 +287,7 @@ namespace PhysiK
                 continue;
             }
 
-            currentNodePositions[static_cast<std::size_t>(localIndex)] =
+            nodePositions[static_cast<std::size_t>(localIndex)] =
                 world.GetNode(worldNodeIndex).position;
         }
     }

@@ -28,13 +28,13 @@ namespace PhysiK
         int tetCount)
     {
         restNodePositions.clear();
-        currentNodePositions.clear();
+        nodePositions.clear();
         tets.clear();
 
         if (positions != nullptr && nodeCount > 0)
         {
             restNodePositions.assign(positions, positions + nodeCount);
-            currentNodePositions = restNodePositions;
+            nodePositions = restNodePositions;
         }
 
         if (tetLocalNodeIndices != nullptr && tetCount > 0)
@@ -108,12 +108,12 @@ namespace PhysiK
     const Vec3& TetMeshComponent::GetLocalCurrentPosition(int localNodeIndex) const
     {
         if (localNodeIndex < 0 ||
-            localNodeIndex >= static_cast<int>(currentNodePositions.size()))
+            localNodeIndex >= static_cast<int>(nodePositions.size()))
         {
             return ZeroVec3;
         }
 
-        return currentNodePositions[static_cast<std::size_t>(localNodeIndex)];
+        return nodePositions[static_cast<std::size_t>(localNodeIndex)];
     }
 
     int TetMeshComponent::GetGlobalNodeIndex(int localNodeIndex) const
@@ -127,12 +127,12 @@ namespace PhysiK
         const Vec3& position)
     {
         if (localNodeIndex < 0 ||
-            localNodeIndex >= static_cast<int>(currentNodePositions.size()))
+            localNodeIndex >= static_cast<int>(nodePositions.size()))
         {
             return;
         }
 
-        currentNodePositions[static_cast<std::size_t>(localNodeIndex)] = position;
+        nodePositions[static_cast<std::size_t>(localNodeIndex)] = position;
     }
 
     bool TetMeshComponent::IsTetActive(int tetIndex) const

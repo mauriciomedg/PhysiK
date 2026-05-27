@@ -14,7 +14,7 @@ namespace PhysiK
     {
     public:
         std::vector<Vec3> restNodePositions;
-        std::vector<Vec3> currentNodePositions;
+        std::vector<Vec3> nodePositions;
         std::vector<Tet> tets;
 
         bool topologyDirty = false;
