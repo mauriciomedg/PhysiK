@@ -126,6 +126,18 @@ extern "C"
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle mapper);
 
+    PHYSIK_API int PHYSIK_UpdateTetMeshMapping(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle mapper);
+
+    PHYSIK_API int PHYSIK_SetTetMeshLocalCurrentPosition(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMesh,
+        int localNodeIndex,
+        float x,
+        float y,
+        float z);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateVisualMeshComponent(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle hostTetMesh);

@@ -2853,25 +2853,65 @@ void TetMeshMapperComponentEmbedsDestinationAndFollowsSource()
             0);
     assert(PHYSIK_IsComponentHandleValid(world, destinationTetMesh) == 1);
 
-    PhysiK::TetMeshMapperComponent mapper(sourceTetMesh, destinationTetMesh);
-    mapper.BuildTetMeshMapping(*static_cast<PhysiK::World*>(world));
+    const PhysiK::ComponentHandle mapper =
+        PHYSIK_CreateTetMeshMapperComponent(
+            world,
+            sourceTetMesh,
+            destinationTetMesh);
+    assert(PHYSIK_IsComponentHandleValid(world, mapper) == 1);
+    assert(PHYSIK_BuildTetMeshMapping(world, mapper) == 1);
 
-    assert(mapper.embeddedDestinationVertices.size() == 5);
-    assert(mapper.embeddedDestinationVertices[0].valid);
-    assert(mapper.embeddedDestinationVertices[0].sourceTetIndex == 0);
-    assert(NearlyEqual(mapper.embeddedDestinationVertices[0].barycentric.x, 0.25f));
-    assert(NearlyEqual(mapper.embeddedDestinationVertices[0].barycentric.y, 0.25f));
-    assert(NearlyEqual(mapper.embeddedDestinationVertices[0].barycentric.z, 0.25f));
-    assert(NearlyEqual(mapper.embeddedDestinationVertices[0].barycentric.w, 0.25f));
-    assert(!mapper.embeddedDestinationVertices[4].valid);
-    assert(mapper.embeddedDestinationVertices[4].sourceTetIndex == -1);
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        world,
+        sourceTetMesh,
+        0,
+        0.0f,
+        0.0f,
+        1.0f) == 1);
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        world,
+        sourceTetMesh,
+        1,
+        2.0f,
+        0.0f,
+        1.0f) == 1);
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        world,
+        sourceTetMesh,
+        2,
+        0.0f,
+        2.0f,
+        1.0f) == 1);
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        world,
+        sourceTetMesh,
+        3,
+        0.0f,
+        0.0f,
+        3.0f) == 1);
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        world,
+        sourceTetMesh,
+        -1,
+        0.0f,
+        0.0f,
+        0.0f) == 0);
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        nullptr,
+        sourceTetMesh,
+        0,
+        0.0f,
+        0.0f,
+        0.0f) == 0);
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        world,
+        mapper,
+        0,
+        0.0f,
+        0.0f,
+        0.0f) == 0);
 
-    PHYSIK_SetNodePosition(world, sourceNodes[0], 0.0f, 0.0f, 1.0f);
-    PHYSIK_SetNodePosition(world, sourceNodes[1], 2.0f, 0.0f, 1.0f);
-    PHYSIK_SetNodePosition(world, sourceNodes[2], 0.0f, 2.0f, 1.0f);
-    PHYSIK_SetNodePosition(world, sourceNodes[3], 0.0f, 0.0f, 3.0f);
-
-    mapper.PostUpdate(*static_cast<PhysiK::World*>(world), 0.0f);
+    assert(PHYSIK_UpdateTetMeshMapping(world, mapper) == 1);
 
     const Point mapped0 = GetNodePosition(world, destinationNodes[0]);
     const Point mapped1 = GetNodePosition(world, destinationNodes[1]);
@@ -2885,6 +2925,7 @@ void TetMeshMapperComponentEmbedsDestinationAndFollowsSource()
     assert(NearlyEqual(unmapped.x, 2.0f));
     assert(NearlyEqual(unmapped.y, 2.0f));
     assert(NearlyEqual(unmapped.z, 2.0f));
+    assert(NearlyEqual(GetNodePosition(world, sourceNodes[0]).z, 0.0f));
 
     PHYSIK_DestroyWorld(world);
 }
@@ -2926,6 +2967,7 @@ void TetMeshMapperComponentCanBeCreatedThroughNativeApi()
             destinationTetMesh);
     assert(PHYSIK_IsComponentHandleValid(world, mapper) == 1);
     assert(PHYSIK_BuildTetMeshMapping(world, mapper) == 1);
+    assert(PHYSIK_UpdateTetMeshMapping(world, mapper) == 1);
     assert(PHYSIK_CreateTetMeshMapperComponent(
         nullptr,
         sourceTetMesh,
@@ -2935,6 +2977,7 @@ void TetMeshMapperComponentCanBeCreatedThroughNativeApi()
         PhysiK::ComponentHandle{},
         destinationTetMesh).IsValid() == false);
     assert(PHYSIK_BuildTetMeshMapping(world, sourceTetMesh) == 0);
+    assert(PHYSIK_UpdateTetMeshMapping(world, sourceTetMesh) == 0);
 
     PHYSIK_DestroyWorld(world);
 }
@@ -3337,8 +3380,8 @@ int main()
     VisualMeshComponentBuildsBruteForceEmbedding();
     VisualMeshComponentUpdatesDeformedVerticesFromHostTet();
     VisualMeshComponentCAPIExportsMeshBuffers();
-    //TetMeshMapperComponentEmbedsDestinationAndFollowsSource();
-    //TetMeshMapperComponentCanBeCreatedThroughNativeApi();
+    TetMeshMapperComponentEmbedsDestinationAndFollowsSource();
+    TetMeshMapperComponentCanBeCreatedThroughNativeApi();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();
     FemModelNeoHookeanRouteIsExplicitlyNotImplemented();
