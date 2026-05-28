@@ -206,8 +206,27 @@ namespace PhysiK
                  destinationTetMesh->GetLocalRestPosition(destinationNodes[2]) +
                  destinationTetMesh->GetLocalRestPosition(destinationNodes[3])) *
                 0.25f;
-            const bool shouldBeActive =
+            
+            bool allTetVerticesMapped = true;
+
+            for (int node : destinationNodes)
+            {
+                const std::size_t vertexIndex = static_cast<std::size_t>(node);
+
+                if (vertexIndex >= embeddedDestinationVertices.size() ||
+                    !embeddedDestinationVertices[vertexIndex].valid)
+                {
+                    allTetVerticesMapped = false;
+                    break;
+                }
+            }
+
+            const bool centroidIsInsideActiveSourceTet =
                 FindContainingActiveSourceTet(*sourceTetMesh, centroid);
+
+            const bool shouldBeActive =
+                allTetVerticesMapped && centroidIsInsideActiveSourceTet;
+
             destinationTetMesh->SetTetActive(destinationTetIndex, shouldBeActive);
         }
 
