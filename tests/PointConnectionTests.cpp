@@ -3020,7 +3020,6 @@ void TetMeshMapperComponentCanBeCreatedThroughNativeApi()
             sourceTetMesh,
             destinationTetMesh);
     assert(PHYSIK_IsComponentHandleValid(world, mapper) == 1);
-    assert(PHYSIK_BuildTetMeshMapping(world, mapper) == 1);
     PHYSIK_Step(world, 0.0f);
     assert(PHYSIK_CreateTetMeshMapperComponent(
         nullptr,
@@ -3030,7 +3029,6 @@ void TetMeshMapperComponentCanBeCreatedThroughNativeApi()
         world,
         PhysiK::ComponentHandle{},
         destinationTetMesh).IsValid() == false);
-    assert(PHYSIK_BuildTetMeshMapping(world, sourceTetMesh) == 0);
 
     PHYSIK_DestroyWorld(world);
 }

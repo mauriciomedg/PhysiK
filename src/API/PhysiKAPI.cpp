@@ -415,22 +415,6 @@ extern "C"
         return worldPtr->AddComponent(std::move(component));
     }
 
-    PHYSIK_API int PHYSIK_BuildTetMeshMapping(
-        PhysiK::WorldHandle world,
-        PhysiK::ComponentHandle mapper)
-    {
-        PhysiK::World* worldPtr = AsWorld(world);
-        PhysiK::TetMeshMapperComponent* mapperComponent =
-            AsTetMeshMapper(worldPtr, mapper);
-        if (worldPtr == nullptr || mapperComponent == nullptr)
-        {
-            return 0;
-        }
-
-        mapperComponent->MarkMappingDirty();
-        return 1;
-    }
-
     PHYSIK_API int PHYSIK_SetTetMeshLocalCurrentPosition(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle tetMesh,

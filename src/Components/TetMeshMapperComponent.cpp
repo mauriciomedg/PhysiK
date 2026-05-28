@@ -13,9 +13,10 @@ namespace PhysiK
     TetMeshMapperComponent::TetMeshMapperComponent(
         ComponentHandle sourceTetMeshHandle,
         ComponentHandle destinationTetMeshHandle)
+        : sourceTetMeshHandle(sourceTetMeshHandle)
+        , destinationTetMeshHandle(destinationTetMeshHandle)
+        , mappingDirty(true)
     {
-        this->sourceTetMeshHandle = sourceTetMeshHandle;
-        this->destinationTetMeshHandle = destinationTetMeshHandle;
     }
 
     bool TetMeshMapperComponent::BuildTetMeshMapping(World& world)
