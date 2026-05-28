@@ -151,6 +151,19 @@ namespace
             world->GetComponent(visualMeshComponent));
     }
 
+    const PhysiK::SurfaceExtractionComponent* AsSurfaceExtraction(
+        const PhysiK::World* world,
+        PhysiK::ComponentHandle surfaceExtractionComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<const PhysiK::SurfaceExtractionComponent*>(
+            world->GetComponent(surfaceExtractionComponent));
+    }
+
     PhysiK::TetMeshMapperComponent* AsTetMeshMapper(
         PhysiK::World* world,
         PhysiK::ComponentHandle mapperComponent)
@@ -394,6 +407,49 @@ extern "C"
         auto component =
             std::make_unique<PhysiK::SurfaceExtractionComponent>(hostTetMesh);
         return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtraction)
+    {
+        const PhysiK::SurfaceExtractionComponent* surface =
+            AsSurfaceExtraction(AsWorld(world), surfaceExtraction);
+        if (surface == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(surface->GetSurfaceTriangleIndices().size());
+    }
+
+    PHYSIK_API int PHYSIK_CopySurfaceTriangleIndices(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtraction,
+        int* outIndices,
+        int maxIndexCount)
+    {
+        if (outIndices == nullptr || maxIndexCount <= 0)
+        {
+            return 0;
+        }
+
+        const PhysiK::SurfaceExtractionComponent* surface =
+            AsSurfaceExtraction(AsWorld(world), surfaceExtraction);
+        if (surface == nullptr)
+        {
+            return 0;
+        }
+
+        const std::vector<int>& indices = surface->GetSurfaceTriangleIndices();
+        const int writeCount = std::min(maxIndexCount, static_cast<int>(indices.size()));
+        for (int i = 0; i < writeCount; ++i)
+        {
+            outIndices[static_cast<std::size_t>(i)] =
+                indices[static_cast<std::size_t>(i)];
+        }
+
+        return writeCount;
     }
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshMapperComponent(

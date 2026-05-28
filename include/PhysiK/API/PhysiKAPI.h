@@ -124,6 +124,16 @@ extern "C"
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle hostTetMesh);
 
+    PHYSIK_API int PHYSIK_GetSurfaceTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtraction);
+
+    PHYSIK_API int PHYSIK_CopySurfaceTriangleIndices(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtraction,
+        int* outIndices,
+        int maxIndexCount);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshMapperComponent(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle sourceTetMesh,

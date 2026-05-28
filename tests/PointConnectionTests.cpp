@@ -2601,12 +2601,49 @@ void SurfaceExtractionComponentCanBeCreatedThroughNativeApi()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    int nodes[4] = {};
-    const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {0, 1, 2, 3};
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            positions,
+            4,
+            tetIndices,
+            1);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+
     const PhysiK::ComponentHandle surface =
         PHYSIK_CreateSurfaceExtractionComponent(world, tetMesh);
 
     assert(PHYSIK_IsComponentHandleValid(world, surface) == 1);
+    assert(PHYSIK_GetSurfaceTriangleIndexCount(world, surface) == 0);
+
+    PHYSIK_Step(world, 0.0f);
+    assert(PHYSIK_GetSurfaceTriangleIndexCount(world, surface) == 12);
+
+    int copiedIndices[12] = {};
+    assert(PHYSIK_CopySurfaceTriangleIndices(
+        world,
+        surface,
+        copiedIndices,
+        12) == 12);
+    for (int copiedIndex : copiedIndices)
+    {
+        assert(copiedIndex >= 0);
+        assert(copiedIndex < 4);
+    }
+
+    assert(PHYSIK_GetSurfaceTriangleIndexCount(nullptr, surface) == 0);
+    assert(PHYSIK_GetSurfaceTriangleIndexCount(world, tetMesh) == 0);
+    assert(PHYSIK_CopySurfaceTriangleIndices(nullptr, surface, copiedIndices, 12) == 0);
+    assert(PHYSIK_CopySurfaceTriangleIndices(world, tetMesh, copiedIndices, 12) == 0);
+    assert(PHYSIK_CopySurfaceTriangleIndices(world, surface, nullptr, 12) == 0);
+    assert(PHYSIK_CopySurfaceTriangleIndices(world, surface, copiedIndices, 0) == 0);
+
     assert(PHYSIK_CreateSurfaceExtractionComponent(nullptr, tetMesh).IsValid() == false);
     assert(PHYSIK_CreateSurfaceExtractionComponent(
         world,
