@@ -427,14 +427,10 @@ extern "C"
             return 0;
         }
 
-        mapperComponent->BuildTetMeshMapping(*worldPtr);
-        for (const PhysiK::TetMeshMappedVertex& mappedVertex :
-             mapperComponent->embeddedDestinationVertices)
+        mapperComponent->MarkMappingDirty();
+        if (mapperComponent->BuildTetMeshMapping(*worldPtr))
         {
-            if (mappedVertex.valid)
-            {
-                return 1;
-            }
+            return 1;
         }
 
         return 0;

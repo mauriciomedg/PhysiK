@@ -18,7 +18,7 @@ namespace PhysiK
         this->destinationTetMeshHandle = destinationTetMeshHandle;
     }
 
-    void TetMeshMapperComponent::BuildTetMeshMapping(World& world)
+    bool TetMeshMapperComponent::BuildTetMeshMapping(World& world)
     {
         embeddedDestinationVertices.clear();
 
@@ -31,7 +31,15 @@ namespace PhysiK
             dynamic_cast<const TetMeshComponent*>(destinationComponent);
         if (sourceTetMesh == nullptr || destinationTetMesh == nullptr)
         {
-            return;
+            mappingDirty = true;
+            return false;
+        }
+
+        if (sourceTetMesh->GetTetCount() <= 0 ||
+            destinationTetMesh->GetNodeCount() <= 0)
+        {
+            mappingDirty = true;
+            return false;
         }
 
         if (auto* destinationPhysicsMesh =
@@ -123,6 +131,9 @@ namespace PhysiK
                 }
             }
         }
+
+        mappingDirty = false;
+        return true;
     }
 
     void TetMeshMapperComponent::UpdateDestinationNodes(World& world)
@@ -198,9 +209,24 @@ namespace PhysiK
         }
     }
 
+    void TetMeshMapperComponent::MarkMappingDirty()
+    {
+        mappingDirty = true;
+    }
+
+    bool TetMeshMapperComponent::IsMappingDirty() const
+    {
+        return mappingDirty;
+    }
+
     void TetMeshMapperComponent::PostUpdate(World& world, float dt)
     {
         (void)dt;
+        if (mappingDirty && !BuildTetMeshMapping(world))
+        {
+            return;
+        }
+
         UpdateDestinationNodes(world);
     }
 }

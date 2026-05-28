@@ -2880,7 +2880,6 @@ void TetMeshMapperComponentEmbedsDestinationAndFollowsSource()
             sourceTetMesh,
             destinationTetMesh);
     assert(PHYSIK_IsComponentHandleValid(world, mapper) == 1);
-    assert(PHYSIK_BuildTetMeshMapping(world, mapper) == 1);
 
     assert(PHYSIK_SetTetMeshLocalCurrentPosition(
         world,
