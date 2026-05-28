@@ -31,14 +31,12 @@ namespace PhysiK
             dynamic_cast<const TetMeshComponent*>(destinationComponent);
         if (sourceTetMesh == nullptr || destinationTetMesh == nullptr)
         {
-            mappingDirty = true;
             return false;
         }
 
         if (sourceTetMesh->GetTetCount() <= 0 ||
             destinationTetMesh->GetNodeCount() <= 0)
         {
-            mappingDirty = true;
             return false;
         }
 
@@ -132,7 +130,6 @@ namespace PhysiK
             }
         }
 
-        mappingDirty = false;
         return true;
     }
 
@@ -222,9 +219,14 @@ namespace PhysiK
     void TetMeshMapperComponent::PostUpdate(World& world, float dt)
     {
         (void)dt;
-        if (mappingDirty && !BuildTetMeshMapping(world))
+        if (mappingDirty)
         {
-            return;
+            if (!BuildTetMeshMapping(world))
+            {
+                return;
+            }
+
+            mappingDirty = false;
         }
 
         UpdateDestinationNodes(world);

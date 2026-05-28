@@ -428,12 +428,7 @@ extern "C"
         }
 
         mapperComponent->MarkMappingDirty();
-        if (mapperComponent->BuildTetMeshMapping(*worldPtr))
-        {
-            return 1;
-        }
-
-        return 0;
+        return 1;
     }
 
     PHYSIK_API int PHYSIK_SetTetMeshLocalCurrentPosition(
