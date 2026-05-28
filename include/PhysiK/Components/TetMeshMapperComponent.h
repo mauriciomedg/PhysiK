@@ -19,7 +19,7 @@ namespace PhysiK
     class PHYSIK_API TetMeshMapperComponent : public Component
     {
     public:
-        TetMeshMapperComponent() = default;
+        TetMeshMapperComponent();
         TetMeshMapperComponent(
             ComponentHandle sourceTetMeshHandle,
             ComponentHandle destinationTetMeshHandle);
@@ -30,6 +30,7 @@ namespace PhysiK
 
         void MarkMappingDirty();
         bool IsMappingDirty() const;
+        void OnPhysicsEvent(const PhysicsEvent& event) override;
         void PostUpdate(World& world, float dt) override;
 
     private:

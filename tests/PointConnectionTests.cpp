@@ -2984,6 +2984,78 @@ void TetMeshMapperComponentEmbedsDestinationAndFollowsSource()
     PHYSIK_DestroyWorld(world);
 }
 
+void TetMeshMapperComponentRebuildsAfterSourceTopologyChanges()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const PhysiK::Vec3 sourcePositions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 2.0f}};
+    const int sourceTetIndices[] = {
+        0, 1, 2, 3,
+        0, 1, 2, 4};
+    const PhysiK::ComponentHandle sourceTetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            sourcePositions,
+            5,
+            sourceTetIndices,
+            2);
+    assert(PHYSIK_IsComponentHandleValid(world, sourceTetMesh) == 1);
+
+    const PhysiK::Vec3 destinationPositions[] = {
+        PhysiK::Vec3{0.25f, 0.25f, 0.25f},
+        PhysiK::Vec3{0.30f, 0.25f, 0.25f},
+        PhysiK::Vec3{0.25f, 0.30f, 0.25f},
+        PhysiK::Vec3{0.25f, 0.25f, 0.30f}};
+    const int destinationTetIndices[] = {0, 1, 2, 3};
+    const PhysiK::ComponentHandle destinationTetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            destinationPositions,
+            4,
+            destinationTetIndices,
+            1);
+    assert(PHYSIK_IsComponentHandleValid(world, destinationTetMesh) == 1);
+
+    const PhysiK::ComponentHandle mapper =
+        PHYSIK_CreateTetMeshMapperComponent(
+            world,
+            sourceTetMesh,
+            destinationTetMesh);
+    assert(PHYSIK_IsComponentHandleValid(world, mapper) == 1);
+
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        world,
+        sourceTetMesh,
+        4,
+        0.0f,
+        0.0f,
+        10.0f) == 1);
+
+    PHYSIK_Step(world, 0.0f);
+    const Point initiallyMapped =
+        GetTetMeshLocalCurrentPosition(world, destinationTetMesh, 0);
+    assert(NearlyEqual(initiallyMapped.x, 0.25f));
+    assert(NearlyEqual(initiallyMapped.y, 0.25f));
+    assert(NearlyEqual(initiallyMapped.z, 0.25f));
+
+    PHYSIK_DeactivateTet(world, sourceTetMesh, 0);
+    PHYSIK_Step(world, 0.0f);
+
+    const Point remapped =
+        GetTetMeshLocalCurrentPosition(world, destinationTetMesh, 0);
+    assert(NearlyEqual(remapped.x, 0.25f));
+    assert(NearlyEqual(remapped.y, 0.25f));
+    assert(NearlyEqual(remapped.z, 1.25f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void TetMeshMapperComponentCanBeCreatedThroughNativeApi()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -3432,6 +3504,7 @@ int main()
     VisualMeshComponentUpdatesDeformedVerticesFromHostTet();
     VisualMeshComponentCAPIExportsMeshBuffers();
     TetMeshMapperComponentEmbedsDestinationAndFollowsSource();
+    TetMeshMapperComponentRebuildsAfterSourceTopologyChanges();
     TetMeshMapperComponentCanBeCreatedThroughNativeApi();
     FemModelLinearRouteUsesExistingAssembly();
     FemModelCorotationalRouteUsesCorotationalAssembly();

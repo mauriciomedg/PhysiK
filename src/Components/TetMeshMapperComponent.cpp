@@ -3,13 +3,17 @@
 #include <cstddef>
 
 #include "PhysiK/Components/TetMeshComponent.h"
-#include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
 #include "PhysiK/PhysicsData/Tet.h"
 
 namespace PhysiK
 {
+    TetMeshMapperComponent::TetMeshMapperComponent()
+    {
+        listenedEvents.push_back(PhysicsEventType::TetMeshTopologyChanged);
+    }
+
     TetMeshMapperComponent::TetMeshMapperComponent(
         ComponentHandle sourceTetMeshHandle,
         ComponentHandle destinationTetMeshHandle)
@@ -17,6 +21,7 @@ namespace PhysiK
         , destinationTetMeshHandle(destinationTetMeshHandle)
         , mappingDirty(true)
     {
+        listenedEvents.push_back(PhysicsEventType::TetMeshTopologyChanged);
     }
 
     bool TetMeshMapperComponent::BuildTetMeshMapping(World& world)
@@ -39,19 +44,6 @@ namespace PhysiK
             destinationTetMesh->GetNodeCount() <= 0)
         {
             return false;
-        }
-
-        if (auto* destinationPhysicsMesh =
-                dynamic_cast<TetMeshPhysicsComponent*>(
-                    world.GetComponent(destinationTetMeshHandle)))
-        {
-            destinationPhysicsMesh->physicsEnabled = false;
-        }
-
-        if (auto* sourcePhysicsMesh =
-                dynamic_cast<TetMeshPhysicsComponent*>(world.GetComponent(sourceTetMeshHandle)))
-        {
-            sourcePhysicsMesh->SyncCurrentPositionsFromWorld(world);
         }
 
         embeddedDestinationVertices.resize(
@@ -215,6 +207,14 @@ namespace PhysiK
     bool TetMeshMapperComponent::IsMappingDirty() const
     {
         return mappingDirty;
+    }
+
+    void TetMeshMapperComponent::OnPhysicsEvent(const PhysicsEvent& event)
+    {
+        if (event.type == PhysicsEventType::TetMeshTopologyChanged)
+        {
+            MarkMappingDirty();
+        }
     }
 
     void TetMeshMapperComponent::PostUpdate(World& world, float dt)
