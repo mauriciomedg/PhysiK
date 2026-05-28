@@ -42,7 +42,7 @@ namespace PhysiK
             return true;
         }
 
-        bool FindContainingActiveSourceTet(
+        int FindContainingActiveSourceTet(
             const TetMeshComponent& sourceTetMesh,
             const Vec3& point)
         {
@@ -80,11 +80,11 @@ namespace PhysiK
                     barycentric.z >= insideEpsilon &&
                     barycentric.w >= insideEpsilon)
                 {
-                    return true;
+                    return sourceTetIndex;
                 }
             }
 
-            return false;
+            return -1;
         }
     }
 
@@ -99,6 +99,7 @@ namespace PhysiK
         : sourceTetMeshHandle(sourceTetMeshHandle)
         , destinationTetMeshHandle(destinationTetMeshHandle)
         , mappingDirty(true)
+        , activeStateDirty(true)
     {
         listenedEvents.push_back(PhysicsEventType::TetMeshTopologyChanged);
     }
@@ -106,6 +107,7 @@ namespace PhysiK
     bool TetMeshMapperComponent::BuildTetMeshMapping(World& world)
     {
         embeddedDestinationVertices.clear();
+        embeddedDestinationTets.clear();
 
         const Component* sourceComponent = world.GetComponent(sourceTetMeshHandle);
         const TetMeshComponent* sourceTetMesh =
@@ -127,6 +129,8 @@ namespace PhysiK
 
         embeddedDestinationVertices.resize(
             static_cast<std::size_t>(destinationTetMesh->GetNodeCount()));
+        embeddedDestinationTets.resize(
+            static_cast<std::size_t>(destinationTetMesh->GetTetCount()));
         constexpr float insideEpsilon = -0.0001f;
 
         for (std::size_t destinationVertex = 0;
@@ -191,6 +195,10 @@ namespace PhysiK
              destinationTetIndex < destinationTetMesh->GetTetCount();
              ++destinationTetIndex)
         {
+            TetMeshMappedTet& mappedTet =
+                embeddedDestinationTets[static_cast<std::size_t>(destinationTetIndex)];
+            mappedTet = TetMeshMappedTet{};
+
             int destinationNodes[4];
             if (!TryGetTetNodes(
                     *destinationTetMesh,
@@ -206,26 +214,86 @@ namespace PhysiK
                  destinationTetMesh->GetLocalRestPosition(destinationNodes[2]) +
                  destinationTetMesh->GetLocalRestPosition(destinationNodes[3])) *
                 0.25f;
-            
-            bool allTetVerticesMapped = true;
 
-            for (int node : destinationNodes)
+            const int sourceTetIndex =
+                FindContainingActiveSourceTet(*sourceTetMesh, centroid);
+            if (sourceTetIndex >= 0)
             {
-                const std::size_t vertexIndex = static_cast<std::size_t>(node);
+                mappedTet.sourceTetIndex = sourceTetIndex;
+                mappedTet.valid = true;
+            }
+        }
 
-                if (vertexIndex >= embeddedDestinationVertices.size() ||
-                    !embeddedDestinationVertices[vertexIndex].valid)
-                {
-                    allTetVerticesMapped = false;
-                    break;
-                }
+        return true;
+    }
+
+    bool TetMeshMapperComponent::RefreshDestinationActiveStates(World& world)
+    {
+        const Component* sourceComponent = world.GetComponent(sourceTetMeshHandle);
+        const TetMeshComponent* sourceTetMesh =
+            dynamic_cast<const TetMeshComponent*>(sourceComponent);
+        Component* destinationComponent =
+            world.GetComponent(destinationTetMeshHandle);
+        TetMeshComponent* destinationTetMesh =
+            dynamic_cast<TetMeshComponent*>(destinationComponent);
+        if (sourceTetMesh == nullptr || destinationTetMesh == nullptr)
+        {
+            return false;
+        }
+
+        if (embeddedDestinationTets.size() !=
+                static_cast<std::size_t>(destinationTetMesh->GetTetCount()) ||
+            embeddedDestinationVertices.size() !=
+                static_cast<std::size_t>(destinationTetMesh->GetNodeCount()))
+        {
+            return false;
+        }
+
+        for (int destinationTetIndex = 0;
+             destinationTetIndex < destinationTetMesh->GetTetCount();
+             ++destinationTetIndex)
+        {
+            const TetMeshMappedTet& mappedTet =
+                embeddedDestinationTets[static_cast<std::size_t>(destinationTetIndex)];
+            bool shouldBeActive =
+                mappedTet.valid &&
+                mappedTet.sourceTetIndex >= 0 &&
+                mappedTet.sourceTetIndex < sourceTetMesh->GetTetCount() &&
+                sourceTetMesh->IsTetActive(mappedTet.sourceTetIndex);
+
+            int destinationNodes[4];
+            if (!TryGetTetNodes(
+                    *destinationTetMesh,
+                    destinationTetIndex,
+                    destinationNodes))
+            {
+                destinationTetMesh->SetTetActive(destinationTetIndex, false);
+                continue;
             }
 
-            const bool centroidIsInsideActiveSourceTet =
-                FindContainingActiveSourceTet(*sourceTetMesh, centroid);
+            for (int destinationNode : destinationNodes)
+            {
+                if (!shouldBeActive)
+                {
+                    break;
+                }
 
-            const bool shouldBeActive =
-                allTetVerticesMapped && centroidIsInsideActiveSourceTet;
+                const std::size_t vertexIndex =
+                    static_cast<std::size_t>(destinationNode);
+                if (vertexIndex >= embeddedDestinationVertices.size())
+                {
+                    shouldBeActive = false;
+                    break;
+                }
+
+                const TetMeshMappedVertex& mappedVertex =
+                    embeddedDestinationVertices[vertexIndex];
+                shouldBeActive =
+                    mappedVertex.valid &&
+                    mappedVertex.sourceTetIndex >= 0 &&
+                    mappedVertex.sourceTetIndex < sourceTetMesh->GetTetCount() &&
+                    sourceTetMesh->IsTetActive(mappedVertex.sourceTetIndex);
+            }
 
             destinationTetMesh->SetTetActive(destinationTetIndex, shouldBeActive);
         }
@@ -298,6 +366,12 @@ namespace PhysiK
     void TetMeshMapperComponent::MarkMappingDirty()
     {
         mappingDirty = true;
+        activeStateDirty = true;
+    }
+
+    void TetMeshMapperComponent::MarkActiveStateDirty()
+    {
+        activeStateDirty = true;
     }
 
     bool TetMeshMapperComponent::IsMappingDirty() const
@@ -319,7 +393,7 @@ namespace PhysiK
             return;
         }
 
-        MarkMappingDirty();
+        MarkActiveStateDirty();
     }
 
     void TetMeshMapperComponent::PostUpdate(World& world, float dt)
@@ -333,6 +407,17 @@ namespace PhysiK
             }
 
             mappingDirty = false;
+            activeStateDirty = true;
+        }
+
+        if (activeStateDirty)
+        {
+            if (!RefreshDestinationActiveStates(world))
+            {
+                return;
+            }
+
+            activeStateDirty = false;
         }
 
         UpdateDestinationNodes(world);
