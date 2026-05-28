@@ -386,14 +386,14 @@ namespace PhysiK
         TetMeshComponent::SetLocalCurrentPosition(localNodeIndex, position);
     }
 
-    void TetMeshPhysicsComponent::SetTetActive(int tetIndex, bool active)
+    bool TetMeshPhysicsComponent::SetTetActive(int tetIndex, bool active)
     {
-        TetMeshComponent::SetTetActive(tetIndex, active);
+        return TetMeshComponent::SetTetActive(tetIndex, active);
     }
 
-    void TetMeshPhysicsComponent::DeactivateTet(int tetIndex)
+    bool TetMeshPhysicsComponent::DeactivateTet(int tetIndex)
     {
-        SetTetActive(tetIndex, false);
+        return SetTetActive(tetIndex, false);
     }
 
     void TetMeshPhysicsComponent::UpdateSystem(

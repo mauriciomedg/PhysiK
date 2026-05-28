@@ -145,20 +145,27 @@ namespace PhysiK
         return tets[static_cast<std::size_t>(tetIndex)].active;
     }
 
-    void TetMeshComponent::SetTetActive(int tetIndex, bool active)
+    bool TetMeshComponent::SetTetActive(int tetIndex, bool active)
     {
         if (tetIndex < 0 || tetIndex >= static_cast<int>(tets.size()))
         {
-            return;
+            return false;
         }
 
-        tets[static_cast<std::size_t>(tetIndex)].active = active;
+        Tet& tet = tets[static_cast<std::size_t>(tetIndex)];
+        if (tet.active == active)
+        {
+            return false;
+        }
+
+        tet.active = active;
         topologyDirty = true;
+        return true;
     }
 
-    void TetMeshComponent::DeactivateTet(int tetIndex)
+    bool TetMeshComponent::DeactivateTet(int tetIndex)
     {
-        SetTetActive(tetIndex, false);
+        return SetTetActive(tetIndex, false);
     }
 
     int TetMeshComponent::GetActiveTetCount() const

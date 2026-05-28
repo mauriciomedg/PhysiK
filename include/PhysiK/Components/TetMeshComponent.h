@@ -34,8 +34,8 @@ namespace PhysiK
         virtual void SetLocalCurrentPosition(int localNodeIndex, const Vec3& position);
 
         bool IsTetActive(int tetIndex) const;
-        virtual void SetTetActive(int tetIndex, bool active);
-        virtual void DeactivateTet(int tetIndex);
+        virtual bool SetTetActive(int tetIndex, bool active);
+        virtual bool DeactivateTet(int tetIndex);
         int GetActiveTetCount() const;
 
         void PostUpdate(World& world, float dt) override;

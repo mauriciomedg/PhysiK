@@ -87,8 +87,8 @@ namespace PhysiK
 
         int GetGlobalNodeIndex(int localNodeIndex) const override;
         void SetLocalCurrentPosition(int localNodeIndex, const Vec3& position) override;
-        void SetTetActive(int tetIndex, bool active) override;
-        void DeactivateTet(int tetIndex) override;
+        bool SetTetActive(int tetIndex, bool active) override;
+        bool DeactivateTet(int tetIndex) override;
 
         const SparseBlockMatrix& GetFemSparseMatrix() const
         {

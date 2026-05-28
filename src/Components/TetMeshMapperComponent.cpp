@@ -9,6 +9,85 @@
 
 namespace PhysiK
 {
+    namespace
+    {
+        bool IsLocalTetNodeValid(const TetMeshComponent& mesh, int localNodeIndex)
+        {
+            return localNodeIndex >= 0 && localNodeIndex < mesh.GetNodeCount();
+        }
+
+        bool TryGetTetNodes(
+            const TetMeshComponent& mesh,
+            int tetIndex,
+            int (&outNodes)[4])
+        {
+            if (tetIndex < 0 || tetIndex >= mesh.GetTetCount())
+            {
+                return false;
+            }
+
+            outNodes[0] = mesh.GetTetNodeIndex(tetIndex, 0);
+            outNodes[1] = mesh.GetTetNodeIndex(tetIndex, 1);
+            outNodes[2] = mesh.GetTetNodeIndex(tetIndex, 2);
+            outNodes[3] = mesh.GetTetNodeIndex(tetIndex, 3);
+
+            for (int nodeIndex : outNodes)
+            {
+                if (!IsLocalTetNodeValid(mesh, nodeIndex))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        bool FindContainingActiveSourceTet(
+            const TetMeshComponent& sourceTetMesh,
+            const Vec3& point)
+        {
+            constexpr float insideEpsilon = -0.0001f;
+
+            for (int sourceTetIndex = 0;
+                 sourceTetIndex < sourceTetMesh.GetTetCount();
+                 ++sourceTetIndex)
+            {
+                if (!sourceTetMesh.IsTetActive(sourceTetIndex))
+                {
+                    continue;
+                }
+
+                int sourceNodes[4];
+                if (!TryGetTetNodes(sourceTetMesh, sourceTetIndex, sourceNodes))
+                {
+                    continue;
+                }
+
+                Vec4 barycentric;
+                if (!ComputeTetBarycentric(
+                        point,
+                        sourceTetMesh.GetLocalRestPosition(sourceNodes[0]),
+                        sourceTetMesh.GetLocalRestPosition(sourceNodes[1]),
+                        sourceTetMesh.GetLocalRestPosition(sourceNodes[2]),
+                        sourceTetMesh.GetLocalRestPosition(sourceNodes[3]),
+                        barycentric))
+                {
+                    continue;
+                }
+
+                if (barycentric.x >= insideEpsilon &&
+                    barycentric.y >= insideEpsilon &&
+                    barycentric.z >= insideEpsilon &&
+                    barycentric.w >= insideEpsilon)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
     TetMeshMapperComponent::TetMeshMapperComponent()
     {
         listenedEvents.push_back(PhysicsEventType::TetMeshTopologyChanged);
@@ -31,10 +110,10 @@ namespace PhysiK
         const Component* sourceComponent = world.GetComponent(sourceTetMeshHandle);
         const TetMeshComponent* sourceTetMesh =
             dynamic_cast<const TetMeshComponent*>(sourceComponent);
-        const Component* destinationComponent =
+        Component* destinationComponent =
             world.GetComponent(destinationTetMeshHandle);
-        const TetMeshComponent* destinationTetMesh =
-            dynamic_cast<const TetMeshComponent*>(destinationComponent);
+        TetMeshComponent* destinationTetMesh =
+            dynamic_cast<TetMeshComponent*>(destinationComponent);
         if (sourceTetMesh == nullptr || destinationTetMesh == nullptr)
         {
             return false;
@@ -77,23 +156,8 @@ namespace PhysiK
                     continue;
                 }
 
-                const int sourceNodes[4] = {
-                    sourceTetMesh->GetTetNodeIndex(sourceTetIndex, 0),
-                    sourceTetMesh->GetTetNodeIndex(sourceTetIndex, 1),
-                    sourceTetMesh->GetTetNodeIndex(sourceTetIndex, 2),
-                    sourceTetMesh->GetTetNodeIndex(sourceTetIndex, 3)};
-                bool sourceNodesAreValid = true;
-                for (int sourceNode : sourceNodes)
-                {
-                    if (sourceNode < 0 ||
-                        sourceNode >= sourceTetMesh->GetNodeCount())
-                    {
-                        sourceNodesAreValid = false;
-                        break;
-                    }
-                }
-
-                if (!sourceNodesAreValid)
+                int sourceNodes[4];
+                if (!TryGetTetNodes(*sourceTetMesh, sourceTetIndex, sourceNodes))
                 {
                     continue;
                 }
@@ -121,6 +185,30 @@ namespace PhysiK
                     break;
                 }
             }
+        }
+
+        for (int destinationTetIndex = 0;
+             destinationTetIndex < destinationTetMesh->GetTetCount();
+             ++destinationTetIndex)
+        {
+            int destinationNodes[4];
+            if (!TryGetTetNodes(
+                    *destinationTetMesh,
+                    destinationTetIndex,
+                    destinationNodes))
+            {
+                continue;
+            }
+
+            const Vec3 centroid =
+                (destinationTetMesh->GetLocalRestPosition(destinationNodes[0]) +
+                 destinationTetMesh->GetLocalRestPosition(destinationNodes[1]) +
+                 destinationTetMesh->GetLocalRestPosition(destinationNodes[2]) +
+                 destinationTetMesh->GetLocalRestPosition(destinationNodes[3])) *
+                0.25f;
+            const bool shouldBeActive =
+                FindContainingActiveSourceTet(*sourceTetMesh, centroid);
+            destinationTetMesh->SetTetActive(destinationTetIndex, shouldBeActive);
         }
 
         return true;
@@ -165,20 +253,9 @@ namespace PhysiK
                 continue;
             }
 
-            const int sourceNodes[4] = {
-                sourceTetMesh->GetTetNodeIndex(mappedVertex.sourceTetIndex, 0),
-                sourceTetMesh->GetTetNodeIndex(mappedVertex.sourceTetIndex, 1),
-                sourceTetMesh->GetTetNodeIndex(mappedVertex.sourceTetIndex, 2),
-                sourceTetMesh->GetTetNodeIndex(mappedVertex.sourceTetIndex, 3)};
-            bool sourceNodesAreValid = true;
-            for (int sourceNode : sourceNodes)
-            {
-                if (sourceNode < 0 || sourceNode >= sourceTetMesh->GetNodeCount())
-                {
-                    sourceNodesAreValid = false;
-                    break;
-                }
-            }
+            int sourceNodes[4];
+            const bool sourceNodesAreValid =
+                TryGetTetNodes(*sourceTetMesh, mappedVertex.sourceTetIndex, sourceNodes);
 
             const int destinationNode =
                 static_cast<int>(destinationVertex);
@@ -211,10 +288,19 @@ namespace PhysiK
 
     void TetMeshMapperComponent::OnPhysicsEvent(const PhysicsEvent& event)
     {
-        if (event.type == PhysicsEventType::TetMeshTopologyChanged)
+        if (event.type != PhysicsEventType::TetMeshTopologyChanged)
         {
-            MarkMappingDirty();
+            return;
         }
+
+        World* world = event.world;
+        if (world == nullptr ||
+            event.sender != world->GetComponent(sourceTetMeshHandle))
+        {
+            return;
+        }
+
+        MarkMappingDirty();
     }
 
     void TetMeshMapperComponent::PostUpdate(World& world, float dt)
