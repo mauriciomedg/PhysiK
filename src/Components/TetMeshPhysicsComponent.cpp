@@ -6,7 +6,6 @@
 
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
-#include "PhysiK/Geometry/TetMeshGenerator.h"
 
 namespace PhysiK
 {
@@ -148,46 +147,6 @@ namespace PhysiK
                 solverData.AddNodeMass(globalNodeIndex, contribution.nodalMass);
             }
         }
-    }
-
-    std::unique_ptr<TetMeshPhysicsComponent> TetMeshPhysicsComponent::CreateFromPositions(
-        World& world,
-        const Vec3* positions,
-        const int* fixedNodeFlags,
-        int nodeCount,
-        const int* tetLocalNodeIndices,
-        int tetCount,
-        const Material& material)
-    {
-        TetMeshPhysicsComponentDesc desc;
-        desc.material = material;
-        return CreateFromPositions(
-            world,
-            positions,
-            fixedNodeFlags,
-            nodeCount,
-            tetLocalNodeIndices,
-            tetCount,
-            desc);
-    }
-
-    std::unique_ptr<TetMeshPhysicsComponent> TetMeshPhysicsComponent::CreateFromPositions(
-        World& world,
-        const Vec3* positions,
-        const int* fixedNodeFlags,
-        int nodeCount,
-        const int* tetLocalNodeIndices,
-        int tetCount,
-        const TetMeshPhysicsComponentDesc& desc)
-    {
-        const GeneratedTetMesh generatedMesh =
-            TetMeshGenerator::Generate(
-                positions,
-                nodeCount,
-                tetLocalNodeIndices,
-                tetCount);
-        (void)fixedNodeFlags;
-        return CreateFromGeneratedTetMesh(world, generatedMesh, desc);
     }
 
     std::unique_ptr<TetMeshPhysicsComponent>

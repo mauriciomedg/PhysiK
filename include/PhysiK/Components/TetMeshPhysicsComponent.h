@@ -19,24 +19,6 @@ namespace PhysiK
     class PHYSIK_API TetMeshPhysicsComponent : public TetMeshComponent
     {
     public:
-        static std::unique_ptr<TetMeshPhysicsComponent> CreateFromPositions(
-            World& world,
-            const Vec3* positions,
-            const int* fixedNodeFlags,
-            int nodeCount,
-            const int* tetLocalNodeIndices,
-            int tetCount,
-            const Material& material);
-
-        static std::unique_ptr<TetMeshPhysicsComponent> CreateFromPositions(
-            World& world,
-            const Vec3* positions,
-            const int* fixedNodeFlags,
-            int nodeCount,
-            const int* tetLocalNodeIndices,
-            int tetCount,
-            const TetMeshPhysicsComponentDesc& desc);
-
         static std::unique_ptr<TetMeshPhysicsComponent> CreateFromGeneratedTetMesh(
             World& world,
             const GeneratedTetMesh& generatedMesh,
