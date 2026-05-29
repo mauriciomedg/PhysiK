@@ -157,6 +157,23 @@ namespace PhysiK
         int tetCount,
         const TetMeshBuildOptions& options)
     {
+        return PreprocessTetMesh(
+            positions,
+            nodeCount,
+            tetLocalNodeIndices,
+            tetCount,
+            nullptr,
+            options);
+    }
+
+    TetMeshPreprocessResult PreprocessTetMesh(
+        const Vec3* positions,
+        int nodeCount,
+        const int* tetLocalNodeIndices,
+        int tetCount,
+        const int* localToGlobalNodeIndices,
+        const TetMeshBuildOptions& options)
+    {
         TetMeshPreprocessResult result;
         result.rawNodeCount = nodeCount > 0 ? nodeCount : 0;
         result.rawTetCount = tetCount > 0 ? tetCount : 0;
@@ -167,9 +184,10 @@ namespace PhysiK
             return result;
         }
 
-        result.oldNodeToNewNode.assign(
+        std::vector<int> oldNodeToNewNode(
             static_cast<std::size_t>(nodeCount),
             -1);
+        std::vector<int> newNodeToFirstOldNode;
 
         const float tolerance =
             options.weldTolerance > 0.0f ? options.weldTolerance : 0.0f;
@@ -220,15 +238,15 @@ namespace PhysiK
 
             if (existingNode >= 0)
             {
-                result.oldNodeToNewNode[static_cast<std::size_t>(oldNode)] =
+                oldNodeToNewNode[static_cast<std::size_t>(oldNode)] =
                     existingNode;
                 continue;
             }
 
             const int newNode = static_cast<int>(result.positions.size());
             result.positions.push_back(position);
-            result.newNodeToFirstOldNode.push_back(oldNode);
-            result.oldNodeToNewNode[static_cast<std::size_t>(oldNode)] =
+            newNodeToFirstOldNode.push_back(oldNode);
+            oldNodeToNewNode[static_cast<std::size_t>(oldNode)] =
                 newNode;
 
             if (weldNodes)
@@ -239,6 +257,23 @@ namespace PhysiK
 
         result.weldedNodeCount = static_cast<int>(result.positions.size());
         result.weldedAwayNodeCount = result.rawNodeCount - result.weldedNodeCount;
+
+        if (localToGlobalNodeIndices != nullptr)
+        {
+            result.localToGlobalNodeIndex.resize(result.positions.size(), -1);
+            for (int newNode = 0;
+                 newNode < static_cast<int>(newNodeToFirstOldNode.size());
+                 ++newNode)
+            {
+                const int oldNode =
+                    newNodeToFirstOldNode[static_cast<std::size_t>(newNode)];
+                if (oldNode >= 0 && oldNode < nodeCount)
+                {
+                    result.localToGlobalNodeIndex[static_cast<std::size_t>(newNode)] =
+                        localToGlobalNodeIndices[oldNode];
+                }
+            }
+        }
 
         if (tetLocalNodeIndices != nullptr && tetCount > 0)
         {
@@ -258,10 +293,10 @@ namespace PhysiK
                     continue;
                 }
 
-                const int a = result.oldNodeToNewNode[static_cast<std::size_t>(raw0)];
-                const int b = result.oldNodeToNewNode[static_cast<std::size_t>(raw1)];
-                const int c = result.oldNodeToNewNode[static_cast<std::size_t>(raw2)];
-                const int d = result.oldNodeToNewNode[static_cast<std::size_t>(raw3)];
+                const int a = oldNodeToNewNode[static_cast<std::size_t>(raw0)];
+                const int b = oldNodeToNewNode[static_cast<std::size_t>(raw1)];
+                const int c = oldNodeToNewNode[static_cast<std::size_t>(raw2)];
+                const int d = oldNodeToNewNode[static_cast<std::size_t>(raw3)];
                 if ((options.removeDegenerateTets && HasDuplicateNode(a, b, c, d)) ||
                     (options.removeDegenerateTets &&
                         IsNearZeroVolume(result.positions, a, b, c, d)))

@@ -3,7 +3,6 @@
 #include <cstddef>
 
 #include "PhysiK/Core/World/World.h"
-#include "PhysiK/Geometry/TetMeshPreprocessor.h"
 
 namespace PhysiK
 {
@@ -28,52 +27,34 @@ namespace PhysiK
         const int* tetLocalNodeIndices,
         int tetCount)
     {
-        SetGeometry(
-            positions,
-            nodeCount,
-            tetLocalNodeIndices,
-            tetCount,
-            nullptr,
-            nullptr);
-    }
-
-    void TetMeshComponent::SetGeometry(
-        const Vec3* positions,
-        int nodeCount,
-        const int* tetLocalNodeIndices,
-        int tetCount,
-        std::vector<int>* outOldNodeToNewNode,
-        std::vector<int>* outNewNodeToFirstOldNode)
-    {
         restNodePositions.clear();
         nodePositions.clear();
         tets.clear();
 
-        const TetMeshPreprocessResult preprocessed =
-            PreprocessTetMesh(positions, nodeCount, tetLocalNodeIndices, tetCount);
-        if (outOldNodeToNewNode != nullptr)
+        if (positions != nullptr && nodeCount > 0)
         {
-            *outOldNodeToNewNode = preprocessed.oldNodeToNewNode;
-        }
-        if (outNewNodeToFirstOldNode != nullptr)
-        {
-            *outNewNodeToFirstOldNode = preprocessed.newNodeToFirstOldNode;
+            restNodePositions.assign(positions, positions + nodeCount);
+            nodePositions = restNodePositions;
         }
 
-        restNodePositions = preprocessed.positions;
-        nodePositions = restNodePositions;
-
-        const int finalTetCount =
-            static_cast<int>(preprocessed.tetLocalNodeIndices.size() / 4u);
-        if (finalTetCount > 0)
+        if (tetLocalNodeIndices != nullptr && tetCount > 0)
         {
-            tets.reserve(static_cast<std::size_t>(finalTetCount));
-            for (int tetIndex = 0; tetIndex < finalTetCount; ++tetIndex)
+            tets.reserve(static_cast<std::size_t>(tetCount));
+            const int localNodeCount = static_cast<int>(restNodePositions.size());
+            for (int tetIndex = 0; tetIndex < tetCount; ++tetIndex)
             {
-                const int local0 = preprocessed.tetLocalNodeIndices[tetIndex * 4 + 0];
-                const int local1 = preprocessed.tetLocalNodeIndices[tetIndex * 4 + 1];
-                const int local2 = preprocessed.tetLocalNodeIndices[tetIndex * 4 + 2];
-                const int local3 = preprocessed.tetLocalNodeIndices[tetIndex * 4 + 3];
+                const int local0 = tetLocalNodeIndices[tetIndex * 4 + 0];
+                const int local1 = tetLocalNodeIndices[tetIndex * 4 + 1];
+                const int local2 = tetLocalNodeIndices[tetIndex * 4 + 2];
+                const int local3 = tetLocalNodeIndices[tetIndex * 4 + 3];
+                if (local0 < 0 || local0 >= localNodeCount ||
+                    local1 < 0 || local1 >= localNodeCount ||
+                    local2 < 0 || local2 >= localNodeCount ||
+                    local3 < 0 || local3 >= localNodeCount)
+                {
+                    continue;
+                }
+
                 tets.push_back(MakeTet(local0, local1, local2, local3));
             }
         }

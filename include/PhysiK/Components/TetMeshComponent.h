@@ -24,13 +24,6 @@ namespace PhysiK
             int nodeCount,
             const int* tetLocalNodeIndices,
             int tetCount);
-        void SetGeometry(
-            const Vec3* positions,
-            int nodeCount,
-            const int* tetLocalNodeIndices,
-            int tetCount,
-            std::vector<int>* outOldNodeToNewNode,
-            std::vector<int>* outNewNodeToFirstOldNode);
 
         int GetNodeCount() const;
         int GetTetCount() const;

@@ -2702,6 +2702,20 @@ void TetMeshPreprocessorWeldsNodesAndDropsDegenerateTets()
     assert(result.topologyDiagnostics.boundaryFaceCount == 4);
     assert(result.topologyDiagnostics.internalFaceCount == 0);
     assert(result.topologyDiagnostics.nonManifoldFaceCount == 0);
+
+    const int localToGlobal[] = {10, 11, 12, 13, 14};
+    const PhysiK::TetMeshPreprocessResult mappedResult =
+        PhysiK::PreprocessTetMesh(
+            positions,
+            5,
+            tetIndices,
+            2,
+            localToGlobal);
+    assert(mappedResult.localToGlobalNodeIndex.size() == 4);
+    assert(mappedResult.localToGlobalNodeIndex[0] == 10);
+    assert(mappedResult.localToGlobalNodeIndex[1] == 12);
+    assert(mappedResult.localToGlobalNodeIndex[2] == 13);
+    assert(mappedResult.localToGlobalNodeIndex[3] == 14);
 }
 
 void TetMeshCreationWeldsDuplicateSharedFaceNodes()
