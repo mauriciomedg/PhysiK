@@ -10,12 +10,14 @@ namespace PhysiK
 {
     namespace
     {
-        Vec3 NormalizeOrZero(const Vec3& vector)
+        constexpr Vec3 FallbackNormal{0.0f, 1.0f, 0.0f};
+
+        Vec3 NormalizeOrFallback(const Vec3& vector)
         {
             const float length = vector.Length();
-            if (length <= 0.0f)
+            if (length <= 0.000001f)
             {
-                return Vec3{};
+                return FallbackNormal;
             }
 
             return vector / length;
@@ -34,11 +36,12 @@ namespace PhysiK
         this->surfaceExtractionHandle = surfaceExtractionHandle;
     }
 
-    void SurfaceVisualComponent::RebuildVisualSurface(const World& world)
+    void SurfaceVisualComponent::RebuildVisualSurfaceTopology(const World& world)
     {
         visualVertices.clear();
         visualTriangleIndices.clear();
         visualNormals.clear();
+        visualVertexSourceNodeIndices.clear();
 
         const Component* surfaceComponent =
             world.GetComponent(surfaceExtractionHandle);
@@ -60,10 +63,16 @@ namespace PhysiK
 
         const std::vector<int>& rawTriangles =
             surfaceExtraction->GetSurfaceTriangleIndices();
+        if (rawTriangles.size() % 3u != 0u)
+        {
+            return;
+        }
+
         const std::size_t triangleCount = rawTriangles.size() / 3u;
         visualVertices.reserve(triangleCount * 3u);
         visualTriangleIndices.reserve(triangleCount * 3u);
         visualNormals.reserve(triangleCount * 3u);
+        visualVertexSourceNodeIndices.reserve(triangleCount * 3u);
 
         for (std::size_t triangleIndex = 0;
              triangleIndex < triangleCount;
@@ -84,20 +93,96 @@ namespace PhysiK
             const Vec3& p0 = hostTetMesh->GetLocalCurrentPosition(node0);
             const Vec3& p1 = hostTetMesh->GetLocalCurrentPosition(node1);
             const Vec3& p2 = hostTetMesh->GetLocalCurrentPosition(node2);
-            const Vec3 normal = NormalizeOrZero(Cross(p1 - p0, p2 - p0));
 
             const int baseIndex = static_cast<int>(visualVertices.size());
             visualVertices.push_back(p0);
             visualVertices.push_back(p1);
             visualVertices.push_back(p2);
 
-            visualNormals.push_back(normal);
-            visualNormals.push_back(normal);
-            visualNormals.push_back(normal);
+            visualVertexSourceNodeIndices.push_back(node0);
+            visualVertexSourceNodeIndices.push_back(node1);
+            visualVertexSourceNodeIndices.push_back(node2);
+
+            visualNormals.push_back(FallbackNormal);
+            visualNormals.push_back(FallbackNormal);
+            visualNormals.push_back(FallbackNormal);
 
             visualTriangleIndices.push_back(baseIndex + 0);
             visualTriangleIndices.push_back(baseIndex + 1);
             visualTriangleIndices.push_back(baseIndex + 2);
+        }
+
+        UpdateVisualSurfaceGeometry(world);
+    }
+
+    void SurfaceVisualComponent::UpdateVisualSurfaceGeometry(const World& world)
+    {
+        const Component* surfaceComponent =
+            world.GetComponent(surfaceExtractionHandle);
+        const SurfaceExtractionComponent* surfaceExtraction =
+            dynamic_cast<const SurfaceExtractionComponent*>(surfaceComponent);
+        if (surfaceExtraction == nullptr)
+        {
+            return;
+        }
+
+        const Component* hostComponent =
+            world.GetComponent(surfaceExtraction->GetHostTetMeshHandle());
+        const TetMeshComponent* hostTetMesh =
+            dynamic_cast<const TetMeshComponent*>(hostComponent);
+        if (hostTetMesh == nullptr)
+        {
+            return;
+        }
+
+        if (visualVertices.size() != visualVertexSourceNodeIndices.size() ||
+            visualNormals.size() != visualVertices.size() ||
+            visualTriangleIndices.size() % 3u != 0u)
+        {
+            topologyDirty = true;
+            return;
+        }
+
+        for (std::size_t vertexIndex = 0;
+             vertexIndex < visualVertices.size();
+             ++vertexIndex)
+        {
+            const int sourceNode =
+                visualVertexSourceNodeIndices[vertexIndex];
+            if (sourceNode < 0 || sourceNode >= hostTetMesh->GetNodeCount())
+            {
+                topologyDirty = true;
+                return;
+            }
+
+            visualVertices[vertexIndex] =
+                hostTetMesh->GetLocalCurrentPosition(sourceNode);
+        }
+
+        for (std::size_t index = 0;
+             index < visualTriangleIndices.size();
+             index += 3u)
+        {
+            const int ia = visualTriangleIndices[index + 0u];
+            const int ib = visualTriangleIndices[index + 1u];
+            const int ic = visualTriangleIndices[index + 2u];
+            if (ia < 0 || ib < 0 || ic < 0 ||
+                ia >= static_cast<int>(visualVertices.size()) ||
+                ib >= static_cast<int>(visualVertices.size()) ||
+                ic >= static_cast<int>(visualVertices.size()))
+            {
+                topologyDirty = true;
+                return;
+            }
+
+            const Vec3& p0 = visualVertices[static_cast<std::size_t>(ia)];
+            const Vec3& p1 = visualVertices[static_cast<std::size_t>(ib)];
+            const Vec3& p2 = visualVertices[static_cast<std::size_t>(ic)];
+            const Vec3 normal = NormalizeOrFallback(Cross(p1 - p0, p2 - p0));
+
+            visualNormals[static_cast<std::size_t>(ia)] = normal;
+            visualNormals[static_cast<std::size_t>(ib)] = normal;
+            visualNormals[static_cast<std::size_t>(ic)] = normal;
         }
     }
 
@@ -144,19 +229,19 @@ namespace PhysiK
             return;
         }
 
-        visualDirty = true;
+        topologyDirty = true;
     }
 
     void SurfaceVisualComponent::PostUpdate(World& world, float dt)
     {
         (void)dt;
 
-        if (!visualDirty)
+        if (topologyDirty)
         {
-            return;
+            RebuildVisualSurfaceTopology(world);
+            topologyDirty = false;
         }
 
-        RebuildVisualSurface(world);
-        visualDirty = false;
+        UpdateVisualSurfaceGeometry(world);
     }
 }

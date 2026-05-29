@@ -17,7 +17,8 @@ namespace PhysiK
         SurfaceVisualComponent();
         explicit SurfaceVisualComponent(ComponentHandle surfaceExtractionHandle);
 
-        void RebuildVisualSurface(const World& world);
+        void RebuildVisualSurfaceTopology(const World& world);
+        void UpdateVisualSurfaceGeometry(const World& world);
 
         const std::vector<Vec3>& GetVisualVertices() const;
         const std::vector<int>& GetVisualTriangleIndices() const;
@@ -34,7 +35,8 @@ namespace PhysiK
         std::vector<Vec3> visualVertices;
         std::vector<int> visualTriangleIndices;
         std::vector<Vec3> visualNormals;
+        std::vector<int> visualVertexSourceNodeIndices;
 
-        bool visualDirty = true;
+        bool topologyDirty = true;
     };
 }

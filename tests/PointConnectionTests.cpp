@@ -2792,6 +2792,39 @@ void SurfaceVisualComponentBuildsRenderReadySurface()
     const Point local0 = GetTetMeshLocalCurrentPosition(world, tetMesh, 0);
     assert(NearlyEqual(local0.z, 2.0f));
 
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        world,
+        tetMesh,
+        1,
+        3.0f,
+        0.0f,
+        0.0f) == 1);
+    PHYSIK_Step(world, 0.0f);
+    assert(PHYSIK_GetSurfaceVisualVertexCount(world, visual) == 12);
+    assert(PHYSIK_GetSurfaceVisualTriangleIndexCount(world, visual) == 12);
+    assert(PHYSIK_GetSurfaceVisualNormalCount(world, visual) == 12);
+
+    bool foundUpdatedNode = false;
+    for (int vertexIndex = 0; vertexIndex < PHYSIK_GetSurfaceVisualVertexCount(world, visual);
+         ++vertexIndex)
+    {
+        assert(PHYSIK_GetSurfaceVisualVertex(
+            world,
+            visual,
+            vertexIndex,
+            &vertex.x,
+            &vertex.y,
+            &vertex.z) == 1);
+        if (NearlyEqual(vertex.x, 3.0f) &&
+            NearlyEqual(vertex.y, 0.0f) &&
+            NearlyEqual(vertex.z, 0.0f))
+        {
+            foundUpdatedNode = true;
+        }
+    }
+
+    assert(foundUpdatedNode);
+
     PHYSIK_DestroyWorld(world);
 }
 
