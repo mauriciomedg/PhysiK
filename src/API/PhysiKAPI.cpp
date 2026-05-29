@@ -9,7 +9,7 @@
 #include "PhysiK/Components/TetMeshMapperComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
-#include "PhysiK/Geometry/TetMeshPreprocessor.h"
+#include "PhysiK/Geometry/TetMeshGenerator.h"
 
 #include <algorithm>
 #include <string>
@@ -348,20 +348,15 @@ extern "C"
             return PhysiK::ComponentHandle{};
         }
 
-        const PhysiK::TetMeshPreprocessResult preprocessed =
-            PhysiK::PreprocessTetMesh(
+        const PhysiK::GeneratedTetMesh generatedMesh =
+            PhysiK::TetMeshGenerator::Generate(
                 positions,
                 nodeCount,
                 tetLocalNodeIndices,
                 tetCount);
 
         auto component = std::make_unique<PhysiK::TetMeshComponent>();
-
-        component->SetGeometry(
-            preprocessed.positions.data(),
-            static_cast<int>(preprocessed.positions.size()),
-            preprocessed.tetLocalNodeIndices.data(),
-            static_cast<int>(preprocessed.tetLocalNodeIndices.size() / 4u));
+        component->SetGeometry(generatedMesh);
 
         return worldPtr->AddComponent(std::move(component));
     }

@@ -6,7 +6,7 @@
 #include "PhysiK/Components/TetMeshMapperComponent.h"
 #include "PhysiK/Components/TopologyMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
-#include "PhysiK/Geometry/TetMeshPreprocessor.h"
+#include "PhysiK/Geometry/TetMeshGenerator.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
 #include "PhysiK/Core/Events/EventSystem.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
@@ -2674,7 +2674,7 @@ void SurfaceExtractionComponentWindsBoundaryFacesOutward()
     PHYSIK_DestroyWorld(worldHandle);
 }
 
-void TetMeshPreprocessorWeldsNodesAndDropsDegenerateTets()
+void TetMeshGeneratorWeldsNodesAndDropsDegenerateTets()
 {
     const PhysiK::Vec3 positions[] = {
         PhysiK::Vec3{0.0f, 0.0f, 0.0f},
@@ -2686,8 +2686,8 @@ void TetMeshPreprocessorWeldsNodesAndDropsDegenerateTets()
         0, 1, 2, 3,
         0, 2, 3, 4};
 
-    const PhysiK::TetMeshPreprocessResult result =
-        PhysiK::PreprocessTetMesh(
+    const PhysiK::GeneratedTetMesh result =
+        PhysiK::TetMeshGenerator::Generate(
             positions,
             5,
             tetIndices,
@@ -2703,19 +2703,6 @@ void TetMeshPreprocessorWeldsNodesAndDropsDegenerateTets()
     assert(result.topologyDiagnostics.internalFaceCount == 0);
     assert(result.topologyDiagnostics.nonManifoldFaceCount == 0);
 
-    const int localToGlobal[] = {10, 11, 12, 13, 14};
-    const PhysiK::TetMeshPreprocessResult mappedResult =
-        PhysiK::PreprocessTetMesh(
-            positions,
-            5,
-            tetIndices,
-            2,
-            localToGlobal);
-    assert(mappedResult.localToGlobalNodeIndex.size() == 4);
-    assert(mappedResult.localToGlobalNodeIndex[0] == 10);
-    assert(mappedResult.localToGlobalNodeIndex[1] == 12);
-    assert(mappedResult.localToGlobalNodeIndex[2] == 13);
-    assert(mappedResult.localToGlobalNodeIndex[3] == 14);
 }
 
 void TetMeshCreationWeldsDuplicateSharedFaceNodes()
@@ -3991,7 +3978,7 @@ int main()
     TopologyMeshComponentBuildsActiveTetIslands();
     SurfaceExtractionComponentExtractsActiveBoundaryFaces();
     SurfaceExtractionComponentWindsBoundaryFacesOutward();
-    TetMeshPreprocessorWeldsNodesAndDropsDegenerateTets();
+    TetMeshGeneratorWeldsNodesAndDropsDegenerateTets();
     TetMeshCreationWeldsDuplicateSharedFaceNodes();
     SurfaceExtractionComponentCanBeCreatedThroughNativeApi();
     SurfaceVisualComponentBuildsRenderReadySurface();

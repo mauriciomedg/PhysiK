@@ -5,6 +5,7 @@
 
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/Component.h"
+#include "PhysiK/Geometry/TetMeshGenerator.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/PhysicsData/Tet.h"
 
@@ -24,6 +25,7 @@ namespace PhysiK
             int nodeCount,
             const int* tetLocalNodeIndices,
             int tetCount);
+        void SetGeometry(const GeneratedTetMesh& generatedMesh);
 
         int GetNodeCount() const;
         int GetTetCount() const;

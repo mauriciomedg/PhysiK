@@ -21,32 +21,27 @@ namespace PhysiK
         int nonManifoldFaceCount = 0;
     };
 
-    struct TetMeshPreprocessResult
+    struct GeneratedTetMesh
     {
         std::vector<Vec3> positions;
         std::vector<int> tetLocalNodeIndices;
-        std::vector<int> localToGlobalNodeIndex;
+        TetMeshTopologyDiagnostics topologyDiagnostics;
         int rawNodeCount = 0;
         int rawTetCount = 0;
         int weldedNodeCount = 0;
         int weldedAwayNodeCount = 0;
         int removedDegenerateTetCount = 0;
         float weldTolerance = 0.0f;
-        TetMeshTopologyDiagnostics topologyDiagnostics;
     };
 
-    PHYSIK_API TetMeshPreprocessResult PreprocessTetMesh(
-        const Vec3* positions,
-        int nodeCount,
-        const int* tetLocalNodeIndices,
-        int tetCount,
-        const TetMeshBuildOptions& options = TetMeshBuildOptions{});
-
-    PHYSIK_API TetMeshPreprocessResult PreprocessTetMesh(
-        const Vec3* positions,
-        int nodeCount,
-        const int* tetLocalNodeIndices,
-        int tetCount,
-        const int* localToGlobalNodeIndices,
-        const TetMeshBuildOptions& options = TetMeshBuildOptions{});
+    class PHYSIK_API TetMeshGenerator
+    {
+    public:
+        static GeneratedTetMesh Generate(
+            const Vec3* positions,
+            int nodeCount,
+            const int* tetLocalNodeIndices,
+            int tetCount,
+            const TetMeshBuildOptions& options = TetMeshBuildOptions{});
+    };
 }

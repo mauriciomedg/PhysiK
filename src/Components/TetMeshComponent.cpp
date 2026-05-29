@@ -27,26 +27,41 @@ namespace PhysiK
         const int* tetLocalNodeIndices,
         int tetCount)
     {
+        const GeneratedTetMesh generatedMesh =
+            TetMeshGenerator::Generate(
+                positions,
+                nodeCount,
+                tetLocalNodeIndices,
+                tetCount);
+
+        SetGeometry(generatedMesh);
+    }
+
+    void TetMeshComponent::SetGeometry(const GeneratedTetMesh& generatedMesh)
+    {
         restNodePositions.clear();
         nodePositions.clear();
         tets.clear();
 
-        if (positions != nullptr && nodeCount > 0)
-        {
-            restNodePositions.assign(positions, positions + nodeCount);
-            nodePositions = restNodePositions;
-        }
+        restNodePositions = generatedMesh.positions;
+        nodePositions = restNodePositions;
 
-        if (tetLocalNodeIndices != nullptr && tetCount > 0)
+        const int tetCount =
+            static_cast<int>(generatedMesh.tetLocalNodeIndices.size() / 4u);
+        if (tetCount > 0)
         {
             tets.reserve(static_cast<std::size_t>(tetCount));
             const int localNodeCount = static_cast<int>(restNodePositions.size());
             for (int tetIndex = 0; tetIndex < tetCount; ++tetIndex)
             {
-                const int local0 = tetLocalNodeIndices[tetIndex * 4 + 0];
-                const int local1 = tetLocalNodeIndices[tetIndex * 4 + 1];
-                const int local2 = tetLocalNodeIndices[tetIndex * 4 + 2];
-                const int local3 = tetLocalNodeIndices[tetIndex * 4 + 3];
+                const int local0 =
+                    generatedMesh.tetLocalNodeIndices[tetIndex * 4 + 0];
+                const int local1 =
+                    generatedMesh.tetLocalNodeIndices[tetIndex * 4 + 1];
+                const int local2 =
+                    generatedMesh.tetLocalNodeIndices[tetIndex * 4 + 2];
+                const int local3 =
+                    generatedMesh.tetLocalNodeIndices[tetIndex * 4 + 3];
                 if (local0 < 0 || local0 >= localNodeCount ||
                     local1 < 0 || local1 >= localNodeCount ||
                     local2 < 0 || local2 >= localNodeCount ||

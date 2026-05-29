@@ -1,4 +1,4 @@
-#include "PhysiK/Geometry/TetMeshPreprocessor.h"
+#include "PhysiK/Geometry/TetMeshGenerator.h"
 
 #include <cmath>
 #include <cstddef>
@@ -150,31 +150,14 @@ namespace PhysiK
         }
     }
 
-    TetMeshPreprocessResult PreprocessTetMesh(
+    GeneratedTetMesh TetMeshGenerator::Generate(
         const Vec3* positions,
         int nodeCount,
         const int* tetLocalNodeIndices,
         int tetCount,
         const TetMeshBuildOptions& options)
     {
-        return PreprocessTetMesh(
-            positions,
-            nodeCount,
-            tetLocalNodeIndices,
-            tetCount,
-            nullptr,
-            options);
-    }
-
-    TetMeshPreprocessResult PreprocessTetMesh(
-        const Vec3* positions,
-        int nodeCount,
-        const int* tetLocalNodeIndices,
-        int tetCount,
-        const int* localToGlobalNodeIndices,
-        const TetMeshBuildOptions& options)
-    {
-        TetMeshPreprocessResult result;
+        GeneratedTetMesh result;
         result.rawNodeCount = nodeCount > 0 ? nodeCount : 0;
         result.rawTetCount = tetCount > 0 ? tetCount : 0;
         result.weldTolerance = options.weldTolerance;
@@ -187,7 +170,6 @@ namespace PhysiK
         std::vector<int> oldNodeToNewNode(
             static_cast<std::size_t>(nodeCount),
             -1);
-        std::vector<int> newNodeToFirstOldNode;
 
         const float tolerance =
             options.weldTolerance > 0.0f ? options.weldTolerance : 0.0f;
@@ -245,7 +227,6 @@ namespace PhysiK
 
             const int newNode = static_cast<int>(result.positions.size());
             result.positions.push_back(position);
-            newNodeToFirstOldNode.push_back(oldNode);
             oldNodeToNewNode[static_cast<std::size_t>(oldNode)] =
                 newNode;
 
@@ -257,23 +238,6 @@ namespace PhysiK
 
         result.weldedNodeCount = static_cast<int>(result.positions.size());
         result.weldedAwayNodeCount = result.rawNodeCount - result.weldedNodeCount;
-
-        if (localToGlobalNodeIndices != nullptr)
-        {
-            result.localToGlobalNodeIndex.resize(result.positions.size(), -1);
-            for (int newNode = 0;
-                 newNode < static_cast<int>(newNodeToFirstOldNode.size());
-                 ++newNode)
-            {
-                const int oldNode =
-                    newNodeToFirstOldNode[static_cast<std::size_t>(newNode)];
-                if (oldNode >= 0 && oldNode < nodeCount)
-                {
-                    result.localToGlobalNodeIndex[static_cast<std::size_t>(newNode)] =
-                        localToGlobalNodeIndices[oldNode];
-                }
-            }
-        }
 
         if (tetLocalNodeIndices != nullptr && tetCount > 0)
         {

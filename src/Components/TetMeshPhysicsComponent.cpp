@@ -6,7 +6,7 @@
 
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
-#include "PhysiK/Geometry/TetMeshPreprocessor.h"
+#include "PhysiK/Geometry/TetMeshGenerator.h"
 
 namespace PhysiK
 {
@@ -48,6 +48,28 @@ namespace PhysiK
             }
 
             return localToGlobalNodeIndex[static_cast<std::size_t>(localNodeIndex)];
+        }
+
+        int FindRawNodeForGeneratedPosition(
+            const std::vector<Vec3>& rawPositions,
+            const Vec3& generatedPosition,
+            float tolerance)
+        {
+            const float toleranceSquared = tolerance * tolerance;
+            for (int rawNode = 0;
+                 rawNode < static_cast<int>(rawPositions.size());
+                 ++rawNode)
+            {
+                const Vec3 delta =
+                    rawPositions[static_cast<std::size_t>(rawNode)] -
+                    generatedPosition;
+                if (delta.LengthSquared() <= toleranceSquared)
+                {
+                    return rawNode;
+                }
+            }
+
+            return -1;
         }
 
         std::vector<std::pair<int, int>> BuildGlobalSparsePattern(
@@ -236,20 +258,32 @@ namespace PhysiK
             }
         }
 
-        const TetMeshPreprocessResult preprocessed =
-            PreprocessTetMesh(
+        const GeneratedTetMesh generatedMesh =
+            TetMeshGenerator::Generate(
                 rawPositions.data(),
                 static_cast<int>(rawPositions.size()),
                 rawTetLocalNodeIndices.data(),
-                static_cast<int>(rawTetLocalNodeIndices.size() / 4u),
-                rawLocalToGlobalNodeIndex.data());
-        component->SetGeometry(
-            preprocessed.positions.data(),
-            static_cast<int>(preprocessed.positions.size()),
-            preprocessed.tetLocalNodeIndices.data(),
-            static_cast<int>(preprocessed.tetLocalNodeIndices.size() / 4u));
+                static_cast<int>(rawTetLocalNodeIndices.size() / 4u));
+        component->SetGeometry(generatedMesh);
 
-        component->localToGlobalNodeIndex = preprocessed.localToGlobalNodeIndex;
+        component->localToGlobalNodeIndex.assign(
+            component->restNodePositions.size(),
+            -1);
+        for (int localNode = 0;
+             localNode < static_cast<int>(component->restNodePositions.size());
+             ++localNode)
+        {
+            const int rawNode = FindRawNodeForGeneratedPosition(
+                rawPositions,
+                component->restNodePositions[static_cast<std::size_t>(localNode)],
+                generatedMesh.weldTolerance);
+            if (rawNode >= 0 &&
+                rawNode < static_cast<int>(rawLocalToGlobalNodeIndex.size()))
+            {
+                component->localToGlobalNodeIndex[static_cast<std::size_t>(localNode)] =
+                    rawLocalToGlobalNodeIndex[static_cast<std::size_t>(rawNode)];
+            }
+        }
 
         component->nodePositions.resize(component->localToGlobalNodeIndex.size());
         for (int localNode = 0;
@@ -304,13 +338,13 @@ namespace PhysiK
         component->material = desc.material;
         component->selectedFemModel = desc.femModel;
 
-        const TetMeshPreprocessResult preprocessed =
-            PreprocessTetMesh(positions, nodeCount, tetLocalNodeIndices, tetCount);
-        component->SetGeometry(
-            preprocessed.positions.data(),
-            static_cast<int>(preprocessed.positions.size()),
-            preprocessed.tetLocalNodeIndices.data(),
-            static_cast<int>(preprocessed.tetLocalNodeIndices.size() / 4u));
+        const GeneratedTetMesh generatedMesh =
+            TetMeshGenerator::Generate(
+                positions,
+                nodeCount,
+                tetLocalNodeIndices,
+                tetCount);
+        component->SetGeometry(generatedMesh);
 
         if (!component->restNodePositions.empty())
         {
@@ -332,7 +366,7 @@ namespace PhysiK
                             component->restNodePositions[
                                 static_cast<std::size_t>(newNode)];
                         if (delta.LengthSquared() <=
-                                preprocessed.weldTolerance * preprocessed.weldTolerance &&
+                                generatedMesh.weldTolerance * generatedMesh.weldTolerance &&
                             fixedNodeFlags[rawNode] != 0)
                         {
                             fixed = true;
