@@ -21,22 +21,6 @@ namespace PhysiK
         }
     }
 
-    void TetMeshComponent::SetGeometry(
-        const Vec3* positions,
-        int nodeCount,
-        const int* tetLocalNodeIndices,
-        int tetCount)
-    {
-        const GeneratedTetMesh generatedMesh =
-            TetMeshGenerator::Generate(
-                positions,
-                nodeCount,
-                tetLocalNodeIndices,
-                tetCount);
-
-        SetGeometry(generatedMesh);
-    }
-
     void TetMeshComponent::SetGeometry(const GeneratedTetMesh& generatedMesh)
     {
         restNodePositions.clear();

@@ -20,11 +20,6 @@ namespace PhysiK
 
         bool topologyDirty = false;
 
-        void SetGeometry(
-            const Vec3* positions,
-            int nodeCount,
-            const int* tetLocalNodeIndices,
-            int tetCount);
         void SetGeometry(const GeneratedTetMesh& generatedMesh);
 
         int GetNodeCount() const;

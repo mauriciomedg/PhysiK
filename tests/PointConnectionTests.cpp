@@ -2330,7 +2330,9 @@ void TetMeshComponentStoresGeometryWithoutWorldNodes()
         PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
     const int tetIndices[] = {0, 1, 2, 3};
 
-    component.SetGeometry(positions, 4, tetIndices, 1);
+    const PhysiK::GeneratedTetMesh generatedMesh =
+        PhysiK::TetMeshGenerator::Generate(positions, 4, tetIndices, 1);
+    component.SetGeometry(generatedMesh);
 
     assert(component.GetNodeCount() == 4);
     assert(component.GetTetCount() == 1);
