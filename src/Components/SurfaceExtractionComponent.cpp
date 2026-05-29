@@ -165,6 +165,11 @@ namespace PhysiK
         return surfaceTriangleIndices;
     }
 
+    ComponentHandle SurfaceExtractionComponent::GetHostTetMeshHandle() const
+    {
+        return hostTetMeshHandle;
+    }
+
     void SurfaceExtractionComponent::OnPhysicsEvent(const PhysicsEvent& event)
     {
         if (event.type != PhysicsEventType::TetMeshTopologyChanged ||

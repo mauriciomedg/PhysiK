@@ -3,6 +3,7 @@
 #include "PhysiK/Components/CollisionComponent.h"
 #include "PhysiK/Components/CollisionSphereComponent.h"
 #include "PhysiK/Components/SurfaceExtractionComponent.h"
+#include "PhysiK/Components/SurfaceVisualComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/TetMeshMapperComponent.h"
@@ -162,6 +163,32 @@ namespace
 
         return dynamic_cast<const PhysiK::SurfaceExtractionComponent*>(
             world->GetComponent(surfaceExtractionComponent));
+    }
+
+    PhysiK::SurfaceVisualComponent* AsSurfaceVisual(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle surfaceVisualComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::SurfaceVisualComponent*>(
+            world->GetComponent(surfaceVisualComponent));
+    }
+
+    const PhysiK::SurfaceVisualComponent* AsSurfaceVisual(
+        const PhysiK::World* world,
+        PhysiK::ComponentHandle surfaceVisualComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<const PhysiK::SurfaceVisualComponent*>(
+            world->GetComponent(surfaceVisualComponent));
     }
 
     PhysiK::TetMeshMapperComponent* AsTetMeshMapper(
@@ -450,6 +477,154 @@ extern "C"
         }
 
         return writeCount;
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceVisualComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtractionHandle)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr ||
+            AsSurfaceExtraction(worldPtr, surfaceExtractionHandle) == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component =
+            std::make_unique<PhysiK::SurfaceVisualComponent>(
+                surfaceExtractionHandle);
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualVertexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle)
+    {
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(visual->GetVisualVertices().size());
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle)
+    {
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(visual->GetVisualTriangleIndices().size());
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualNormalCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle)
+    {
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(visual->GetVisualNormals().size());
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualVertex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int visualVertexIndex,
+        float* outX,
+        float* outY,
+        float* outZ)
+    {
+        if (outX == nullptr || outY == nullptr || outZ == nullptr)
+        {
+            return 0;
+        }
+
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr ||
+            visualVertexIndex < 0 ||
+            visualVertexIndex >=
+                static_cast<int>(visual->GetVisualVertices().size()))
+        {
+            return 0;
+        }
+
+        const PhysiK::Vec3& vertex =
+            visual->GetVisualVertices()[static_cast<std::size_t>(visualVertexIndex)];
+        *outX = vertex.x;
+        *outY = vertex.y;
+        *outZ = vertex.z;
+        return 1;
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualTriangleIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int triangleIndexArrayIndex,
+        int* outIndex)
+    {
+        if (outIndex == nullptr)
+        {
+            return 0;
+        }
+
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr ||
+            triangleIndexArrayIndex < 0 ||
+            triangleIndexArrayIndex >=
+                static_cast<int>(visual->GetVisualTriangleIndices().size()))
+        {
+            return 0;
+        }
+
+        *outIndex =
+            visual->GetVisualTriangleIndices()[
+                static_cast<std::size_t>(triangleIndexArrayIndex)];
+        return 1;
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualNormal(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int visualNormalIndex,
+        float* outX,
+        float* outY,
+        float* outZ)
+    {
+        if (outX == nullptr || outY == nullptr || outZ == nullptr)
+        {
+            return 0;
+        }
+
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr ||
+            visualNormalIndex < 0 ||
+            visualNormalIndex >=
+                static_cast<int>(visual->GetVisualNormals().size()))
+        {
+            return 0;
+        }
+
+        const PhysiK::Vec3& normal =
+            visual->GetVisualNormals()[static_cast<std::size_t>(visualNormalIndex)];
+        *outX = normal.x;
+        *outY = normal.y;
+        *outZ = normal.z;
+        return 1;
     }
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshMapperComponent(

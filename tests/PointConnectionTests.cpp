@@ -1,5 +1,6 @@
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Components/SurfaceExtractionComponent.h"
+#include "PhysiK/Components/SurfaceVisualComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/TetMeshMapperComponent.h"
@@ -2657,6 +2658,143 @@ void SurfaceExtractionComponentCanBeCreatedThroughNativeApi()
     PHYSIK_DestroyWorld(world);
 }
 
+void SurfaceVisualComponentBuildsRenderReadySurface()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {0, 1, 2, 3};
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            positions,
+            4,
+            tetIndices,
+            1);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+
+    const PhysiK::ComponentHandle surface =
+        PHYSIK_CreateSurfaceExtractionComponent(world, tetMesh);
+    assert(PHYSIK_IsComponentHandleValid(world, surface) == 1);
+
+    const PhysiK::ComponentHandle visual =
+        PHYSIK_CreateSurfaceVisualComponent(world, surface);
+    assert(PHYSIK_IsComponentHandleValid(world, visual) == 1);
+    assert(PHYSIK_CreateSurfaceVisualComponent(nullptr, surface).IsValid() == false);
+    assert(PHYSIK_CreateSurfaceVisualComponent(world, tetMesh).IsValid() == false);
+
+    assert(PHYSIK_SetTetMeshLocalCurrentPosition(
+        world,
+        tetMesh,
+        0,
+        0.0f,
+        0.0f,
+        2.0f) == 1);
+
+    PHYSIK_Step(world, 0.0f);
+
+    assert(PHYSIK_GetSurfaceVisualVertexCount(world, visual) == 12);
+    assert(PHYSIK_GetSurfaceVisualTriangleIndexCount(world, visual) == 12);
+    assert(PHYSIK_GetSurfaceVisualNormalCount(world, visual) == 12);
+    assert(PHYSIK_GetSurfaceVisualVertexCount(nullptr, visual) == 0);
+    assert(PHYSIK_GetSurfaceVisualTriangleIndexCount(world, tetMesh) == 0);
+    assert(PHYSIK_GetSurfaceVisualNormalCount(world, surface) == 0);
+
+    Point vertex;
+    assert(PHYSIK_GetSurfaceVisualVertex(
+        world,
+        visual,
+        0,
+        &vertex.x,
+        &vertex.y,
+        &vertex.z) == 1);
+
+    Point normal;
+    assert(PHYSIK_GetSurfaceVisualNormal(
+        world,
+        visual,
+        0,
+        &normal.x,
+        &normal.y,
+        &normal.z) == 1);
+    assert(NearlyEqual(
+        std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z),
+        1.0f));
+
+    int triangleIndex = -1;
+    assert(PHYSIK_GetSurfaceVisualTriangleIndex(
+        world,
+        visual,
+        0,
+        &triangleIndex) == 1);
+    assert(triangleIndex == 0);
+
+    assert(PHYSIK_GetSurfaceVisualVertex(
+        world,
+        visual,
+        -1,
+        &vertex.x,
+        &vertex.y,
+        &vertex.z) == 0);
+    assert(PHYSIK_GetSurfaceVisualVertex(
+        world,
+        visual,
+        12,
+        &vertex.x,
+        &vertex.y,
+        &vertex.z) == 0);
+    assert(PHYSIK_GetSurfaceVisualVertex(
+        world,
+        visual,
+        0,
+        nullptr,
+        &vertex.y,
+        &vertex.z) == 0);
+    assert(PHYSIK_GetSurfaceVisualNormal(
+        world,
+        visual,
+        0,
+        &normal.x,
+        nullptr,
+        &normal.z) == 0);
+    assert(PHYSIK_GetSurfaceVisualTriangleIndex(
+        world,
+        visual,
+        0,
+        nullptr) == 0);
+
+    bool foundMovedNode = false;
+    for (int vertexIndex = 0; vertexIndex < PHYSIK_GetSurfaceVisualVertexCount(world, visual);
+         ++vertexIndex)
+    {
+        assert(PHYSIK_GetSurfaceVisualVertex(
+            world,
+            visual,
+            vertexIndex,
+            &vertex.x,
+            &vertex.y,
+            &vertex.z) == 1);
+        if (NearlyEqual(vertex.x, 0.0f) &&
+            NearlyEqual(vertex.y, 0.0f) &&
+            NearlyEqual(vertex.z, 2.0f))
+        {
+            foundMovedNode = true;
+        }
+    }
+
+    assert(foundMovedNode);
+
+    const Point local0 = GetTetMeshLocalCurrentPosition(world, tetMesh, 0);
+    assert(NearlyEqual(local0.z, 2.0f));
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -3660,6 +3798,7 @@ int main()
     TopologyMeshComponentBuildsActiveTetIslands();
     SurfaceExtractionComponentExtractsActiveBoundaryFaces();
     SurfaceExtractionComponentCanBeCreatedThroughNativeApi();
+    SurfaceVisualComponentBuildsRenderReadySurface();
     VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag();
     VisualMeshComponentCanBeCreatedThroughNativeApi();
     VisualMeshComponentStoresVisualMeshData();

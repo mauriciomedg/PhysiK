@@ -20,6 +20,7 @@ namespace PhysiK
 
         void RebuildSurface(const World& world);
         const std::vector<int>& GetSurfaceTriangleIndices() const;
+        ComponentHandle GetHostTetMeshHandle() const;
 
         void OnPhysicsEvent(const PhysicsEvent& event) override;
         void PostUpdate(World& world, float dt) override;

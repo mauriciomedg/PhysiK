@@ -134,6 +134,44 @@ extern "C"
         int* outIndices,
         int maxIndexCount);
 
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceVisualComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtractionHandle);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualVertexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualNormalCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualVertex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int visualVertexIndex,
+        float* outX,
+        float* outY,
+        float* outZ);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualTriangleIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int triangleIndexArrayIndex,
+        int* outIndex);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualNormal(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int visualNormalIndex,
+        float* outX,
+        float* outY,
+        float* outZ);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshMapperComponent(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle sourceTetMesh,

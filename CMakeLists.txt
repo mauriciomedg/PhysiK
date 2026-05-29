@@ -40,6 +40,7 @@ target_sources(
         include/PhysiK/Components/CollisionComponent.h
         include/PhysiK/Components/CollisionSphereComponent.h
         include/PhysiK/Components/SurfaceExtractionComponent.h
+        include/PhysiK/Components/SurfaceVisualComponent.h
         include/PhysiK/Components/TetMeshComponent.h
         include/PhysiK/Components/TetMeshPhysicsComponent.h
         include/PhysiK/Components/TetMeshMapperComponent.h
@@ -67,6 +68,7 @@ target_sources(
         src/Components/CollisionComponent.cpp
         src/Components/CollisionSphereComponent.cpp
         src/Components/SurfaceExtractionComponent.cpp
+        src/Components/SurfaceVisualComponent.cpp
         src/Components/TetMeshComponent.cpp
         src/Components/TetMeshPhysicsComponent.cpp
         src/Components/TetMeshMapperComponent.cpp
@@ -106,6 +108,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Components/CollisionComponent.h
     include/PhysiK/Components/CollisionSphereComponent.h
     include/PhysiK/Components/SurfaceExtractionComponent.h
+    include/PhysiK/Components/SurfaceVisualComponent.h
     include/PhysiK/Components/TetMeshComponent.h
     include/PhysiK/Components/TetMeshPhysicsComponent.h
     include/PhysiK/Components/TetMeshMapperComponent.h
