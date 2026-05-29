@@ -29,7 +29,8 @@ namespace PhysiK
             const GeneratedTetMesh& generatedMesh,
             const TetMeshPhysicsComponentDesc& desc);
 
-        std::vector<int> localToGlobalNodeIndex;
+        int globalNodeBeginIndex = -1;
+        int globalNodeCount = 0;
         std::vector<Vec3> nodeVelocities;
         std::vector<TetFemCache> tetFemCache;
 
@@ -61,6 +62,8 @@ namespace PhysiK
         void EnsureFemSparsePattern(int worldNodeCount);
         void SyncCurrentPositionsFromWorld(const World& world);
 
+        int GetGlobalNodeBeginIndex() const;
+        int GetGlobalNodeCount() const;
         int GetGlobalNodeIndex(int localNodeIndex) const override;
         void SetLocalCurrentPosition(int localNodeIndex, const Vec3& position) override;
         bool SetTetActive(int tetIndex, bool active) override;

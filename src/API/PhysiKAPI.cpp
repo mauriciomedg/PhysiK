@@ -506,6 +506,49 @@ extern "C"
         return worldPtr->AddComponent(std::move(component));
     }
 
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeBeginIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle)
+    {
+        PhysiK::TetMeshPhysicsComponent* tetMesh =
+            AsTetMeshPhysics(AsWorld(world), tetMeshPhysicsHandle);
+        if (tetMesh == nullptr)
+        {
+            return -1;
+        }
+
+        return tetMesh->GetGlobalNodeBeginIndex();
+    }
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle)
+    {
+        PhysiK::TetMeshPhysicsComponent* tetMesh =
+            AsTetMeshPhysics(AsWorld(world), tetMeshPhysicsHandle);
+        if (tetMesh == nullptr)
+        {
+            return -1;
+        }
+
+        return tetMesh->GetGlobalNodeCount();
+    }
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle,
+        int localNodeIndex)
+    {
+        PhysiK::TetMeshPhysicsComponent* tetMesh =
+            AsTetMeshPhysics(AsWorld(world), tetMeshPhysicsHandle);
+        if (tetMesh == nullptr)
+        {
+            return -1;
+        }
+
+        return tetMesh->GetGlobalNodeIndex(localNodeIndex);
+    }
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateCollisionSphereComponent(
         PhysiK::WorldHandle world,
         float x,

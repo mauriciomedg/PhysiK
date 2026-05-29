@@ -536,10 +536,10 @@ namespace
                 &material);
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
 
-        outNodes[0] = 0;
-        outNodes[1] = 1;
-        outNodes[2] = 2;
-        outNodes[3] = 3;
+        for (int i = 0; i < 4; ++i)
+        {
+            outNodes[i] = PHYSIK_GetTetMeshGlobalNodeIndex(world, tetMesh, i);
+        }
     }
 
     void CreateSingleTetWithMaterial(
@@ -566,10 +566,10 @@ namespace
                 &material);
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
 
-        outNodes[0] = 0;
-        outNodes[1] = 1;
-        outNodes[2] = 2;
-        outNodes[3] = 3;
+        for (int i = 0; i < 4; ++i)
+        {
+            outNodes[i] = PHYSIK_GetTetMeshGlobalNodeIndex(world, tetMesh, i);
+        }
     }
 
     PhysiK::ComponentHandle CreateSingleTetMesh(
@@ -592,10 +592,10 @@ namespace
                 1,
                 &material);
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
-        outNodes[0] = 0;
-        outNodes[1] = 1;
-        outNodes[2] = 2;
-        outNodes[3] = 3;
+        for (int i = 0; i < 4; ++i)
+        {
+            outNodes[i] = PHYSIK_GetTetMeshGlobalNodeIndex(world, tetMesh, i);
+        }
         return tetMesh;
     }
 
@@ -624,11 +624,10 @@ namespace
                 2,
                 &material);
         assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
-        outNodes[0] = 0;
-        outNodes[1] = 1;
-        outNodes[2] = 2;
-        outNodes[3] = 3;
-        outNodes[4] = 4;
+        for (int i = 0; i < 5; ++i)
+        {
+            outNodes[i] = PHYSIK_GetTetMeshGlobalNodeIndex(world, tetMesh, i);
+        }
         return tetMesh;
     }
 
@@ -1871,13 +1870,9 @@ void CollisionSphereOverlapUsesWorldNodeMapping()
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
 
-    const int dummyNode = AddNode(world, 100.0f, 100.0f, 100.0f);
+    AddNode(world, 100.0f, 100.0f, 100.0f);
     int nodes[4] = {};
     const PhysiK::ComponentHandle tetMesh = CreateSingleTetMesh(world, nodes);
-    nodes[0] = dummyNode + 1;
-    nodes[1] = dummyNode + 2;
-    nodes[2] = dummyNode + 3;
-    nodes[3] = dummyNode + 4;
     const PhysiK::ComponentHandle sphere =
         PHYSIK_CreateCollisionSphereComponent(world, 0.0f, 0.0f, 0.0f, 0.05f);
 
@@ -2113,7 +2108,8 @@ void SparseBlockMatrixAdjacentTetsReuseSharedBlocks()
 void TetMeshComponentCachesFemSparsePattern()
 {
     PhysiK::TetMeshPhysicsComponent component;
-    component.localToGlobalNodeIndex = {0, 1, 2, 3};
+    component.globalNodeBeginIndex = 0;
+    component.globalNodeCount = 4;
     PhysiK::Tet tet = CreateUnitTet();
     component.tets.push_back(tet);
     component.EnsureFemSparsePattern(4);
@@ -2135,15 +2131,16 @@ void TetMeshComponentCachesFemSparsePattern()
 void TetMeshComponentMapsLocalFemPatternToGlobalSolverNodes()
 {
     PhysiK::TetMeshPhysicsComponent component;
-    component.localToGlobalNodeIndex = {2, 4, 5, 7};
+    component.globalNodeBeginIndex = 2;
+    component.globalNodeCount = 4;
     component.tets.push_back(CreateUnitTet());
-    component.EnsureFemSparsePattern(8);
+    component.EnsureFemSparsePattern(6);
 
     const PhysiK::SparseBlockMatrix& matrix = component.GetFemSparseMatrix();
-    assert(matrix.blockCount == 8);
+    assert(matrix.blockCount == 6);
     assert(matrix.values.size() == 16);
-    assert(HasSparseBlock(matrix, 2, 4));
-    assert(HasSparseBlock(matrix, 7, 5));
+    assert(HasSparseBlock(matrix, 2, 3));
+    assert(HasSparseBlock(matrix, 5, 4));
     assert(!HasSparseBlock(matrix, 0, 1));
     assert(!HasSparseBlock(matrix, 1, 1));
 }
@@ -2561,7 +2558,8 @@ void DeactivatedTetsAreSkippedByLumpedMassAssembly()
 void DeactivatingTetDoesNotDirtySparsePattern()
 {
     PhysiK::TetMeshPhysicsComponent component;
-    component.localToGlobalNodeIndex = {0, 1, 2, 3, 4};
+    component.globalNodeBeginIndex = 0;
+    component.globalNodeCount = 5;
     component.tets.push_back(CreateUnitTet());
     component.tets.push_back(CreateLowerUnitTet());
     component.tets.push_back(CreateUnitTet());
@@ -3022,12 +3020,97 @@ void TetMeshPhysicsCanConsumeGeneratedTetMeshDirectly()
     assert(component != nullptr);
     assert(component->GetNodeCount() == 4);
     assert(component->GetTetCount() == 1);
-    assert(component->localToGlobalNodeIndex.size() == 4);
+    assert(component->GetGlobalNodeBeginIndex() == 0);
+    assert(component->GetGlobalNodeCount() == 4);
     assert(component->GetGlobalNodeIndex(0) == 0);
     assert(component->GetGlobalNodeIndex(3) == 3);
+    assert(component->GetGlobalNodeIndex(-1) == -1);
+    assert(component->GetGlobalNodeIndex(4) == -1);
     assert(GetNodePosition(worldHandle, 3).z == 1.0f);
 
     PHYSIK_DestroyWorld(worldHandle);
+}
+
+void TetMeshPhysicsGeneratedNodesAreContiguous()
+{
+    PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
+    assert(worldHandle != nullptr);
+    PhysiK::World& world = *static_cast<PhysiK::World*>(worldHandle);
+
+    AddNode(worldHandle, 10.0f, 0.0f, 0.0f);
+    AddNode(worldHandle, 20.0f, 0.0f, 0.0f);
+    AddNode(worldHandle, 30.0f, 0.0f, 0.0f);
+    const int previousWorldNodeCount = 3;
+
+    PhysiK::GeneratedTetMesh generatedMesh;
+    generatedMesh.positions = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    generatedMesh.tetLocalNodeIndices = {0, 1, 2, 3};
+
+    const PhysiK::Material material{1.0f, 25.0f, 0.3f, 0.0f};
+    std::unique_ptr<PhysiK::TetMeshPhysicsComponent> component =
+        PhysiK::TetMeshPhysicsComponent::CreateFromGeneratedTetMesh(
+            world,
+            generatedMesh,
+            material);
+
+    assert(component != nullptr);
+    assert(component->GetGlobalNodeBeginIndex() == previousWorldNodeCount);
+    assert(component->GetGlobalNodeCount() == 4);
+    assert(component->GetGlobalNodeIndex(0) == previousWorldNodeCount + 0);
+    assert(component->GetGlobalNodeIndex(1) == previousWorldNodeCount + 1);
+    assert(component->GetGlobalNodeIndex(2) == previousWorldNodeCount + 2);
+    assert(component->GetGlobalNodeIndex(3) == previousWorldNodeCount + 3);
+    assert(component->GetGlobalNodeIndex(-1) == -1);
+    assert(component->GetGlobalNodeIndex(4) == -1);
+
+    PHYSIK_DestroyWorld(worldHandle);
+}
+
+void TetMeshPhysicsGlobalNodeRangeCanBeQueriedThroughNativeApi()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    AddNode(world, 10.0f, 0.0f, 0.0f);
+    AddNode(world, 20.0f, 0.0f, 0.0f);
+    const int previousWorldNodeCount = 2;
+
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {0, 1, 2, 3};
+    const PhysiK::GeneratedTetMeshHandle generatedMesh =
+        PHYSIK_GenerateTetMesh(positions, 4, tetIndices, 1);
+    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 25.0f, 0.3f, 0.0f);
+
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshPhysicsComponent(world, generatedMesh, &material);
+
+    assert(PHYSIK_GetTetMeshGlobalNodeBeginIndex(
+        world,
+        tetMesh) == previousWorldNodeCount);
+    assert(PHYSIK_GetTetMeshGlobalNodeCount(world, tetMesh) == 4);
+    assert(PHYSIK_GetTetMeshGlobalNodeIndex(
+        world,
+        tetMesh,
+        0) == previousWorldNodeCount + 0);
+    assert(PHYSIK_GetTetMeshGlobalNodeIndex(
+        world,
+        tetMesh,
+        3) == previousWorldNodeCount + 3);
+    assert(PHYSIK_GetTetMeshGlobalNodeIndex(world, tetMesh, -1) == -1);
+    assert(PHYSIK_GetTetMeshGlobalNodeIndex(world, tetMesh, 4) == -1);
+    assert(PHYSIK_GetTetMeshGlobalNodeBeginIndex(nullptr, tetMesh) == -1);
+    assert(PHYSIK_GetTetMeshGlobalNodeCount(nullptr, tetMesh) == -1);
+
+    PHYSIK_DestroyGeneratedTetMesh(generatedMesh);
+    PHYSIK_DestroyWorld(world);
 }
 
 void TetMeshCreationWeldsDuplicateSharedFaceNodes()
@@ -4309,6 +4392,8 @@ int main()
     TetMeshPhysicsComponentCanBeCreatedFromGeneratedTetMeshApi();
     GeneratedTetMeshApiWeldsDuplicateNodes();
     TetMeshPhysicsCanConsumeGeneratedTetMeshDirectly();
+    TetMeshPhysicsGeneratedNodesAreContiguous();
+    TetMeshPhysicsGlobalNodeRangeCanBeQueriedThroughNativeApi();
     TetMeshCreationWeldsDuplicateSharedFaceNodes();
     SurfaceExtractionComponentCanBeCreatedThroughNativeApi();
     SurfaceVisualComponentBuildsRenderReadySurface();

@@ -134,6 +134,19 @@ extern "C"
         PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
         const PhysikMaterialDesc* material);
 
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeBeginIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle);
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle);
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle,
+        int localNodeIndex);
+
     PHYSIK_API void PHYSIK_SetTetMeshMaterial(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component,

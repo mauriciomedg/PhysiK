@@ -18,36 +18,24 @@ namespace PhysiK
             tet.damping = material.damping;
         }
 
-        int MapLocalToGlobal(
-            const std::vector<int>& localToGlobalNodeIndex,
-            int localNodeIndex)
-        {
-            if (localNodeIndex < 0 ||
-                localNodeIndex >= static_cast<int>(localToGlobalNodeIndex.size()))
-            {
-                return -1;
-            }
-
-            return localToGlobalNodeIndex[static_cast<std::size_t>(localNodeIndex)];
-        }
-
         void AddGeneratedNodesToWorld(
             World& world,
             TetMeshPhysicsComponent& component)
         {
-            component.localToGlobalNodeIndex.clear();
-            component.localToGlobalNodeIndex.reserve(
-                component.restNodePositions.size());
+            component.globalNodeBeginIndex =
+                static_cast<int>(world.GetNodes().size());
+            component.globalNodeCount =
+                static_cast<int>(component.restNodePositions.size());
 
             for (const Vec3& position : component.restNodePositions)
             {
-                component.localToGlobalNodeIndex.push_back(world.AddNode(position));
+                world.AddNode(position);
             }
         }
 
         std::vector<std::pair<int, int>> BuildGlobalSparsePattern(
             const std::vector<Tet>& localTets,
-            const std::vector<int>& localToGlobalNodeIndex)
+            const TetMeshPhysicsComponent& component)
         {
             std::vector<std::pair<int, int>> globalCoordinates;
             const std::vector<std::pair<int, int>> localCoordinates =
@@ -57,9 +45,9 @@ namespace PhysiK
             for (const std::pair<int, int>& coordinate : localCoordinates)
             {
                 const int globalRow =
-                    MapLocalToGlobal(localToGlobalNodeIndex, coordinate.first);
+                    component.GetGlobalNodeIndex(coordinate.first);
                 const int globalColumn =
-                    MapLocalToGlobal(localToGlobalNodeIndex, coordinate.second);
+                    component.GetGlobalNodeIndex(coordinate.second);
                 if (globalRow < 0 || globalColumn < 0)
                 {
                     continue;
@@ -75,14 +63,13 @@ namespace PhysiK
             const TetElementContribution& contribution,
             SparseBlockMatrix& femSparseMatrix,
             SolverData& solverData,
-            const std::vector<int>& localToGlobalNodeIndex)
+            const TetMeshPhysicsComponent& component)
         {
             // FEM data is local to the component; SolverData assembly must explicitly
             // map local node indices to global node indices.
             for (int node = 0; node < 4; ++node)
             {
-                const int globalNodeIndex = MapLocalToGlobal(
-                    localToGlobalNodeIndex,
+                const int globalNodeIndex = component.GetGlobalNodeIndex(
                     contribution.localNodeIndices[node]);
                 if (globalNodeIndex < 0)
                 {
@@ -94,8 +81,7 @@ namespace PhysiK
 
             for (int rowNode = 0; rowNode < 4; ++rowNode)
             {
-                const int globalRow = MapLocalToGlobal(
-                    localToGlobalNodeIndex,
+                const int globalRow = component.GetGlobalNodeIndex(
                     contribution.localNodeIndices[rowNode]);
                 if (globalRow < 0)
                 {
@@ -104,8 +90,7 @@ namespace PhysiK
 
                 for (int columnNode = 0; columnNode < 4; ++columnNode)
                 {
-                    const int globalColumn = MapLocalToGlobal(
-                        localToGlobalNodeIndex,
+                    const int globalColumn = component.GetGlobalNodeIndex(
                         contribution.localNodeIndices[columnNode]);
                     if (globalColumn < 0)
                     {
@@ -124,7 +109,7 @@ namespace PhysiK
             const TetMassContribution& contribution,
             const World& world,
             SolverData& solverData,
-            const std::vector<int>& localToGlobalNodeIndex)
+            const TetMeshPhysicsComponent& component)
         {
             if (!std::isfinite(contribution.nodalMass) ||
                 contribution.nodalMass <= 0.0f)
@@ -134,8 +119,7 @@ namespace PhysiK
 
             for (int node = 0; node < 4; ++node)
             {
-                const int globalNodeIndex = MapLocalToGlobal(
-                    localToGlobalNodeIndex,
+                const int globalNodeIndex = component.GetGlobalNodeIndex(
                     contribution.localNodeIndices[node]);
                 if (globalNodeIndex < 0 ||
                     globalNodeIndex >= static_cast<int>(world.GetNodes().size()) ||
@@ -217,20 +201,17 @@ namespace PhysiK
 
         femSparseMatrix.BuildPattern(
             worldNodeCount,
-            BuildGlobalSparsePattern(tets, localToGlobalNodeIndex));
+            BuildGlobalSparsePattern(tets, *this));
         femSparsePatternDirty = false;
     }
 
     void TetMeshPhysicsComponent::SyncCurrentPositionsFromWorld(const World& world)
     {
-        nodePositions.resize(localToGlobalNodeIndex.size());
-        nodeVelocities.resize(localToGlobalNodeIndex.size());
-        for (int localIndex = 0;
-             localIndex < static_cast<int>(localToGlobalNodeIndex.size());
-             ++localIndex)
+        nodePositions.resize(static_cast<std::size_t>(globalNodeCount));
+        nodeVelocities.resize(static_cast<std::size_t>(globalNodeCount));
+        for (int localIndex = 0; localIndex < globalNodeCount; ++localIndex)
         {
-            const int worldNodeIndex =
-                localToGlobalNodeIndex[static_cast<std::size_t>(localIndex)];
+            const int worldNodeIndex = GetGlobalNodeIndex(localIndex);
             if (worldNodeIndex < 0 ||
                 worldNodeIndex >= static_cast<int>(world.GetNodes().size()))
             {
@@ -244,15 +225,26 @@ namespace PhysiK
         }
     }
 
+    int TetMeshPhysicsComponent::GetGlobalNodeBeginIndex() const
+    {
+        return globalNodeBeginIndex;
+    }
+
+    int TetMeshPhysicsComponent::GetGlobalNodeCount() const
+    {
+        return globalNodeCount;
+    }
+
     int TetMeshPhysicsComponent::GetGlobalNodeIndex(int localNodeIndex) const
     {
-        if (localNodeIndex < 0 ||
-            localNodeIndex >= static_cast<int>(localToGlobalNodeIndex.size()))
+        if (globalNodeBeginIndex < 0 ||
+            localNodeIndex < 0 ||
+            localNodeIndex >= globalNodeCount)
         {
             return -1;
         }
 
-        return localToGlobalNodeIndex[static_cast<std::size_t>(localNodeIndex)];
+        return globalNodeBeginIndex + localNodeIndex;
     }
 
     void TetMeshPhysicsComponent::SetLocalCurrentPosition(
@@ -292,7 +284,7 @@ namespace PhysiK
                 contribution,
                 world,
                 solverData,
-                localToGlobalNodeIndex);
+                *this);
         }
 
         EnsureFemSparsePattern(static_cast<int>(world.GetNodes().size()));
@@ -317,7 +309,7 @@ namespace PhysiK
                 contribution,
                 femSparseMatrix,
                 solverData,
-                localToGlobalNodeIndex);
+                *this);
         }
 
         for (int rowBlock = 0; rowBlock < femSparseMatrix.blockCount; ++rowBlock)
