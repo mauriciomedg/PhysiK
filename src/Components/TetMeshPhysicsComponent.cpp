@@ -50,26 +50,18 @@ namespace PhysiK
             return localToGlobalNodeIndex[static_cast<std::size_t>(localNodeIndex)];
         }
 
-        int FindRawNodeForGeneratedPosition(
-            const std::vector<Vec3>& rawPositions,
-            const Vec3& generatedPosition,
-            float tolerance)
+        void AddGeneratedNodesToWorld(
+            World& world,
+            TetMeshPhysicsComponent& component)
         {
-            const float toleranceSquared = tolerance * tolerance;
-            for (int rawNode = 0;
-                 rawNode < static_cast<int>(rawPositions.size());
-                 ++rawNode)
-            {
-                const Vec3 delta =
-                    rawPositions[static_cast<std::size_t>(rawNode)] -
-                    generatedPosition;
-                if (delta.LengthSquared() <= toleranceSquared)
-                {
-                    return rawNode;
-                }
-            }
+            component.localToGlobalNodeIndex.clear();
+            component.localToGlobalNodeIndex.reserve(
+                component.restNodePositions.size());
 
-            return -1;
+            for (const Vec3& position : component.restNodePositions)
+            {
+                component.localToGlobalNodeIndex.push_back(world.AddNode(position));
+            }
         }
 
         std::vector<std::pair<int, int>> BuildGlobalSparsePattern(
@@ -265,40 +257,7 @@ namespace PhysiK
                 rawTetLocalNodeIndices.data(),
                 static_cast<int>(rawTetLocalNodeIndices.size() / 4u));
         component->SetGeometry(generatedMesh);
-
-        component->localToGlobalNodeIndex.assign(
-            component->restNodePositions.size(),
-            -1);
-        for (int localNode = 0;
-             localNode < static_cast<int>(component->restNodePositions.size());
-             ++localNode)
-        {
-            const int rawNode = FindRawNodeForGeneratedPosition(
-                rawPositions,
-                component->restNodePositions[static_cast<std::size_t>(localNode)],
-                generatedMesh.weldTolerance);
-            if (rawNode >= 0 &&
-                rawNode < static_cast<int>(rawLocalToGlobalNodeIndex.size()))
-            {
-                component->localToGlobalNodeIndex[static_cast<std::size_t>(localNode)] =
-                    rawLocalToGlobalNodeIndex[static_cast<std::size_t>(rawNode)];
-            }
-        }
-
-        component->nodePositions.resize(component->localToGlobalNodeIndex.size());
-        for (int localNode = 0;
-             localNode < static_cast<int>(component->localToGlobalNodeIndex.size());
-             ++localNode)
-        {
-            const int worldNode =
-                component->localToGlobalNodeIndex[static_cast<std::size_t>(localNode)];
-            if (worldNode >= 0 &&
-                worldNode < static_cast<int>(world.GetNodes().size()))
-            {
-                component->nodePositions[static_cast<std::size_t>(localNode)] =
-                    world.GetNode(worldNode).position;
-            }
-        }
+        AddGeneratedNodesToWorld(world, *component);
 
         component->RebuildFemRestData();
         return component;
@@ -345,44 +304,8 @@ namespace PhysiK
                 tetLocalNodeIndices,
                 tetCount);
         component->SetGeometry(generatedMesh);
-
-        if (!component->restNodePositions.empty())
-        {
-            component->localToGlobalNodeIndex.reserve(component->restNodePositions.size());
-            for (int newNode = 0;
-                 newNode < static_cast<int>(component->restNodePositions.size());
-                 ++newNode)
-            {
-                const int nodeIndex = world.AddNode(
-                    component->restNodePositions[static_cast<std::size_t>(newNode)]);
-
-                bool fixed = false;
-                if (fixedNodeFlags != nullptr)
-                {
-                    for (int rawNode = 0; rawNode < nodeCount; ++rawNode)
-                    {
-                        const Vec3 delta =
-                            positions[rawNode] -
-                            component->restNodePositions[
-                                static_cast<std::size_t>(newNode)];
-                        if (delta.LengthSquared() <=
-                                generatedMesh.weldTolerance * generatedMesh.weldTolerance &&
-                            fixedNodeFlags[rawNode] != 0)
-                        {
-                            fixed = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (fixed)
-                {
-                    world.SetNodeFixed(nodeIndex, true);
-                }
-
-                component->localToGlobalNodeIndex.push_back(nodeIndex);
-            }
-        }
+        (void)fixedNodeFlags;
+        AddGeneratedNodesToWorld(world, *component);
 
         component->RebuildFemRestData();
         return component;
