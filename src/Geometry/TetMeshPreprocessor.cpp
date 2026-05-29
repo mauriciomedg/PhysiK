@@ -1,4 +1,4 @@
-#include "PhysiK/Components/TetMeshPreprocessor.h"
+#include "PhysiK/Geometry/TetMeshPreprocessor.h"
 
 #include <cmath>
 #include <cstddef>

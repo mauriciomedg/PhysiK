@@ -2,8 +2,8 @@
 
 #include <cstddef>
 
-#include "PhysiK/Components/TetMeshPreprocessor.h"
 #include "PhysiK/Core/World/World.h"
+#include "PhysiK/Geometry/TetMeshPreprocessor.h"
 
 namespace PhysiK
 {
@@ -28,12 +28,38 @@ namespace PhysiK
         const int* tetLocalNodeIndices,
         int tetCount)
     {
+        SetGeometry(
+            positions,
+            nodeCount,
+            tetLocalNodeIndices,
+            tetCount,
+            nullptr,
+            nullptr);
+    }
+
+    void TetMeshComponent::SetGeometry(
+        const Vec3* positions,
+        int nodeCount,
+        const int* tetLocalNodeIndices,
+        int tetCount,
+        std::vector<int>* outOldNodeToNewNode,
+        std::vector<int>* outNewNodeToFirstOldNode)
+    {
         restNodePositions.clear();
         nodePositions.clear();
         tets.clear();
 
         const TetMeshPreprocessResult preprocessed =
             PreprocessTetMesh(positions, nodeCount, tetLocalNodeIndices, tetCount);
+        if (outOldNodeToNewNode != nullptr)
+        {
+            *outOldNodeToNewNode = preprocessed.oldNodeToNewNode;
+        }
+        if (outNewNodeToFirstOldNode != nullptr)
+        {
+            *outNewNodeToFirstOldNode = preprocessed.newNodeToFirstOldNode;
+        }
+
         restNodePositions = preprocessed.positions;
         nodePositions = restNodePositions;
 
