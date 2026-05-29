@@ -2749,6 +2749,41 @@ void TetMeshGeneratorWeldsNodesAndDropsDegenerateTets()
 
 }
 
+void TetMeshPhysicsCanConsumeGeneratedTetMeshDirectly()
+{
+    PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
+    assert(worldHandle != nullptr);
+    PhysiK::World& world = *static_cast<PhysiK::World*>(worldHandle);
+
+    PhysiK::GeneratedTetMesh generatedMesh;
+    generatedMesh.positions = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    generatedMesh.tetLocalNodeIndices = {0, 1, 2, 3};
+
+    PhysiK::TetMeshPhysicsComponentDesc desc;
+    desc.material = PhysiK::Material{1.0f, 25.0f, 0.3f, 0.0f};
+    desc.femModel = PhysiK::FemModel::Linear;
+
+    std::unique_ptr<PhysiK::TetMeshPhysicsComponent> component =
+        PhysiK::TetMeshPhysicsComponent::CreateFromGeneratedTetMesh(
+            world,
+            generatedMesh,
+            desc);
+
+    assert(component != nullptr);
+    assert(component->GetNodeCount() == 4);
+    assert(component->GetTetCount() == 1);
+    assert(component->localToGlobalNodeIndex.size() == 4);
+    assert(component->GetGlobalNodeIndex(0) == 0);
+    assert(component->GetGlobalNodeIndex(3) == 3);
+    assert(GetNodePosition(worldHandle, 3).z == 1.0f);
+
+    PHYSIK_DestroyWorld(worldHandle);
+}
+
 void TetMeshCreationWeldsDuplicateSharedFaceNodes()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -4023,6 +4058,7 @@ int main()
     SurfaceExtractionComponentExtractsActiveBoundaryFaces();
     SurfaceExtractionComponentWindsBoundaryFacesOutward();
     TetMeshGeneratorWeldsNodesAndDropsDegenerateTets();
+    TetMeshPhysicsCanConsumeGeneratedTetMeshDirectly();
     TetMeshCreationWeldsDuplicateSharedFaceNodes();
     SurfaceExtractionComponentCanBeCreatedThroughNativeApi();
     SurfaceVisualComponentBuildsRenderReadySurface();

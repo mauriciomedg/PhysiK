@@ -195,10 +195,6 @@ namespace PhysiK
         int tetCount,
         const TetMeshPhysicsComponentDesc& desc)
     {
-        auto component = std::make_unique<TetMeshPhysicsComponent>();
-        component->material = desc.material;
-        component->selectedFemModel = desc.femModel;
-
         std::vector<int> rawLocalToGlobalNodeIndex;
         std::vector<Vec3> rawPositions;
         if (globalNodeIndices != nullptr && nodeCount > 0)
@@ -256,11 +252,8 @@ namespace PhysiK
                 static_cast<int>(rawPositions.size()),
                 rawTetLocalNodeIndices.data(),
                 static_cast<int>(rawTetLocalNodeIndices.size() / 4u));
-        component->SetGeometry(generatedMesh);
-        AddGeneratedNodesToWorld(world, *component);
 
-        component->RebuildFemRestData();
-        return component;
+        return CreateFromGeneratedTetMesh(world, generatedMesh, desc);
     }
 
     std::unique_ptr<TetMeshPhysicsComponent> TetMeshPhysicsComponent::CreateFromPositions(
@@ -293,20 +286,39 @@ namespace PhysiK
         int tetCount,
         const TetMeshPhysicsComponentDesc& desc)
     {
-        auto component = std::make_unique<TetMeshPhysicsComponent>();
-        component->material = desc.material;
-        component->selectedFemModel = desc.femModel;
-
         const GeneratedTetMesh generatedMesh =
             TetMeshGenerator::Generate(
                 positions,
                 nodeCount,
                 tetLocalNodeIndices,
                 tetCount);
-        component->SetGeometry(generatedMesh);
         (void)fixedNodeFlags;
-        AddGeneratedNodesToWorld(world, *component);
+        return CreateFromGeneratedTetMesh(world, generatedMesh, desc);
+    }
 
+    std::unique_ptr<TetMeshPhysicsComponent>
+    TetMeshPhysicsComponent::CreateFromGeneratedTetMesh(
+        World& world,
+        const GeneratedTetMesh& generatedMesh,
+        const Material& material)
+    {
+        TetMeshPhysicsComponentDesc desc;
+        desc.material = material;
+        return CreateFromGeneratedTetMesh(world, generatedMesh, desc);
+    }
+
+    std::unique_ptr<TetMeshPhysicsComponent>
+    TetMeshPhysicsComponent::CreateFromGeneratedTetMesh(
+        World& world,
+        const GeneratedTetMesh& generatedMesh,
+        const TetMeshPhysicsComponentDesc& desc)
+    {
+        auto component = std::make_unique<TetMeshPhysicsComponent>();
+        component->material = desc.material;
+        component->selectedFemModel = desc.femModel;
+
+        component->SetGeometry(generatedMesh);
+        AddGeneratedNodesToWorld(world, *component);
         component->RebuildFemRestData();
         return component;
     }

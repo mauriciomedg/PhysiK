@@ -53,6 +53,16 @@ namespace PhysiK
             int tetCount,
             const TetMeshPhysicsComponentDesc& desc);
 
+        static std::unique_ptr<TetMeshPhysicsComponent> CreateFromGeneratedTetMesh(
+            World& world,
+            const GeneratedTetMesh& generatedMesh,
+            const Material& material);
+
+        static std::unique_ptr<TetMeshPhysicsComponent> CreateFromGeneratedTetMesh(
+            World& world,
+            const GeneratedTetMesh& generatedMesh,
+            const TetMeshPhysicsComponentDesc& desc);
+
         std::vector<int> localToGlobalNodeIndex;
         std::vector<Vec3> nodeVelocities;
         std::vector<TetFemCache> tetFemCache;
