@@ -4,6 +4,7 @@
 #include "PhysiK/Components/TetMeshComponent.h"
 #include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/TetMeshMapperComponent.h"
+#include "PhysiK/Components/TetMeshPreprocessor.h"
 #include "PhysiK/Components/TopologyMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/Physics/FEM/FEMModel.h"
@@ -2673,6 +2674,75 @@ void SurfaceExtractionComponentWindsBoundaryFacesOutward()
     PHYSIK_DestroyWorld(worldHandle);
 }
 
+void TetMeshPreprocessorWeldsNodesAndDropsDegenerateTets()
+{
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {
+        0, 1, 2, 3,
+        0, 2, 3, 4};
+
+    const PhysiK::TetMeshPreprocessResult result =
+        PhysiK::PreprocessTetMesh(
+            positions,
+            5,
+            tetIndices,
+            2);
+
+    assert(result.rawNodeCount == 5);
+    assert(result.weldedNodeCount == 4);
+    assert(result.weldedAwayNodeCount == 1);
+    assert(result.rawTetCount == 2);
+    assert(result.removedDegenerateTetCount == 1);
+    assert(result.tetLocalNodeIndices.size() == 4);
+    assert(result.topologyDiagnostics.boundaryFaceCount == 4);
+    assert(result.topologyDiagnostics.internalFaceCount == 0);
+    assert(result.topologyDiagnostics.nonManifoldFaceCount == 0);
+}
+
+void TetMeshCreationWeldsDuplicateSharedFaceNodes()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, -1.0f}};
+    const int tetIndices[] = {
+        0, 1, 2, 3,
+        4, 5, 6, 7};
+
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponent(
+            world,
+            positions,
+            8,
+            tetIndices,
+            2);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+    assert(PHYSIK_GetTetMeshNodeCount(world, tetMesh) == 5);
+    assert(PHYSIK_GetTetMeshTetCount(world, tetMesh) == 2);
+
+    const PhysiK::ComponentHandle surface =
+        PHYSIK_CreateSurfaceExtractionComponent(world, tetMesh);
+    assert(PHYSIK_IsComponentHandleValid(world, surface) == 1);
+    PHYSIK_Step(world, 0.0f);
+
+    assert(PHYSIK_GetSurfaceTriangleIndexCount(world, surface) == 18);
+
+    PHYSIK_DestroyWorld(world);
+}
+
 void SurfaceExtractionComponentCanBeCreatedThroughNativeApi()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -3907,6 +3977,8 @@ int main()
     TopologyMeshComponentBuildsActiveTetIslands();
     SurfaceExtractionComponentExtractsActiveBoundaryFaces();
     SurfaceExtractionComponentWindsBoundaryFacesOutward();
+    TetMeshPreprocessorWeldsNodesAndDropsDegenerateTets();
+    TetMeshCreationWeldsDuplicateSharedFaceNodes();
     SurfaceExtractionComponentCanBeCreatedThroughNativeApi();
     SurfaceVisualComponentBuildsRenderReadySurface();
     VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag();

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 
+#include "PhysiK/Components/TetMeshPreprocessor.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
 
@@ -194,11 +195,12 @@ namespace PhysiK
         component->material = desc.material;
         component->selectedFemModel = desc.femModel;
 
+        std::vector<int> rawLocalToGlobalNodeIndex;
+        std::vector<Vec3> rawPositions;
         if (globalNodeIndices != nullptr && nodeCount > 0)
         {
-            component->restNodePositions.reserve(static_cast<std::size_t>(nodeCount));
-            component->nodePositions.reserve(static_cast<std::size_t>(nodeCount));
-            component->localToGlobalNodeIndex.reserve(static_cast<std::size_t>(nodeCount));
+            rawPositions.reserve(static_cast<std::size_t>(nodeCount));
+            rawLocalToGlobalNodeIndex.reserve(static_cast<std::size_t>(nodeCount));
             for (int i = 0; i < nodeCount; ++i)
             {
                 const int worldNodeIndex = globalNodeIndices[i];
@@ -208,30 +210,28 @@ namespace PhysiK
                     continue;
                 }
 
-                component->localToGlobalNodeIndex.push_back(worldNodeIndex);
-                component->restNodePositions.push_back(
-                    world.GetNode(worldNodeIndex).restPosition);
-                component->nodePositions.push_back(
-                    world.GetNode(worldNodeIndex).position);
+                rawLocalToGlobalNodeIndex.push_back(worldNodeIndex);
+                rawPositions.push_back(world.GetNode(worldNodeIndex).restPosition);
             }
         }
 
+        std::vector<int> rawTetLocalNodeIndices;
         if (tetGlobalNodeIndices != nullptr && tetCount > 0)
         {
-            component->tets.reserve(static_cast<std::size_t>(tetCount));
+            rawTetLocalNodeIndices.reserve(static_cast<std::size_t>(tetCount) * 4u);
             for (int i = 0; i < tetCount; ++i)
             {
                 const int local0 = FindLocalNodeIndex(
-                    component->localToGlobalNodeIndex,
+                    rawLocalToGlobalNodeIndex,
                     tetGlobalNodeIndices[i * 4 + 0]);
                 const int local1 = FindLocalNodeIndex(
-                    component->localToGlobalNodeIndex,
+                    rawLocalToGlobalNodeIndex,
                     tetGlobalNodeIndices[i * 4 + 1]);
                 const int local2 = FindLocalNodeIndex(
-                    component->localToGlobalNodeIndex,
+                    rawLocalToGlobalNodeIndex,
                     tetGlobalNodeIndices[i * 4 + 2]);
                 const int local3 = FindLocalNodeIndex(
-                    component->localToGlobalNodeIndex,
+                    rawLocalToGlobalNodeIndex,
                     tetGlobalNodeIndices[i * 4 + 3]);
 
                 if (local0 < 0 || local1 < 0 || local2 < 0 || local3 < 0)
@@ -239,8 +239,61 @@ namespace PhysiK
                     continue;
                 }
 
-                component->tets.push_back(MakeTet(local0, local1, local2, local3));
+                rawTetLocalNodeIndices.push_back(local0);
+                rawTetLocalNodeIndices.push_back(local1);
+                rawTetLocalNodeIndices.push_back(local2);
+                rawTetLocalNodeIndices.push_back(local3);
             }
+        }
+
+        const TetMeshPreprocessResult preprocessed =
+            PreprocessTetMesh(
+                rawPositions.data(),
+                static_cast<int>(rawPositions.size()),
+                rawTetLocalNodeIndices.data(),
+                static_cast<int>(rawTetLocalNodeIndices.size() / 4u));
+        component->restNodePositions = preprocessed.positions;
+        component->nodePositions = component->restNodePositions;
+        component->localToGlobalNodeIndex.resize(preprocessed.positions.size(), -1);
+        for (int newNode = 0;
+             newNode < static_cast<int>(preprocessed.newNodeToFirstOldNode.size());
+             ++newNode)
+        {
+            const int oldNode =
+                preprocessed.newNodeToFirstOldNode[static_cast<std::size_t>(newNode)];
+            if (oldNode >= 0 &&
+                oldNode < static_cast<int>(rawLocalToGlobalNodeIndex.size()))
+            {
+                component->localToGlobalNodeIndex[static_cast<std::size_t>(newNode)] =
+                    rawLocalToGlobalNodeIndex[static_cast<std::size_t>(oldNode)];
+            }
+        }
+
+        const int finalTetCount =
+            static_cast<int>(preprocessed.tetLocalNodeIndices.size() / 4u);
+        component->nodePositions.resize(component->localToGlobalNodeIndex.size());
+        for (int localNode = 0;
+             localNode < static_cast<int>(component->localToGlobalNodeIndex.size());
+             ++localNode)
+        {
+            const int worldNode =
+                component->localToGlobalNodeIndex[static_cast<std::size_t>(localNode)];
+            if (worldNode >= 0 &&
+                worldNode < static_cast<int>(world.GetNodes().size()))
+            {
+                component->nodePositions[static_cast<std::size_t>(localNode)] =
+                    world.GetNode(worldNode).position;
+            }
+        }
+
+        component->tets.reserve(static_cast<std::size_t>(finalTetCount));
+        for (int tetIndex = 0; tetIndex < finalTetCount; ++tetIndex)
+        {
+            component->tets.push_back(MakeTet(
+                preprocessed.tetLocalNodeIndices[tetIndex * 4 + 0],
+                preprocessed.tetLocalNodeIndices[tetIndex * 4 + 1],
+                preprocessed.tetLocalNodeIndices[tetIndex * 4 + 2],
+                preprocessed.tetLocalNodeIndices[tetIndex * 4 + 3]));
         }
 
         component->RebuildFemRestData();
@@ -281,21 +334,56 @@ namespace PhysiK
         component->material = desc.material;
         component->selectedFemModel = desc.femModel;
 
-        if (positions != nullptr && nodeCount > 0)
+        const TetMeshPreprocessResult preprocessed =
+            PreprocessTetMesh(positions, nodeCount, tetLocalNodeIndices, tetCount);
+
+        if (!preprocessed.positions.empty())
         {
-            component->localToGlobalNodeIndex.reserve(static_cast<std::size_t>(nodeCount));
-            for (int i = 0; i < nodeCount; ++i)
+            component->localToGlobalNodeIndex.reserve(preprocessed.positions.size());
+            for (int newNode = 0;
+                 newNode < static_cast<int>(preprocessed.positions.size());
+                 ++newNode)
             {
-                const int nodeIndex = world.AddNode(positions[i]);
-                if (fixedNodeFlags != nullptr && fixedNodeFlags[i] != 0)
+                const int nodeIndex = world.AddNode(
+                    preprocessed.positions[static_cast<std::size_t>(newNode)]);
+
+                bool fixed = false;
+                if (fixedNodeFlags != nullptr)
+                {
+                    for (int oldNode = 0; oldNode < nodeCount; ++oldNode)
+                    {
+                        if (preprocessed.oldNodeToNewNode[static_cast<std::size_t>(oldNode)] ==
+                                newNode &&
+                            fixedNodeFlags[oldNode] != 0)
+                        {
+                            fixed = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (fixed)
                 {
                     world.SetNodeFixed(nodeIndex, true);
                 }
+
                 component->localToGlobalNodeIndex.push_back(nodeIndex);
             }
         }
 
-        component->SetGeometry(positions, nodeCount, tetLocalNodeIndices, tetCount);
+        component->restNodePositions = preprocessed.positions;
+        component->nodePositions = component->restNodePositions;
+        const int finalTetCount =
+            static_cast<int>(preprocessed.tetLocalNodeIndices.size() / 4u);
+        component->tets.reserve(static_cast<std::size_t>(finalTetCount));
+        for (int tetIndex = 0; tetIndex < finalTetCount; ++tetIndex)
+        {
+            component->tets.push_back(MakeTet(
+                preprocessed.tetLocalNodeIndices[tetIndex * 4 + 0],
+                preprocessed.tetLocalNodeIndices[tetIndex * 4 + 1],
+                preprocessed.tetLocalNodeIndices[tetIndex * 4 + 2],
+                preprocessed.tetLocalNodeIndices[tetIndex * 4 + 3]));
+        }
         component->RebuildFemRestData();
         return component;
     }

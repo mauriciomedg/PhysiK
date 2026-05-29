@@ -937,6 +937,26 @@ extern "C"
         return tetMesh->GetTetCount();
     }
 
+    PHYSIK_API int PHYSIK_GetTetMeshNodeCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr)
+        {
+            return 0;
+        }
+
+        const auto* tetMesh = dynamic_cast<const PhysiK::TetMeshComponent*>(
+            worldPtr->GetComponent(component));
+        if (tetMesh == nullptr)
+        {
+            return 0;
+        }
+
+        return tetMesh->GetNodeCount();
+    }
+
     PHYSIK_API int PHYSIK_IsTetActive(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component,

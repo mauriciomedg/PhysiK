@@ -253,6 +253,10 @@ extern "C"
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component);
 
+    PHYSIK_API int PHYSIK_GetTetMeshNodeCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component);
+
     PHYSIK_API int PHYSIK_IsTetActive(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component,
