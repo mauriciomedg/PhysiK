@@ -20,6 +20,12 @@ namespace PhysiK
             int node2 = -1;
         };
 
+        struct TetFaceWithOpposite
+        {
+            TetFace face;
+            int oppositeNode = -1;
+        };
+
         struct FaceEntry
         {
             TetFace orientedFace;
@@ -69,32 +75,62 @@ namespace PhysiK
             return key;
         }
 
-        TetFace GetTetFace(const TetMeshComponent& tetMesh, int tetIndex, int faceIndex)
+        TetFaceWithOpposite GetTetFaceWithOpposite(
+            const TetMeshComponent& tetMesh,
+            int tetIndex,
+            int faceIndex)
         {
+            const int n0 = tetMesh.GetTetNodeIndex(tetIndex, 0);
+            const int n1 = tetMesh.GetTetNodeIndex(tetIndex, 1);
+            const int n2 = tetMesh.GetTetNodeIndex(tetIndex, 2);
+            const int n3 = tetMesh.GetTetNodeIndex(tetIndex, 3);
+
             switch (faceIndex)
             {
             case 0:
-                return TetFace{
-                    tetMesh.GetTetNodeIndex(tetIndex, 0),
-                    tetMesh.GetTetNodeIndex(tetIndex, 1),
-                    tetMesh.GetTetNodeIndex(tetIndex, 2)};
+                return TetFaceWithOpposite{TetFace{n0, n1, n2}, n3};
             case 1:
-                return TetFace{
-                    tetMesh.GetTetNodeIndex(tetIndex, 0),
-                    tetMesh.GetTetNodeIndex(tetIndex, 3),
-                    tetMesh.GetTetNodeIndex(tetIndex, 1)};
+                return TetFaceWithOpposite{TetFace{n0, n3, n1}, n2};
             case 2:
-                return TetFace{
-                    tetMesh.GetTetNodeIndex(tetIndex, 0),
-                    tetMesh.GetTetNodeIndex(tetIndex, 2),
-                    tetMesh.GetTetNodeIndex(tetIndex, 3)};
+                return TetFaceWithOpposite{TetFace{n0, n2, n3}, n1};
             case 3:
             default:
-                return TetFace{
-                    tetMesh.GetTetNodeIndex(tetIndex, 1),
-                    tetMesh.GetTetNodeIndex(tetIndex, 3),
-                    tetMesh.GetTetNodeIndex(tetIndex, 2)};
+                return TetFaceWithOpposite{TetFace{n1, n3, n2}, n0};
             }
+        }
+
+        TetFace OrientFaceOutward(
+            const TetMeshComponent& tetMesh,
+            const TetFace& inputFace,
+            int oppositeNode)
+        {
+            TetFace face = inputFace;
+            if (face.node0 < 0 || face.node0 >= tetMesh.GetNodeCount() ||
+                face.node1 < 0 || face.node1 >= tetMesh.GetNodeCount() ||
+                face.node2 < 0 || face.node2 >= tetMesh.GetNodeCount() ||
+                oppositeNode < 0 || oppositeNode >= tetMesh.GetNodeCount())
+            {
+                return face;
+            }
+
+            const Vec3& p0 = tetMesh.GetLocalCurrentPosition(face.node0);
+            const Vec3& p1 = tetMesh.GetLocalCurrentPosition(face.node1);
+            const Vec3& p2 = tetMesh.GetLocalCurrentPosition(face.node2);
+            const Vec3& po = tetMesh.GetLocalCurrentPosition(oppositeNode);
+
+            const Vec3 normal = Cross(p1 - p0, p2 - p0);
+            if (normal.LengthSquared() <= 0.000000000001f)
+            {
+                return face;
+            }
+
+            const Vec3 toOpposite = po - p0;
+            if (Dot(normal, toOpposite) > 0.0f)
+            {
+                std::swap(face.node1, face.node2);
+            }
+
+            return face;
         }
     }
 
@@ -134,12 +170,18 @@ namespace PhysiK
 
             for (int faceIndex = 0; faceIndex < 4; ++faceIndex)
             {
-                const TetFace face = GetTetFace(*hostTetMesh, tetIndex, faceIndex);
-                const FaceKey key = MakeFaceKey(face);
+                const TetFaceWithOpposite faceWithOpposite =
+                    GetTetFaceWithOpposite(*hostTetMesh, tetIndex, faceIndex);
+                const TetFace orientedFace =
+                    OrientFaceOutward(
+                        *hostTetMesh,
+                        faceWithOpposite.face,
+                        faceWithOpposite.oppositeNode);
+                const FaceKey key = MakeFaceKey(orientedFace);
                 FaceEntry& entry = faceEntries[key];
                 if (entry.count == 0)
                 {
-                    entry.orientedFace = face;
+                    entry.orientedFace = orientedFace;
                 }
 
                 ++entry.count;

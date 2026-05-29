@@ -562,6 +562,21 @@ namespace
             lastEvent = event;
         }
     };
+
+    bool TriangleWindsAwayFromOppositePoint(
+        const PhysiK::Vec3* positions,
+        int node0,
+        int node1,
+        int node2,
+        int oppositeNode)
+    {
+        const PhysiK::Vec3& p0 = positions[node0];
+        const PhysiK::Vec3& p1 = positions[node1];
+        const PhysiK::Vec3& p2 = positions[node2];
+        const PhysiK::Vec3& po = positions[oppositeNode];
+        const PhysiK::Vec3 normal = PhysiK::Cross(p1 - p0, p2 - p0);
+        return PhysiK::Dot(normal, po - p0) <= 0.0f;
+    }
 }
 
 void ManualPointConnectionMovesBarycentricPoint()
@@ -2597,6 +2612,67 @@ void SurfaceExtractionComponentExtractsActiveBoundaryFaces()
     PHYSIK_DestroyWorld(world);
 }
 
+void SurfaceExtractionComponentWindsBoundaryFacesOutward()
+{
+    PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
+    assert(worldHandle != nullptr);
+
+    PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {0, 1, 2, 3};
+    const PhysiK::ComponentHandle tetMeshHandle =
+        PHYSIK_CreateTetMeshComponent(
+            worldHandle,
+            positions,
+            4,
+            tetIndices,
+            1);
+    assert(PHYSIK_IsComponentHandleValid(worldHandle, tetMeshHandle) == 1);
+
+    const PhysiK::ComponentHandle surface =
+        PHYSIK_CreateSurfaceExtractionComponent(worldHandle, tetMeshHandle);
+    assert(PHYSIK_IsComponentHandleValid(worldHandle, surface) == 1);
+    PHYSIK_Step(worldHandle, 0.0f);
+
+    int indices[12] = {};
+    assert(PHYSIK_CopySurfaceTriangleIndices(
+        worldHandle,
+        surface,
+        indices,
+        12) == 12);
+
+    for (int index = 0; index < 12; index += 3)
+    {
+        const int node0 = indices[index + 0u];
+        const int node1 = indices[index + 1u];
+        const int node2 = indices[index + 2u];
+        int oppositeNode = -1;
+        for (int candidate = 0; candidate < 4; ++candidate)
+        {
+            if (candidate != node0 &&
+                candidate != node1 &&
+                candidate != node2)
+            {
+                oppositeNode = candidate;
+                break;
+            }
+        }
+
+        assert(oppositeNode >= 0);
+        assert(TriangleWindsAwayFromOppositePoint(
+            positions,
+            node0,
+            node1,
+            node2,
+            oppositeNode));
+    }
+
+    PHYSIK_DestroyWorld(worldHandle);
+}
+
 void SurfaceExtractionComponentCanBeCreatedThroughNativeApi()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -3830,6 +3906,7 @@ int main()
     TopologyMeshComponentDeclaresEventsAndClearsDirtyFlag();
     TopologyMeshComponentBuildsActiveTetIslands();
     SurfaceExtractionComponentExtractsActiveBoundaryFaces();
+    SurfaceExtractionComponentWindsBoundaryFacesOutward();
     SurfaceExtractionComponentCanBeCreatedThroughNativeApi();
     SurfaceVisualComponentBuildsRenderReadySurface();
     VisualMeshComponentDeclaresTopologyListenerAndClearsDirtyFlag();
