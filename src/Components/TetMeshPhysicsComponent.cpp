@@ -12,24 +12,6 @@ namespace PhysiK
 {
     namespace
     {
-        int FindLocalNodeIndex(
-            const std::vector<int>& localToGlobalNodeIndex,
-            int worldNodeIndex)
-        {
-            for (int localIndex = 0;
-                 localIndex < static_cast<int>(localToGlobalNodeIndex.size());
-                 ++localIndex)
-            {
-                if (localToGlobalNodeIndex[static_cast<std::size_t>(localIndex)] ==
-                    worldNodeIndex)
-                {
-                    return localIndex;
-                }
-            }
-
-            return -1;
-        }
-
         void ApplyMaterialToTet(Tet& tet, const Material& material)
         {
             tet.youngModulus = material.youngModulus;
@@ -166,94 +148,6 @@ namespace PhysiK
                 solverData.AddNodeMass(globalNodeIndex, contribution.nodalMass);
             }
         }
-    }
-
-    std::unique_ptr<TetMeshPhysicsComponent> TetMeshPhysicsComponent::CreateFromGlobalNodes(
-        World& world,
-        const int* globalNodeIndices,
-        int nodeCount,
-        const int* tetGlobalNodeIndices,
-        int tetCount,
-        const Material& material)
-    {
-        TetMeshPhysicsComponentDesc desc;
-        desc.material = material;
-        return CreateFromGlobalNodes(
-            world,
-            globalNodeIndices,
-            nodeCount,
-            tetGlobalNodeIndices,
-            tetCount,
-            desc);
-    }
-
-    std::unique_ptr<TetMeshPhysicsComponent> TetMeshPhysicsComponent::CreateFromGlobalNodes(
-        World& world,
-        const int* globalNodeIndices,
-        int nodeCount,
-        const int* tetGlobalNodeIndices,
-        int tetCount,
-        const TetMeshPhysicsComponentDesc& desc)
-    {
-        std::vector<int> rawLocalToGlobalNodeIndex;
-        std::vector<Vec3> rawPositions;
-        if (globalNodeIndices != nullptr && nodeCount > 0)
-        {
-            rawPositions.reserve(static_cast<std::size_t>(nodeCount));
-            rawLocalToGlobalNodeIndex.reserve(static_cast<std::size_t>(nodeCount));
-            for (int i = 0; i < nodeCount; ++i)
-            {
-                const int worldNodeIndex = globalNodeIndices[i];
-                if (worldNodeIndex < 0 ||
-                    worldNodeIndex >= static_cast<int>(world.GetNodes().size()))
-                {
-                    continue;
-                }
-
-                rawLocalToGlobalNodeIndex.push_back(worldNodeIndex);
-                rawPositions.push_back(world.GetNode(worldNodeIndex).restPosition);
-            }
-        }
-
-        std::vector<int> rawTetLocalNodeIndices;
-        if (tetGlobalNodeIndices != nullptr && tetCount > 0)
-        {
-            rawTetLocalNodeIndices.reserve(static_cast<std::size_t>(tetCount) * 4u);
-            for (int i = 0; i < tetCount; ++i)
-            {
-                const int local0 = FindLocalNodeIndex(
-                    rawLocalToGlobalNodeIndex,
-                    tetGlobalNodeIndices[i * 4 + 0]);
-                const int local1 = FindLocalNodeIndex(
-                    rawLocalToGlobalNodeIndex,
-                    tetGlobalNodeIndices[i * 4 + 1]);
-                const int local2 = FindLocalNodeIndex(
-                    rawLocalToGlobalNodeIndex,
-                    tetGlobalNodeIndices[i * 4 + 2]);
-                const int local3 = FindLocalNodeIndex(
-                    rawLocalToGlobalNodeIndex,
-                    tetGlobalNodeIndices[i * 4 + 3]);
-
-                if (local0 < 0 || local1 < 0 || local2 < 0 || local3 < 0)
-                {
-                    continue;
-                }
-
-                rawTetLocalNodeIndices.push_back(local0);
-                rawTetLocalNodeIndices.push_back(local1);
-                rawTetLocalNodeIndices.push_back(local2);
-                rawTetLocalNodeIndices.push_back(local3);
-            }
-        }
-
-        const GeneratedTetMesh generatedMesh =
-            TetMeshGenerator::Generate(
-                rawPositions.data(),
-                static_cast<int>(rawPositions.size()),
-                rawTetLocalNodeIndices.data(),
-                static_cast<int>(rawTetLocalNodeIndices.size() / 4u));
-
-        return CreateFromGeneratedTetMesh(world, generatedMesh, desc);
     }
 
     std::unique_ptr<TetMeshPhysicsComponent> TetMeshPhysicsComponent::CreateFromPositions(
