@@ -127,27 +127,9 @@ extern "C"
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,
-        const PhysiK::Vec3* positions,
-        int nodeCount,
-        const int* tetLocalNodeIndices,
-        int tetCount);
-
-    PHYSIK_API PhysiK::ComponentHandle
-    PHYSIK_CreateTetMeshComponentFromGeneratedTetMesh(
-        PhysiK::WorldHandle world,
         PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshPhysicsComponent(
-        PhysiK::WorldHandle world,
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
-        int tetCount,
-        const PhysikMaterialDesc* material,
-        int femModel);
-
-    PHYSIK_API PhysiK::ComponentHandle
-    PHYSIK_CreateTetMeshPhysicsComponentFromGeneratedTetMesh(
         PhysiK::WorldHandle world,
         PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
         const PhysikMaterialDesc* material);

@@ -55,103 +55,6 @@ namespace
         return material;
     }
 
-    PhysiK::FemModel ToFemModel(int value)
-    {
-        switch (value)
-        {
-        case 1:
-            return PhysiK::FemModel::Corotational;
-        case 2:
-            return PhysiK::FemModel::NeoHookean;
-        case 0:
-        default:
-            return PhysiK::FemModel::Linear;
-        }
-    }
-
-    int FindLocalNodeIndex(
-        const std::vector<int>& localToGlobalNodeIndex,
-        int worldNodeIndex)
-    {
-        for (int localIndex = 0;
-             localIndex < static_cast<int>(localToGlobalNodeIndex.size());
-             ++localIndex)
-        {
-            if (localToGlobalNodeIndex[static_cast<std::size_t>(localIndex)] ==
-                worldNodeIndex)
-            {
-                return localIndex;
-            }
-        }
-
-        return -1;
-    }
-
-    PhysiK::GeneratedTetMesh GenerateTetMeshFromGlobalNodes(
-        const PhysiK::World& world,
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
-        int tetCount)
-    {
-        std::vector<int> rawLocalToGlobalNodeIndex;
-        std::vector<PhysiK::Vec3> rawPositions;
-        if (nodeIndices != nullptr && nodeCount > 0)
-        {
-            rawLocalToGlobalNodeIndex.reserve(static_cast<std::size_t>(nodeCount));
-            rawPositions.reserve(static_cast<std::size_t>(nodeCount));
-            for (int i = 0; i < nodeCount; ++i)
-            {
-                const int worldNodeIndex = nodeIndices[i];
-                if (worldNodeIndex < 0 ||
-                    worldNodeIndex >= static_cast<int>(world.GetNodes().size()))
-                {
-                    continue;
-                }
-
-                rawLocalToGlobalNodeIndex.push_back(worldNodeIndex);
-                rawPositions.push_back(world.GetNode(worldNodeIndex).restPosition);
-            }
-        }
-
-        std::vector<int> rawTetLocalNodeIndices;
-        if (tetNodeIndices != nullptr && tetCount > 0)
-        {
-            rawTetLocalNodeIndices.reserve(static_cast<std::size_t>(tetCount) * 4u);
-            for (int tetIndex = 0; tetIndex < tetCount; ++tetIndex)
-            {
-                const int local0 = FindLocalNodeIndex(
-                    rawLocalToGlobalNodeIndex,
-                    tetNodeIndices[tetIndex * 4 + 0]);
-                const int local1 = FindLocalNodeIndex(
-                    rawLocalToGlobalNodeIndex,
-                    tetNodeIndices[tetIndex * 4 + 1]);
-                const int local2 = FindLocalNodeIndex(
-                    rawLocalToGlobalNodeIndex,
-                    tetNodeIndices[tetIndex * 4 + 2]);
-                const int local3 = FindLocalNodeIndex(
-                    rawLocalToGlobalNodeIndex,
-                    tetNodeIndices[tetIndex * 4 + 3]);
-
-                if (local0 < 0 || local1 < 0 || local2 < 0 || local3 < 0)
-                {
-                    continue;
-                }
-
-                rawTetLocalNodeIndices.push_back(local0);
-                rawTetLocalNodeIndices.push_back(local1);
-                rawTetLocalNodeIndices.push_back(local2);
-                rawTetLocalNodeIndices.push_back(local3);
-            }
-        }
-
-        return PhysiK::TetMeshGenerator::Generate(
-            rawPositions.data(),
-            static_cast<int>(rawPositions.size()),
-            rawTetLocalNodeIndices.data(),
-            static_cast<int>(rawTetLocalNodeIndices.size() / 4u));
-    }
-
     PhysikCollisionSphereOverlap ToApiOverlap(const PhysiK::CollisionSphereOverlap& overlap)
     {
         PhysikCollisionSphereOverlap apiOverlap;
@@ -562,37 +465,6 @@ extern "C"
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,
-        const PhysiK::Vec3* positions,
-        int nodeCount,
-        const int* tetLocalNodeIndices,
-        int tetCount)
-    {
-        PhysiK::World* worldPtr = AsWorld(world);
-        if (worldPtr == nullptr ||
-            positions == nullptr ||
-            nodeCount <= 0 ||
-            tetLocalNodeIndices == nullptr ||
-            tetCount <= 0)
-        {
-            return PhysiK::ComponentHandle{};
-        }
-
-        const PhysiK::GeneratedTetMesh generatedMesh =
-            PhysiK::TetMeshGenerator::Generate(
-                positions,
-                nodeCount,
-                tetLocalNodeIndices,
-                tetCount);
-
-        auto component = std::make_unique<PhysiK::TetMeshComponent>();
-        component->SetGeometry(generatedMesh);
-
-        return worldPtr->AddComponent(std::move(component));
-    }
-
-    PHYSIK_API PhysiK::ComponentHandle
-    PHYSIK_CreateTetMeshComponentFromGeneratedTetMesh(
-        PhysiK::WorldHandle world,
         PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle)
     {
         PhysiK::World* worldPtr = AsWorld(world);
@@ -611,41 +483,6 @@ extern "C"
     }
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshPhysicsComponent(
-        PhysiK::WorldHandle world,
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
-        int tetCount,
-        const PhysikMaterialDesc* material,
-        int femModel)
-    {
-        PhysiK::World* worldPtr = AsWorld(world);
-        if (worldPtr == nullptr || material == nullptr)
-        {
-            return PhysiK::ComponentHandle{};
-        }
-
-        PhysiK::TetMeshPhysicsComponentDesc desc;
-        desc.material = ToMaterial(*material);
-        desc.femModel = ToFemModel(femModel);
-
-        const PhysiK::GeneratedTetMesh generatedMesh =
-            GenerateTetMeshFromGlobalNodes(
-                *worldPtr,
-                nodeIndices,
-                nodeCount,
-                tetNodeIndices,
-                tetCount);
-
-        auto component = PhysiK::TetMeshPhysicsComponent::CreateFromGeneratedTetMesh(
-            *worldPtr,
-            generatedMesh,
-            desc);
-        return worldPtr->AddComponent(std::move(component));
-    }
-
-    PHYSIK_API PhysiK::ComponentHandle
-    PHYSIK_CreateTetMeshPhysicsComponentFromGeneratedTetMesh(
         PhysiK::WorldHandle world,
         PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
         const PhysikMaterialDesc* material)
