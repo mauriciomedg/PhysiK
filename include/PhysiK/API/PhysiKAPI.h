@@ -92,12 +92,50 @@ extern "C"
         PhysiK::WorldHandle world,
         int nodeIndex);
 
+    PHYSIK_API PhysiK::GeneratedTetMeshHandle PHYSIK_GenerateTetMesh(
+        const PhysiK::Vec3* positions,
+        int nodeCount,
+        const int* tetLocalNodeIndices,
+        int tetCount);
+
+    PHYSIK_API int PHYSIK_IsGeneratedTetMeshHandleValid(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API void PHYSIK_DestroyGeneratedTetMesh(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshVertexCount(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshTetCount(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshTetIndexCount(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshVertex(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
+        int vertexIndex,
+        float* outX,
+        float* outY,
+        float* outZ);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshTetNodeIndex(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
+        int tetIndexArrayIndex,
+        int* outNodeIndex);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,
         const PhysiK::Vec3* positions,
         int nodeCount,
         const int* tetLocalNodeIndices,
         int tetCount);
+
+    PHYSIK_API PhysiK::ComponentHandle
+    PHYSIK_CreateTetMeshComponentFromGeneratedTetMesh(
+        PhysiK::WorldHandle world,
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshPhysicsComponent(
         PhysiK::WorldHandle world,
@@ -107,6 +145,12 @@ extern "C"
         int tetCount,
         const PhysikMaterialDesc* material,
         int femModel);
+
+    PHYSIK_API PhysiK::ComponentHandle
+    PHYSIK_CreateTetMeshPhysicsComponentFromGeneratedTetMesh(
+        PhysiK::WorldHandle world,
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
+        const PhysikMaterialDesc* material);
 
     PHYSIK_API void PHYSIK_SetTetMeshMaterial(
         PhysiK::WorldHandle world,

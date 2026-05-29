@@ -5,6 +5,7 @@
 namespace PhysiK
 {
     using WorldHandle = void*;
+    using GeneratedTetMeshHandle = void*;
 
     struct ComponentHandle
     {

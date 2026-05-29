@@ -2751,6 +2751,144 @@ void TetMeshGeneratorWeldsNodesAndDropsDegenerateTets()
 
 }
 
+void GeneratedTetMeshApiStoresCleanGeometry()
+{
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {0, 1, 2, 3};
+
+    const PhysiK::GeneratedTetMeshHandle generatedMesh =
+        PHYSIK_GenerateTetMesh(positions, 4, tetIndices, 1);
+    assert(PHYSIK_IsGeneratedTetMeshHandleValid(generatedMesh) == 1);
+    assert(PHYSIK_GetGeneratedTetMeshVertexCount(generatedMesh) == 4);
+    assert(PHYSIK_GetGeneratedTetMeshTetCount(generatedMesh) == 1);
+    assert(PHYSIK_GetGeneratedTetMeshTetIndexCount(generatedMesh) == 4);
+
+    float x = -1.0f;
+    float y = -1.0f;
+    float z = -1.0f;
+    assert(PHYSIK_GetGeneratedTetMeshVertex(
+        generatedMesh,
+        3,
+        &x,
+        &y,
+        &z) == 1);
+    assert(NearlyEqual(x, 0.0f));
+    assert(NearlyEqual(y, 0.0f));
+    assert(NearlyEqual(z, 1.0f));
+
+    int nodeIndex = -1;
+    assert(PHYSIK_GetGeneratedTetMeshTetNodeIndex(
+        generatedMesh,
+        2,
+        &nodeIndex) == 1);
+    assert(nodeIndex == 2);
+    assert(PHYSIK_GetGeneratedTetMeshTetNodeIndex(
+        generatedMesh,
+        4,
+        &nodeIndex) == 0);
+    assert(PHYSIK_GetGeneratedTetMeshVertex(
+        generatedMesh,
+        -1,
+        &x,
+        &y,
+        &z) == 0);
+
+    PHYSIK_DestroyGeneratedTetMesh(generatedMesh);
+    assert(PHYSIK_IsGeneratedTetMeshHandleValid(generatedMesh) == 0);
+}
+
+void TetMeshComponentCanBeCreatedFromGeneratedTetMeshApi()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {0, 1, 2, 3};
+    const PhysiK::GeneratedTetMeshHandle generatedMesh =
+        PHYSIK_GenerateTetMesh(positions, 4, tetIndices, 1);
+
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshComponentFromGeneratedTetMesh(
+            world,
+            generatedMesh);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+    assert(PHYSIK_GetTetMeshNodeCount(world, tetMesh) == 4);
+    assert(PHYSIK_GetTetMeshTetCount(world, tetMesh) == 1);
+
+    PHYSIK_DestroyGeneratedTetMesh(generatedMesh);
+    PHYSIK_DestroyWorld(world);
+}
+
+void TetMeshPhysicsComponentCanBeCreatedFromGeneratedTetMeshApi()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+    assert(world != nullptr);
+
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {0, 1, 2, 3};
+    const PhysiK::GeneratedTetMeshHandle generatedMesh =
+        PHYSIK_GenerateTetMesh(positions, 4, tetIndices, 1);
+    PhysikMaterialDesc material = MakeMaterialDesc(1.0f, 25.0f, 0.3f, 0.0f);
+
+    const PhysiK::ComponentHandle tetMesh =
+        PHYSIK_CreateTetMeshPhysicsComponentFromGeneratedTetMesh(
+            world,
+            generatedMesh,
+            &material);
+    assert(PHYSIK_IsComponentHandleValid(world, tetMesh) == 1);
+    assert(PHYSIK_GetTetMeshNodeCount(world, tetMesh) == 4);
+    assert(PHYSIK_GetTetMeshTetCount(world, tetMesh) == 1);
+    assert(NearlyEqual(GetNodePosition(world, 3).z, 1.0f));
+
+    PHYSIK_DestroyGeneratedTetMesh(generatedMesh);
+    PHYSIK_DestroyWorld(world);
+}
+
+void GeneratedTetMeshApiWeldsDuplicateNodes()
+{
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    const int tetIndices[] = {
+        0, 1, 2, 3,
+        0, 2, 3, 4};
+
+    const PhysiK::GeneratedTetMeshHandle generatedMesh =
+        PHYSIK_GenerateTetMesh(positions, 5, tetIndices, 2);
+    assert(PHYSIK_IsGeneratedTetMeshHandleValid(generatedMesh) == 1);
+    assert(PHYSIK_GetGeneratedTetMeshVertexCount(generatedMesh) == 4);
+    assert(PHYSIK_GetGeneratedTetMeshTetCount(generatedMesh) == 1);
+    assert(PHYSIK_GetGeneratedTetMeshTetIndexCount(generatedMesh) == 4);
+
+    for (int i = 0; i < PHYSIK_GetGeneratedTetMeshTetIndexCount(generatedMesh); ++i)
+    {
+        int nodeIndex = -1;
+        assert(PHYSIK_GetGeneratedTetMeshTetNodeIndex(
+            generatedMesh,
+            i,
+            &nodeIndex) == 1);
+        assert(nodeIndex >= 0);
+        assert(nodeIndex < PHYSIK_GetGeneratedTetMeshVertexCount(generatedMesh));
+    }
+
+    PHYSIK_DestroyGeneratedTetMesh(generatedMesh);
+}
+
 void TetMeshPhysicsCanConsumeGeneratedTetMeshDirectly()
 {
     PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
@@ -4060,6 +4198,10 @@ int main()
     SurfaceExtractionComponentExtractsActiveBoundaryFaces();
     SurfaceExtractionComponentWindsBoundaryFacesOutward();
     TetMeshGeneratorWeldsNodesAndDropsDegenerateTets();
+    GeneratedTetMeshApiStoresCleanGeometry();
+    TetMeshComponentCanBeCreatedFromGeneratedTetMeshApi();
+    TetMeshPhysicsComponentCanBeCreatedFromGeneratedTetMeshApi();
+    GeneratedTetMeshApiWeldsDuplicateNodes();
     TetMeshPhysicsCanConsumeGeneratedTetMeshDirectly();
     TetMeshCreationWeldsDuplicateSharedFaceNodes();
     SurfaceExtractionComponentCanBeCreatedThroughNativeApi();
