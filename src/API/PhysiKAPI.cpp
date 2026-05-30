@@ -2,20 +2,47 @@
 
 #include "PhysiK/Components/CollisionComponent.h"
 #include "PhysiK/Components/CollisionSphereComponent.h"
+#include "PhysiK/Components/SurfaceExtractionComponent.h"
+#include "PhysiK/Components/SurfaceVisualComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TetMeshPhysicsComponent.h"
+#include "PhysiK/Components/TetMeshMapperComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
+#include "PhysiK/Geometry/TetMeshGenerator.h"
 
 #include <algorithm>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 namespace
 {
+    std::unordered_set<PhysiK::GeneratedTetMesh*> generatedTetMeshes;
+
     PhysiK::World* AsWorld(PhysiK::WorldHandle handle)
     {
         return static_cast<PhysiK::World*>(handle);
+    }
+
+    PhysiK::GeneratedTetMesh* AsGeneratedTetMesh(
+        PhysiK::GeneratedTetMeshHandle handle)
+    {
+        auto* generatedMesh = static_cast<PhysiK::GeneratedTetMesh*>(handle);
+        if (generatedMesh == nullptr ||
+            generatedTetMeshes.find(generatedMesh) == generatedTetMeshes.end())
+        {
+            return nullptr;
+        }
+
+        return generatedMesh;
+    }
+
+    bool IsGeneratedTetMeshUsable(const PhysiK::GeneratedTetMesh& generatedMesh)
+    {
+        return !generatedMesh.positions.empty() &&
+            !generatedMesh.tetLocalNodeIndices.empty();
     }
 
     PhysiK::Material ToMaterial(const PhysikMaterialDesc& desc)
@@ -26,20 +53,6 @@ namespace
         material.poissonRatio = desc.poissonRatio;
         material.damping = desc.damping;
         return material;
-    }
-
-    PhysiK::FemModel ToFemModel(int value)
-    {
-        switch (value)
-        {
-        case 1:
-            return PhysiK::FemModel::Corotational;
-        case 2:
-            return PhysiK::FemModel::NeoHookean;
-        case 0:
-        default:
-            return PhysiK::FemModel::Linear;
-        }
     }
 
     PhysikCollisionSphereOverlap ToApiOverlap(const PhysiK::CollisionSphereOverlap& overlap)
@@ -109,6 +122,19 @@ namespace
             world->GetComponent(tetMeshComponent));
     }
 
+    PhysiK::TetMeshPhysicsComponent* AsTetMeshPhysics(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle tetMeshComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::TetMeshPhysicsComponent*>(
+            world->GetComponent(tetMeshComponent));
+    }
+
     PhysiK::VisualMeshComponent* AsVisualMesh(
         PhysiK::World* world,
         PhysiK::ComponentHandle visualMeshComponent)
@@ -133,6 +159,58 @@ namespace
 
         return dynamic_cast<const PhysiK::VisualMeshComponent*>(
             world->GetComponent(visualMeshComponent));
+    }
+
+    const PhysiK::SurfaceExtractionComponent* AsSurfaceExtraction(
+        const PhysiK::World* world,
+        PhysiK::ComponentHandle surfaceExtractionComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<const PhysiK::SurfaceExtractionComponent*>(
+            world->GetComponent(surfaceExtractionComponent));
+    }
+
+    PhysiK::SurfaceVisualComponent* AsSurfaceVisual(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle surfaceVisualComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::SurfaceVisualComponent*>(
+            world->GetComponent(surfaceVisualComponent));
+    }
+
+    const PhysiK::SurfaceVisualComponent* AsSurfaceVisual(
+        const PhysiK::World* world,
+        PhysiK::ComponentHandle surfaceVisualComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<const PhysiK::SurfaceVisualComponent*>(
+            world->GetComponent(surfaceVisualComponent));
+    }
+
+    PhysiK::TetMeshMapperComponent* AsTetMeshMapper(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle mapperComponent)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::TetMeshMapperComponent*>(
+            world->GetComponent(mapperComponent));
     }
 }
 
@@ -261,33 +339,214 @@ extern "C"
         return 0;
     }
 
+    PHYSIK_API PhysiK::GeneratedTetMeshHandle PHYSIK_GenerateTetMesh(
+        const PhysiK::Vec3* positions,
+        int nodeCount,
+        const int* tetLocalNodeIndices,
+        int tetCount)
+    {
+        auto* generatedMesh = new PhysiK::GeneratedTetMesh(
+            PhysiK::TetMeshGenerator::Generate(
+                positions,
+                nodeCount,
+                tetLocalNodeIndices,
+                tetCount));
+        generatedTetMeshes.insert(generatedMesh);
+        return generatedMesh;
+    }
+
+    PHYSIK_API int PHYSIK_IsGeneratedTetMeshHandleValid(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle)
+    {
+        return AsGeneratedTetMesh(generatedTetMeshHandle) != nullptr ? 1 : 0;
+    }
+
+    PHYSIK_API void PHYSIK_DestroyGeneratedTetMesh(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle)
+    {
+        PhysiK::GeneratedTetMesh* generatedMesh =
+            AsGeneratedTetMesh(generatedTetMeshHandle);
+        if (generatedMesh == nullptr)
+        {
+            return;
+        }
+
+        generatedTetMeshes.erase(generatedMesh);
+        delete generatedMesh;
+    }
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshVertexCount(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle)
+    {
+        const PhysiK::GeneratedTetMesh* generatedMesh =
+            AsGeneratedTetMesh(generatedTetMeshHandle);
+        if (generatedMesh == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(generatedMesh->positions.size());
+    }
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshTetCount(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle)
+    {
+        const PhysiK::GeneratedTetMesh* generatedMesh =
+            AsGeneratedTetMesh(generatedTetMeshHandle);
+        if (generatedMesh == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(generatedMesh->tetLocalNodeIndices.size() / 4u);
+    }
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshTetIndexCount(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle)
+    {
+        const PhysiK::GeneratedTetMesh* generatedMesh =
+            AsGeneratedTetMesh(generatedTetMeshHandle);
+        if (generatedMesh == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(generatedMesh->tetLocalNodeIndices.size());
+    }
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshVertex(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
+        int vertexIndex,
+        float* outX,
+        float* outY,
+        float* outZ)
+    {
+        const PhysiK::GeneratedTetMesh* generatedMesh =
+            AsGeneratedTetMesh(generatedTetMeshHandle);
+        if (generatedMesh == nullptr ||
+            outX == nullptr ||
+            outY == nullptr ||
+            outZ == nullptr ||
+            vertexIndex < 0 ||
+            vertexIndex >= static_cast<int>(generatedMesh->positions.size()))
+        {
+            return 0;
+        }
+
+        const PhysiK::Vec3& vertex =
+            generatedMesh->positions[static_cast<std::size_t>(vertexIndex)];
+        *outX = vertex.x;
+        *outY = vertex.y;
+        *outZ = vertex.z;
+        return 1;
+    }
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshTetNodeIndex(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
+        int tetIndexArrayIndex,
+        int* outNodeIndex)
+    {
+        const PhysiK::GeneratedTetMesh* generatedMesh =
+            AsGeneratedTetMesh(generatedTetMeshHandle);
+        if (generatedMesh == nullptr ||
+            outNodeIndex == nullptr ||
+            tetIndexArrayIndex < 0 ||
+            tetIndexArrayIndex >=
+                static_cast<int>(generatedMesh->tetLocalNodeIndices.size()))
+        {
+            return 0;
+        }
+
+        *outNodeIndex =
+            generatedMesh->tetLocalNodeIndices[
+                static_cast<std::size_t>(tetIndexArrayIndex)];
+        return 1;
+    }
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
-        int tetCount,
-        const PhysikMaterialDesc* material,
-        int femModel)
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle)
     {
         PhysiK::World* worldPtr = AsWorld(world);
-        if (worldPtr == nullptr || material == nullptr)
+        const PhysiK::GeneratedTetMesh* generatedMesh =
+            AsGeneratedTetMesh(generatedTetMeshHandle);
+        if (worldPtr == nullptr ||
+            generatedMesh == nullptr ||
+            !IsGeneratedTetMeshUsable(*generatedMesh))
         {
             return PhysiK::ComponentHandle{};
         }
 
-        PhysiK::TetMeshComponentDesc desc;
-        desc.material = ToMaterial(*material);
-        desc.femModel = ToFemModel(femModel);
-
-        auto component = PhysiK::TetMeshComponent::CreateFromGlobalNodes(
-            *worldPtr,
-            nodeIndices,
-            nodeCount,
-            tetNodeIndices,
-            tetCount,
-            desc);
+        auto component = std::make_unique<PhysiK::TetMeshComponent>();
+        component->SetGeometry(*generatedMesh);
         return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshPhysicsComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
+        const PhysikMaterialDesc* material)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        const PhysiK::GeneratedTetMesh* generatedMesh =
+            AsGeneratedTetMesh(generatedTetMeshHandle);
+        if (worldPtr == nullptr ||
+            generatedMesh == nullptr ||
+            material == nullptr ||
+            !IsGeneratedTetMeshUsable(*generatedMesh))
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component =
+            PhysiK::TetMeshPhysicsComponent::CreateFromGeneratedTetMesh(
+                *worldPtr,
+                *generatedMesh,
+                ToMaterial(*material));
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeBeginIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle)
+    {
+        PhysiK::TetMeshPhysicsComponent* tetMesh =
+            AsTetMeshPhysics(AsWorld(world), tetMeshPhysicsHandle);
+        if (tetMesh == nullptr)
+        {
+            return -1;
+        }
+
+        return tetMesh->GetGlobalNodeBeginIndex();
+    }
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle)
+    {
+        PhysiK::TetMeshPhysicsComponent* tetMesh =
+            AsTetMeshPhysics(AsWorld(world), tetMeshPhysicsHandle);
+        if (tetMesh == nullptr)
+        {
+            return -1;
+        }
+
+        return tetMesh->GetGlobalNodeCount();
+    }
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle,
+        int localNodeIndex)
+    {
+        PhysiK::TetMeshPhysicsComponent* tetMesh =
+            AsTetMeshPhysics(AsWorld(world), tetMeshPhysicsHandle);
+        if (tetMesh == nullptr)
+        {
+            return -1;
+        }
+
+        return tetMesh->GetGlobalNodeIndex(localNodeIndex);
     }
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateCollisionSphereComponent(
@@ -322,6 +581,294 @@ extern "C"
             hostTetMesh,
             std::string{});
         return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceExtractionComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle hostTetMesh)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr || AsTetMesh(worldPtr, hostTetMesh) == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component =
+            std::make_unique<PhysiK::SurfaceExtractionComponent>(hostTetMesh);
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtraction)
+    {
+        const PhysiK::SurfaceExtractionComponent* surface =
+            AsSurfaceExtraction(AsWorld(world), surfaceExtraction);
+        if (surface == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(surface->GetSurfaceTriangleIndices().size());
+    }
+
+    PHYSIK_API int PHYSIK_CopySurfaceTriangleIndices(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtraction,
+        int* outIndices,
+        int maxIndexCount)
+    {
+        if (outIndices == nullptr || maxIndexCount <= 0)
+        {
+            return 0;
+        }
+
+        const PhysiK::SurfaceExtractionComponent* surface =
+            AsSurfaceExtraction(AsWorld(world), surfaceExtraction);
+        if (surface == nullptr)
+        {
+            return 0;
+        }
+
+        const std::vector<int>& indices = surface->GetSurfaceTriangleIndices();
+        const int writeCount = std::min(maxIndexCount, static_cast<int>(indices.size()));
+        for (int i = 0; i < writeCount; ++i)
+        {
+            outIndices[static_cast<std::size_t>(i)] =
+                indices[static_cast<std::size_t>(i)];
+        }
+
+        return writeCount;
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceVisualComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtractionHandle)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr ||
+            AsSurfaceExtraction(worldPtr, surfaceExtractionHandle) == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component =
+            std::make_unique<PhysiK::SurfaceVisualComponent>(
+                surfaceExtractionHandle);
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualVertexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle)
+    {
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(visual->GetVisualVertices().size());
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle)
+    {
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(visual->GetVisualTriangleIndices().size());
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualNormalCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle)
+    {
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr)
+        {
+            return 0;
+        }
+
+        return static_cast<int>(visual->GetVisualNormals().size());
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualVertex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int visualVertexIndex,
+        float* outX,
+        float* outY,
+        float* outZ)
+    {
+        if (outX == nullptr || outY == nullptr || outZ == nullptr)
+        {
+            return 0;
+        }
+
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr ||
+            visualVertexIndex < 0 ||
+            visualVertexIndex >=
+                static_cast<int>(visual->GetVisualVertices().size()))
+        {
+            return 0;
+        }
+
+        const PhysiK::Vec3& vertex =
+            visual->GetVisualVertices()[static_cast<std::size_t>(visualVertexIndex)];
+        *outX = vertex.x;
+        *outY = vertex.y;
+        *outZ = vertex.z;
+        return 1;
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualTriangleIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int triangleIndexArrayIndex,
+        int* outIndex)
+    {
+        if (outIndex == nullptr)
+        {
+            return 0;
+        }
+
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr ||
+            triangleIndexArrayIndex < 0 ||
+            triangleIndexArrayIndex >=
+                static_cast<int>(visual->GetVisualTriangleIndices().size()))
+        {
+            return 0;
+        }
+
+        *outIndex =
+            visual->GetVisualTriangleIndices()[
+                static_cast<std::size_t>(triangleIndexArrayIndex)];
+        return 1;
+    }
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualNormal(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int visualNormalIndex,
+        float* outX,
+        float* outY,
+        float* outZ)
+    {
+        if (outX == nullptr || outY == nullptr || outZ == nullptr)
+        {
+            return 0;
+        }
+
+        const PhysiK::SurfaceVisualComponent* visual =
+            AsSurfaceVisual(AsWorld(world), surfaceVisualHandle);
+        if (visual == nullptr ||
+            visualNormalIndex < 0 ||
+            visualNormalIndex >=
+                static_cast<int>(visual->GetVisualNormals().size()))
+        {
+            return 0;
+        }
+
+        const PhysiK::Vec3& normal =
+            visual->GetVisualNormals()[static_cast<std::size_t>(visualNormalIndex)];
+        *outX = normal.x;
+        *outY = normal.y;
+        *outZ = normal.z;
+        return 1;
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshMapperComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sourceTetMesh,
+        PhysiK::ComponentHandle destinationTetMesh)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr ||
+            AsTetMesh(worldPtr, sourceTetMesh) == nullptr ||
+            AsTetMesh(worldPtr, destinationTetMesh) == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        auto component = std::make_unique<PhysiK::TetMeshMapperComponent>(
+            sourceTetMesh,
+            destinationTetMesh);
+        return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API int PHYSIK_SetTetMeshLocalCurrentPosition(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMesh,
+        int localNodeIndex,
+        float x,
+        float y,
+        float z)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr)
+        {
+            return 0;
+        }
+
+        auto* tetMeshComponent = dynamic_cast<PhysiK::TetMeshComponent*>(
+            worldPtr->GetComponent(tetMesh));
+        if (tetMeshComponent == nullptr ||
+            localNodeIndex < 0 ||
+            localNodeIndex >= tetMeshComponent->GetNodeCount())
+        {
+            return 0;
+        }
+
+        tetMeshComponent->SetLocalCurrentPosition(
+            localNodeIndex,
+            PhysiK::Vec3{x, y, z});
+        return 1;
+    }
+
+    PHYSIK_API int PHYSIK_GetTetMeshLocalCurrentPosition(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMesh,
+        int localNodeIndex,
+        float* outX,
+        float* outY,
+        float* outZ)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr ||
+            outX == nullptr ||
+            outY == nullptr ||
+            outZ == nullptr)
+        {
+            return 0;
+        }
+
+        const auto* tetMeshComponent = dynamic_cast<const PhysiK::TetMeshComponent*>(
+            worldPtr->GetComponent(tetMesh));
+        if (tetMeshComponent == nullptr ||
+            localNodeIndex < 0 ||
+            localNodeIndex >= tetMeshComponent->GetNodeCount())
+        {
+            return 0;
+        }
+
+        const PhysiK::Vec3& position =
+            tetMeshComponent->GetLocalCurrentPosition(localNodeIndex);
+        *outX = position.x;
+        *outY = position.y;
+        *outZ = position.z;
+        return 1;
     }
 
     PHYSIK_API void PHYSIK_SetVisualMeshData(
@@ -500,7 +1047,8 @@ extern "C"
             return;
         }
 
-        auto* tetMesh = dynamic_cast<PhysiK::TetMeshComponent*>(worldPtr->GetComponent(component));
+        auto* tetMesh = dynamic_cast<PhysiK::TetMeshPhysicsComponent*>(
+            worldPtr->GetComponent(component));
         if (tetMesh == nullptr)
         {
             return;
@@ -548,7 +1096,27 @@ extern "C"
             return 0;
         }
 
-        return static_cast<int>(tetMesh->tets.size());
+        return tetMesh->GetTetCount();
+    }
+
+    PHYSIK_API int PHYSIK_GetTetMeshNodeCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        if (worldPtr == nullptr)
+        {
+            return 0;
+        }
+
+        const auto* tetMesh = dynamic_cast<const PhysiK::TetMeshComponent*>(
+            worldPtr->GetComponent(component));
+        if (tetMesh == nullptr)
+        {
+            return 0;
+        }
+
+        return tetMesh->GetNodeCount();
     }
 
     PHYSIK_API int PHYSIK_IsTetActive(

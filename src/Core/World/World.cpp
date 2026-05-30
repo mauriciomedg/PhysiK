@@ -1,9 +1,5 @@
 #include "PhysiK/Core/World/World.h"
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-#include "PhysiK/Core/Physics/FEM/FEMModel.h"
-#endif
-
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -37,7 +33,7 @@ namespace PhysiK
                     continue;
                 }
 
-                record.tetCount += static_cast<int>(tetMesh->tets.size());
+                record.tetCount += tetMesh->GetTetCount();
                 record.activeTetCount += tetMesh->GetActiveTetCount();
             }
         }
@@ -49,13 +45,18 @@ namespace PhysiK
 
     void World::Step(float frameDt)
     {
-        if (frameDt <= 0.0f)
+        if (frameDt < 0.0f)
         {
             return;
         }
 
         RunExternalLogic();
         PreUpdateComponents(frameDt);
+        if (frameDt == 0.0f)
+        {
+            PostUpdateComponents(frameDt);
+            return;
+        }
 
         const int steps = std::max(1, substepCount);
         const float substepDt = frameDt / static_cast<float>(steps);
@@ -597,8 +598,6 @@ namespace PhysiK
         float dt,
         PerformanceLogRecord* performanceRecord)
     {
-        FEMModel::SetPerformanceLogRecord(performanceRecord);
-
         int componentCount = 0;
         for (const std::unique_ptr<Component>& component : components)
         {
@@ -609,7 +608,6 @@ namespace PhysiK
             }
         }
 
-        FEMModel::SetPerformanceLogRecord(nullptr);
         if (performanceRecord != nullptr)
         {
             performanceRecord->assembleComponentCount = componentCount;

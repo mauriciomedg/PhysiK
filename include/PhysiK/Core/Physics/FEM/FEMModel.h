@@ -6,13 +6,13 @@
 
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Core/Physics/PhysicsModel.h"
-#include "PhysiK/PhysicsData/Node.h"
+#include "PhysiK/Math/Mat3.h"
+#include "PhysiK/Math/Vec3.h"
+#include "PhysiK/PhysicsData/Material.h"
 #include "PhysiK/PhysicsData/Tet.h"
 
 namespace PhysiK
 {
-    struct PerformanceLogRecord;
-
     using Matrix6 = std::array<std::array<float, 6>, 6>;
     using Matrix6x12 = std::array<std::array<float, 12>, 6>;
     using Matrix12 = std::array<std::array<float, 12>, 12>;
@@ -24,6 +24,19 @@ namespace PhysiK
         Matrix12 Ke{};
     };
 
+    struct TetElementContribution
+    {
+        int localNodeIndices[4] = {-1, -1, -1, -1};
+        Vec3 forces[4];
+        Mat3 stiffness[4][4];
+    };
+
+    struct TetMassContribution
+    {
+        int localNodeIndices[4] = {-1, -1, -1, -1};
+        float nodalMass = 0.0f;
+    };
+
     enum class FemModel : std::uint32_t
     {
         Linear = 0,
@@ -31,54 +44,57 @@ namespace PhysiK
         NeoHookean = 2
     };
 
-    class SolverData;
-    class TetMeshComponent;
-    class World;
-
     class PHYSIK_API FEMModel : public PhysicsModel
     {
     public:
-        void UpdateSystem(
-            World& world,
-            TetMeshComponent& owner,
-            SolverData& solverData,
-            float dt);
-
-        static void InitializeTetRestData(Tet& tet, const std::vector<Node>& nodes);
+        static void InitializeTetRestData(
+            Tet& tet,
+            const std::vector<Vec3>& restPositions);
         static TetFemCache BuildTetFemCache(const Tet& tet);
-        static void AccumulateElasticForces(
+        static void ComputeElasticForces(
             const std::vector<Tet>& tets,
-            const std::vector<Node>& nodes,
-            SolverData& solverData);
-        static void AccumulateElasticForces(
-            const std::vector<Tet>& tets,
-            const std::vector<TetFemCache>& tetFemCache,
-            const std::vector<Node>& nodes,
-            SolverData& solverData);
-        static void AccumulateCorotationalElasticForces(
-            const std::vector<Tet>& tets,
-            const std::vector<Node>& nodes,
-            SolverData& solverData);
-        static void AccumulateCorotationalElasticForces(
+            const std::vector<Vec3>& positions,
+            const std::vector<Vec3>& velocities,
+            std::vector<TetElementContribution>& outContributions);
+        static void ComputeElasticForces(
             const std::vector<Tet>& tets,
             const std::vector<TetFemCache>& tetFemCache,
-            const std::vector<Node>& nodes,
-            SolverData& solverData);
-        static bool AccumulateForces(
+            const std::vector<Vec3>& positions,
+            const std::vector<Vec3>& velocities,
+            std::vector<TetElementContribution>& outContributions);
+        static void ComputeCorotationalElasticForces(
+            const std::vector<Tet>& tets,
+            const std::vector<Vec3>& positions,
+            const std::vector<Vec3>& velocities,
+            std::vector<TetElementContribution>& outContributions);
+        static void ComputeCorotationalElasticForces(
+            const std::vector<Tet>& tets,
+            const std::vector<TetFemCache>& tetFemCache,
+            const std::vector<Vec3>& positions,
+            const std::vector<Vec3>& velocities,
+            std::vector<TetElementContribution>& outContributions);
+        static bool ComputeForces(
             FemModel femModel,
             const std::vector<Tet>& tets,
-            const std::vector<Node>& nodes,
-            SolverData& solverData);
-        static bool AccumulateForces(
+            const std::vector<Vec3>& positions,
+            const std::vector<Vec3>& velocities,
+            std::vector<TetElementContribution>& outContributions);
+        static bool ComputeForces(
             FemModel femModel,
             const std::vector<Tet>& tets,
             const std::vector<TetFemCache>& tetFemCache,
-            const std::vector<Node>& nodes,
-            SolverData& solverData);
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        static void SetPerformanceLogRecord(PerformanceLogRecord* record);
-        static PerformanceLogRecord* GetPerformanceLogRecord();
-#endif
+            const std::vector<Vec3>& positions,
+            const std::vector<Vec3>& velocities,
+            std::vector<TetElementContribution>& outContributions);
+
+        static void ComputeLumpedMass(
+            const Material& material,
+            const std::vector<Tet>& tets,
+            std::vector<TetMassContribution>& outContributions);
+       
+        static std::vector<std::pair<int, int>> BuildSparsePatternFromTetConnectivity(
+            const std::vector<Tet>& tets);
+
         static bool IsFemModelImplemented(FemModel femModel);
         static const char* GetNotImplementedMessage(FemModel femModel);
     };

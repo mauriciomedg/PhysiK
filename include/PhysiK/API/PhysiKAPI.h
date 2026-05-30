@@ -92,14 +92,60 @@ extern "C"
         PhysiK::WorldHandle world,
         int nodeIndex);
 
+    PHYSIK_API PhysiK::GeneratedTetMeshHandle PHYSIK_GenerateTetMesh(
+        const PhysiK::Vec3* positions,
+        int nodeCount,
+        const int* tetLocalNodeIndices,
+        int tetCount);
+
+    PHYSIK_API int PHYSIK_IsGeneratedTetMeshHandleValid(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API void PHYSIK_DestroyGeneratedTetMesh(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshVertexCount(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshTetCount(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshTetIndexCount(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshVertex(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
+        int vertexIndex,
+        float* outX,
+        float* outY,
+        float* outZ);
+
+    PHYSIK_API int PHYSIK_GetGeneratedTetMeshTetNodeIndex(
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
+        int tetIndexArrayIndex,
+        int* outNodeIndex);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshComponent(
         PhysiK::WorldHandle world,
-        const int* nodeIndices,
-        int nodeCount,
-        const int* tetNodeIndices,
-        int tetCount,
-        const PhysikMaterialDesc* material,
-        int femModel);
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle);
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshPhysicsComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::GeneratedTetMeshHandle generatedTetMeshHandle,
+        const PhysikMaterialDesc* material);
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeBeginIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle);
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle);
+
+    PHYSIK_API int PHYSIK_GetTetMeshGlobalNodeIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMeshPhysicsHandle,
+        int localNodeIndex);
 
     PHYSIK_API void PHYSIK_SetTetMeshMaterial(
         PhysiK::WorldHandle world,
@@ -112,6 +158,79 @@ extern "C"
         float y,
         float z,
         float radius);
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceExtractionComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle hostTetMesh);
+
+    PHYSIK_API int PHYSIK_GetSurfaceTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtraction);
+
+    PHYSIK_API int PHYSIK_CopySurfaceTriangleIndices(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtraction,
+        int* outIndices,
+        int maxIndexCount);
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceVisualComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceExtractionHandle);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualVertexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualTriangleIndexCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualNormalCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualVertex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int visualVertexIndex,
+        float* outX,
+        float* outY,
+        float* outZ);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualTriangleIndex(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int triangleIndexArrayIndex,
+        int* outIndex);
+
+    PHYSIK_API int PHYSIK_GetSurfaceVisualNormal(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle surfaceVisualHandle,
+        int visualNormalIndex,
+        float* outX,
+        float* outY,
+        float* outZ);
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateTetMeshMapperComponent(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle sourceTetMesh,
+        PhysiK::ComponentHandle destinationTetMesh);
+
+    PHYSIK_API int PHYSIK_SetTetMeshLocalCurrentPosition(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMesh,
+        int localNodeIndex,
+        float x,
+        float y,
+        float z);
+
+    PHYSIK_API int PHYSIK_GetTetMeshLocalCurrentPosition(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle tetMesh,
+        int localNodeIndex,
+        float* outX,
+        float* outY,
+        float* outZ);
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateVisualMeshComponent(
         PhysiK::WorldHandle world,
@@ -170,6 +289,10 @@ extern "C"
         PhysiK::ComponentHandle component);
 
     PHYSIK_API int PHYSIK_GetTetMeshTetCount(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle component);
+
+    PHYSIK_API int PHYSIK_GetTetMeshNodeCount(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle component);
 
