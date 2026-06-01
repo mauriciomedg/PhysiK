@@ -10,7 +10,7 @@ namespace PhysiK
     struct ConjugateGradientSettings
     {
         int maxIterations = 128;
-        float tolerance = 1.0e-4f;
+        float tolerance = 1.0e-3f;
         bool useJacobiPreconditioner = true;
     };
 
@@ -33,24 +33,6 @@ namespace PhysiK
         std::vector<int> cachedColumnIndex;
         int cachedBlockCount = -1;
     };
-
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-    struct ConjugateGradientProfileData
-    {
-        double totalSolveMilliseconds = 0.0;
-        double sparseMatrixMultiplyMilliseconds = 0.0;
-        double dotProductMilliseconds = 0.0;
-        double vectorUpdateMilliseconds = 0.0;
-        double preconditionerSetupMilliseconds = 0.0;
-        double preconditionerApplyMilliseconds = 0.0;
-        int iterations = 0;
-        float residualNorm = 0.0f;
-        bool converged = false;
-    };
-
-    PHYSIK_API void ResetConjugateGradientProfile();
-    PHYSIK_API ConjugateGradientProfileData GetConjugateGradientProfile();
-#endif
 
     PHYSIK_API ConjugateGradientResult SolveConjugateGradient(
         const SparseBlockMatrix& matrix,
