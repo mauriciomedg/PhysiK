@@ -2265,7 +2265,7 @@ void ConjugateGradientSettingsAndDiagnosticsAreExposedThroughNativeApi()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
 
-    assert(NearlyEqual(PHYSIK_GetConjugateGradientTolerance(world), 1.0e-3f, 1.0e-8f));
+    assert(NearlyEqual(PHYSIK_GetConjugateGradientTolerance(world), 1.0e-4f, 1.0e-8f));
     assert(PHYSIK_GetConjugateGradientMaxIterations(world) == 128);
 
     PHYSIK_SetConjugateGradientTolerance(world, 1.0e-4f);
