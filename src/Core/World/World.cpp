@@ -20,6 +20,11 @@ namespace PhysiK
             return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
         }
 
+        constexpr float MinConjugateGradientTolerance = 1.0e-8f;
+        constexpr float MaxConjugateGradientTolerance = 1.0e-1f;
+        constexpr int MinConjugateGradientMaxIterations = 1;
+        constexpr int MaxConjugateGradientMaxIterations = 1024;
+
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         void AddTopologyCounts(
             const std::vector<std::unique_ptr<Component>>& components,
@@ -237,6 +242,52 @@ namespace PhysiK
     SolverMode World::GetSolverMode() const
     {
         return solverMode;
+    }
+
+    void World::SetConjugateGradientTolerance(float tolerance)
+    {
+        if (!std::isfinite(tolerance))
+        {
+            return;
+        }
+
+        conjugateGradientSettings.tolerance = std::clamp(
+            tolerance,
+            MinConjugateGradientTolerance,
+            MaxConjugateGradientTolerance);
+    }
+
+    float World::GetConjugateGradientTolerance() const
+    {
+        return conjugateGradientSettings.tolerance;
+    }
+
+    void World::SetConjugateGradientMaxIterations(int maxIterations)
+    {
+        conjugateGradientSettings.maxIterations = std::clamp(
+            maxIterations,
+            MinConjugateGradientMaxIterations,
+            MaxConjugateGradientMaxIterations);
+    }
+
+    int World::GetConjugateGradientMaxIterations() const
+    {
+        return conjugateGradientSettings.maxIterations;
+    }
+
+    int World::GetLastConjugateGradientIterations() const
+    {
+        return lastConjugateGradientResult.iterations;
+    }
+
+    float World::GetLastConjugateGradientResidualNorm() const
+    {
+        return lastConjugateGradientResult.residualNorm;
+    }
+
+    bool World::DidLastConjugateGradientSolveConverge() const
+    {
+        return lastConjugateGradientResult.converged;
     }
 
     void World::EnablePerformanceLogging(bool enabled)
@@ -651,7 +702,12 @@ namespace PhysiK
             ResetSparseBlockMatrixTiming();
             SetSparseBlockMatrixTimingEnabled(true);
         }
-        const bool solved = solverData.SolveImplicitLinearSystem();
+        const bool solved =
+            solverData.SolveImplicitLinearSystem(conjugateGradientSettings);
+        const LinearSolveResult& result = solverData.GetLastLinearSolveResult();
+        lastConjugateGradientResult.iterations = result.iterations;
+        lastConjugateGradientResult.residualNorm = result.residualNorm;
+        lastConjugateGradientResult.converged = result.converged;
         if (performanceRecord != nullptr)
         {
             SetSparseBlockMatrixTimingEnabled(false);
@@ -667,7 +723,13 @@ namespace PhysiK
     bool World::SolveImplicitLinearSystem(SolverData& solverData, float dt)
     {
         (void)dt;
-        return solverData.SolveImplicitLinearSystem();
+        const bool solved =
+            solverData.SolveImplicitLinearSystem(conjugateGradientSettings);
+        const LinearSolveResult& result = solverData.GetLastLinearSolveResult();
+        lastConjugateGradientResult.iterations = result.iterations;
+        lastConjugateGradientResult.residualNorm = result.residualNorm;
+        lastConjugateGradientResult.converged = result.converged;
+        return solved;
     }
 #endif
 

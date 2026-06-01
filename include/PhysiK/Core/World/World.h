@@ -13,6 +13,7 @@
 #include "PhysiK/Core/PhysicsConnections/PhysicsConnection.h"
 #include "PhysiK/Core/PhysicsConnections/PointConnection.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
+#include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/PhysicsData/Node.h"
 
@@ -49,6 +50,13 @@ namespace PhysiK
         int GetSubstepCount() const;
         void SetSolverMode(SolverMode mode);
         SolverMode GetSolverMode() const;
+        void SetConjugateGradientTolerance(float tolerance);
+        float GetConjugateGradientTolerance() const;
+        void SetConjugateGradientMaxIterations(int maxIterations);
+        int GetConjugateGradientMaxIterations() const;
+        int GetLastConjugateGradientIterations() const;
+        float GetLastConjugateGradientResidualNorm() const;
+        bool DidLastConjugateGradientSolveConverge() const;
         void EnablePerformanceLogging(bool enabled);
         void SetPerformanceLogPath(const char* path);
         void SetGravity(const Vec3& value);
@@ -127,6 +135,8 @@ namespace PhysiK
         Vec3 gravity;
         int substepCount = 1;
         SolverMode solverMode = SolverMode::Explicit;
+        ConjugateGradientSettings conjugateGradientSettings;
+        ConjugateGradientResult lastConjugateGradientResult;
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
         std::uint64_t frameIndex = 0;
         PerformanceLogger performanceLogger;
