@@ -315,15 +315,19 @@ extern "C"
         return 0.0f;
     }
 
-    PHYSIK_API bool PHYSIK_DidLastConjugateGradientSolveConverge(
+    PHYSIK_API int PHYSIK_DidLastConjugateGradientSolveConverge(
         PhysiK::WorldHandle world)
     {
-        if (PhysiK::World* worldPtr = AsWorld(world))
+        const PhysiK::World* resolvedWorld = AsWorld(world);
+
+        if (resolvedWorld == nullptr)
         {
-            return worldPtr->DidLastConjugateGradientSolveConverge();
+            return 0;
         }
 
-        return false;
+        return resolvedWorld->DidLastConjugateGradientSolveConverge()
+            ? 1
+            : 0;
     }
 
     PHYSIK_API void PHYSIK_EnablePerformanceLogging(

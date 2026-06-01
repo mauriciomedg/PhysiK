@@ -74,7 +74,7 @@ extern "C"
         PhysiK::WorldHandle world);
     PHYSIK_API float PHYSIK_GetLastConjugateGradientResidualNorm(
         PhysiK::WorldHandle world);
-    PHYSIK_API bool PHYSIK_DidLastConjugateGradientSolveConverge(
+    PHYSIK_API int PHYSIK_DidLastConjugateGradientSolveConverge(
         PhysiK::WorldHandle world);
     PHYSIK_API void PHYSIK_EnablePerformanceLogging(
         PhysiK::WorldHandle world,
