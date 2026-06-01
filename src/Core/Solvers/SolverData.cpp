@@ -147,7 +147,21 @@ namespace PhysiK
         const LinearSolveResult result =
             GetCurrentLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
         lastLinearSolveResult = result;
-        return lastLinearSolveResult.converged && deltaVelocity.size() == dimension;
+
+        if (deltaVelocity.size() != dimension)
+        {
+            return false;
+        }
+
+        for (float value : deltaVelocity)
+        {
+            if (!IsFinite(value))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     const LinearSolveResult& SolverData::GetLastLinearSolveResult() const
