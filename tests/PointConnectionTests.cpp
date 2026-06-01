@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -2204,6 +2205,105 @@ void ConjugateGradientSolvesCoupledSparseSystem()
     }
 }
 
+void ConjugateGradientRejectsInvalidSettings()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(0, 0, DiagonalBlock(1.0f));
+
+    const std::vector<float> rhs = {1.0f, 0.0f, 0.0f};
+    std::vector<float> solution;
+    PhysiK::ConjugateGradientSettings settings;
+
+    settings.maxIterations = 0;
+    settings.tolerance = 1.0e-6f;
+    PhysiK::ConjugateGradientResult result =
+        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+    assert(!result.converged);
+    assert(solution.empty());
+
+    settings.maxIterations = 8;
+    settings.tolerance = 0.0f;
+    result = PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+    assert(!result.converged);
+    assert(solution.empty());
+
+    settings.tolerance = std::numeric_limits<float>::infinity();
+    result = PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+    assert(!result.converged);
+    assert(solution.empty());
+}
+
+void ConjugateGradientFailsOnNonPositiveDenominator()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(0, 0, DiagonalBlock(-1.0f));
+
+    const std::vector<float> rhs = {1.0f, 0.0f, 0.0f};
+    std::vector<float> solution;
+    PhysiK::ConjugateGradientSettings settings;
+    settings.maxIterations = 8;
+    settings.tolerance = 1.0e-6f;
+    settings.useJacobiPreconditioner = false;
+
+    PhysiK::ConjugateGradientResult result =
+        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+    assert(!result.converged);
+    assert(solution.empty());
+
+    matrix.Clear();
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(0, 0, DiagonalBlock(1.0e-13f));
+
+    result = PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+    assert(!result.converged);
+    assert(solution.empty());
+}
+
+void ConjugateGradientSettingsAndDiagnosticsAreExposedThroughNativeApi()
+{
+    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
+
+    assert(NearlyEqual(PHYSIK_GetConjugateGradientTolerance(world), 1.0e-4f, 1.0e-8f));
+    assert(PHYSIK_GetConjugateGradientMaxIterations(world) == 128);
+
+    PHYSIK_SetConjugateGradientTolerance(world, 1.0e-4f);
+    assert(NearlyEqual(PHYSIK_GetConjugateGradientTolerance(world), 1.0e-4f, 1.0e-8f));
+
+    PHYSIK_SetConjugateGradientTolerance(world, std::numeric_limits<float>::infinity());
+    assert(NearlyEqual(PHYSIK_GetConjugateGradientTolerance(world), 1.0e-4f, 1.0e-8f));
+
+    PHYSIK_SetConjugateGradientTolerance(world, 0.0f);
+    assert(NearlyEqual(PHYSIK_GetConjugateGradientTolerance(world), 1.0e-8f, 1.0e-12f));
+
+    PHYSIK_SetConjugateGradientTolerance(world, 1.0f);
+    assert(NearlyEqual(PHYSIK_GetConjugateGradientTolerance(world), 1.0e-1f, 1.0e-6f));
+
+    PHYSIK_SetConjugateGradientMaxIterations(world, 0);
+    assert(PHYSIK_GetConjugateGradientMaxIterations(world) == 1);
+
+    PHYSIK_SetConjugateGradientMaxIterations(world, 4096);
+    assert(PHYSIK_GetConjugateGradientMaxIterations(world) == 1024);
+
+    PHYSIK_SetConjugateGradientTolerance(world, 1.0e-4f);
+    PHYSIK_SetConjugateGradientMaxIterations(world, 16);
+    PHYSIK_SetGravity(world, 1.0f, 0.0f, 0.0f);
+    PHYSIK_SetSolverMode(world, 1);
+    PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f);
+    PHYSIK_Step(world, 0.1f);
+
+    assert(PHYSIK_DidLastConjugateGradientSolveConverge(world));
+    assert(PHYSIK_GetLastConjugateGradientIterations(world) > 0);
+    assert(std::isfinite(PHYSIK_GetLastConjugateGradientResidualNorm(world)));
+
+    PHYSIK_DestroyWorld(world);
+
+    assert(PHYSIK_GetConjugateGradientMaxIterations(nullptr) == 0);
+    assert(PHYSIK_GetLastConjugateGradientIterations(nullptr) == 0);
+    assert(!PHYSIK_DidLastConjugateGradientSolveConverge(nullptr));
+}
+
 void CurrentLinearSolverSolvesKnownSparseSystem()
 {
     PhysiK::SparseBlockMatrix matrix;
@@ -2246,9 +2346,41 @@ void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
     solverData.AddNodeForce(0, PhysiK::Vec3{1.0f, 0.0f, 0.0f});
 
     assert(!solverData.PrecomputeImplicitSolve(nodes, 0.01f));
-    assert(!solverData.SolveImplicitLinearSystem());
+    assert(!solverData.SolveImplicitLinearSystem(PhysiK::ConjugateGradientSettings{}));
     assert(solverData.GetDeltaVelocity().empty());
     assert(solverData.GetDynamicBlockForNode(0) < 0);
+}
+
+void SolverDataAcceptsFiniteUnconvergedCgApproximation()
+{
+    std::vector<PhysiK::Node> nodes(2);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+    nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
+
+    PhysiK::SolverData solverData;
+    solverData.AddNodeMass(0, 1.0f);
+    solverData.AddNodeMass(1, 1.0f);
+    solverData.AddNodeForce(0, PhysiK::Vec3{1.0f, 0.0f, 0.0f});
+    solverData.AddNodeForce(1, PhysiK::Vec3{0.0f, 0.0f, 0.0f});
+    solverData.AddStiffnessBlock(0, 0, DiagonalBlock(1.0f));
+    solverData.AddStiffnessBlock(0, 1, DiagonalBlock(-0.25f));
+    solverData.AddStiffnessBlock(1, 0, DiagonalBlock(-0.25f));
+    solverData.AddStiffnessBlock(1, 1, DiagonalBlock(1.0f));
+
+    assert(solverData.PrecomputeImplicitSolve(nodes, 1.0f));
+
+    PhysiK::ConjugateGradientSettings settings;
+    settings.maxIterations = 1;
+    settings.tolerance = 1.0e-8f;
+    settings.useJacobiPreconditioner = false;
+
+    assert(solverData.SolveImplicitLinearSystem(settings));
+    assert(!solverData.GetLastLinearSolveResult().converged);
+    assert(solverData.GetDeltaVelocity().size() == 6);
+    for (float value : solverData.GetDeltaVelocity())
+    {
+        assert(std::isfinite(value));
+    }
 }
 
 void PerformanceLoggingWritesCsvForImplicitStep()
@@ -4366,8 +4498,12 @@ int main()
     TetMeshComponentMapsLocalFemPatternToGlobalSolverNodes();
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
+    ConjugateGradientRejectsInvalidSettings();
+    ConjugateGradientFailsOnNonPositiveDenominator();
+    ConjugateGradientSettingsAndDiagnosticsAreExposedThroughNativeApi();
     CurrentLinearSolverSolvesKnownSparseSystem();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
+    SolverDataAcceptsFiniteUnconvergedCgApproximation();
     PerformanceLoggingWritesCsvForImplicitStep();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();

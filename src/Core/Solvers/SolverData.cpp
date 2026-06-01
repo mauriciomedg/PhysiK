@@ -131,7 +131,7 @@ namespace PhysiK
         return AssembleImplicitMatrixAndRhs(nodes, dt);
     }
 
-    bool SolverData::SolveImplicitLinearSystem()
+    bool SolverData::SolveImplicitLinearSystem(const ConjugateGradientSettings& cgSettings)
     {
         const std::size_t dimension = static_cast<std::size_t>(dynamicBlockCount * 3);
         if (dimension == 0)
@@ -140,14 +140,33 @@ namespace PhysiK
         }
 
         LinearSolveSettings settings;
-        settings.maxIterations = std::max(128, dynamicBlockCount * 12);
-        settings.tolerance = 1.0e-5f;
-        settings.useJacobiPreconditioner = true;
+        settings.maxIterations = cgSettings.maxIterations;
+        settings.tolerance = cgSettings.tolerance;
+        settings.useJacobiPreconditioner = cgSettings.useJacobiPreconditioner;
 
         const LinearSolveResult result =
             GetCurrentLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
         lastLinearSolveResult = result;
-        return lastLinearSolveResult.converged && deltaVelocity.size() == dimension;
+
+        if (deltaVelocity.size() != dimension)
+        {
+            return false;
+        }
+
+        for (float value : deltaVelocity)
+        {
+            if (!IsFinite(value))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    const LinearSolveResult& SolverData::GetLastLinearSolveResult() const
+    {
+        return lastLinearSolveResult;
     }
 
     int SolverData::GetLastCgIterationCount() const

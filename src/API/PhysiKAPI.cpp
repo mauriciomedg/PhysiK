@@ -251,6 +251,85 @@ extern "C"
         }
     }
 
+    PHYSIK_API void PHYSIK_SetConjugateGradientTolerance(
+        PhysiK::WorldHandle world,
+        float tolerance)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetConjugateGradientTolerance(tolerance);
+        }
+    }
+
+    PHYSIK_API float PHYSIK_GetConjugateGradientTolerance(
+        PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetConjugateGradientTolerance();
+        }
+
+        return 0.0f;
+    }
+
+    PHYSIK_API void PHYSIK_SetConjugateGradientMaxIterations(
+        PhysiK::WorldHandle world,
+        int maxIterations)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            worldPtr->SetConjugateGradientMaxIterations(maxIterations);
+        }
+    }
+
+    PHYSIK_API int PHYSIK_GetConjugateGradientMaxIterations(
+        PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetConjugateGradientMaxIterations();
+        }
+
+        return 0;
+    }
+
+    PHYSIK_API int PHYSIK_GetLastConjugateGradientIterations(
+        PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetLastConjugateGradientIterations();
+        }
+
+        return 0;
+    }
+
+    PHYSIK_API float PHYSIK_GetLastConjugateGradientResidualNorm(
+        PhysiK::WorldHandle world)
+    {
+        if (PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetLastConjugateGradientResidualNorm();
+        }
+
+        return 0.0f;
+    }
+
+    PHYSIK_API int PHYSIK_DidLastConjugateGradientSolveConverge(
+        PhysiK::WorldHandle world)
+    {
+        const PhysiK::World* resolvedWorld = AsWorld(world);
+
+        if (resolvedWorld == nullptr)
+        {
+            return 0;
+        }
+
+        return resolvedWorld->DidLastConjugateGradientSolveConverge()
+            ? 1
+            : 0;
+    }
+
     PHYSIK_API void PHYSIK_EnablePerformanceLogging(
         PhysiK::WorldHandle world,
         int enabled)

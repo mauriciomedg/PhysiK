@@ -229,8 +229,9 @@ namespace PhysiK
         if (rhs.size() != dimension ||
             matrix.rowStart.size() != static_cast<std::size_t>(blockCount + 1) ||
             !IsFinite(rhs) ||
-            settings.maxIterations < 0 ||
-            !IsFinite(settings.tolerance))
+            settings.maxIterations <= 0 ||
+            !IsFinite(settings.tolerance) ||
+            settings.tolerance <= 0.0f)
         {
             return result;
         }
@@ -259,8 +260,7 @@ namespace PhysiK
 
         const float rhsNorm = std::max(1.0f, Norm(rhs));
 
-        const float targetResidual =
-            std::max(0.0f, settings.tolerance) * rhsNorm;
+        const float targetResidual = settings.tolerance * rhsNorm;
 
         if (result.residualNorm <= targetResidual)
         {
@@ -324,7 +324,7 @@ namespace PhysiK
                     scratch.matrixDirection);
 
             if (!IsFinite(denominator) ||
-                std::abs(denominator) <= DenominatorTolerance)
+                denominator <= DenominatorTolerance)
             {
                 solution.clear();
                 result.converged = false;

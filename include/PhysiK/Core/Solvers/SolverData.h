@@ -70,7 +70,8 @@ namespace PhysiK
         float GetAssembledMassForNode(int nodeIndex) const;
 
         bool PrecomputeImplicitSolve(const std::vector<Node>& nodes, float dt);
-        bool SolveImplicitLinearSystem();
+        bool SolveImplicitLinearSystem(const ConjugateGradientSettings& settings);
+        const LinearSolveResult& GetLastLinearSolveResult() const;
         int GetLastCgIterationCount() const;
         float GetLastCgResidualNorm() const;
 

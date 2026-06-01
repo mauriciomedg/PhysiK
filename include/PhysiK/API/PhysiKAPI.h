@@ -60,6 +60,22 @@ extern "C"
     PHYSIK_API void PHYSIK_Step(PhysiK::WorldHandle world, float dt);
     PHYSIK_API void PHYSIK_SetSubstepCount(PhysiK::WorldHandle world, int substepCount);
     PHYSIK_API void PHYSIK_SetSolverMode(PhysiK::WorldHandle world, int mode);
+    PHYSIK_API void PHYSIK_SetConjugateGradientTolerance(
+        PhysiK::WorldHandle world,
+        float tolerance);
+    PHYSIK_API float PHYSIK_GetConjugateGradientTolerance(
+        PhysiK::WorldHandle world);
+    PHYSIK_API void PHYSIK_SetConjugateGradientMaxIterations(
+        PhysiK::WorldHandle world,
+        int maxIterations);
+    PHYSIK_API int PHYSIK_GetConjugateGradientMaxIterations(
+        PhysiK::WorldHandle world);
+    PHYSIK_API int PHYSIK_GetLastConjugateGradientIterations(
+        PhysiK::WorldHandle world);
+    PHYSIK_API float PHYSIK_GetLastConjugateGradientResidualNorm(
+        PhysiK::WorldHandle world);
+    PHYSIK_API int PHYSIK_DidLastConjugateGradientSolveConverge(
+        PhysiK::WorldHandle world);
     PHYSIK_API void PHYSIK_EnablePerformanceLogging(
         PhysiK::WorldHandle world,
         int enabled);
