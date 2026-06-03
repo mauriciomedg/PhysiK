@@ -87,12 +87,7 @@ namespace PhysiK
 #else
         void BuildSolverData(SolverData& solverData, float dt);
 #endif
-        void AddDefaultNodeMasses(SolverData& solverData);
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        void AddDefaultNodeMasses(
-            SolverData& solverData,
-            PerformanceLogRecord* performanceRecord);
-#endif
+        void ValidateNodeMasses(const SolverData& solverData) const;
         void AddGravityForces(SolverData& solverData);
         void AssembleConnectionSystems(SolverData& solverData, float dt);
         void AssembleComponentSystems(SolverData& solverData, float dt);

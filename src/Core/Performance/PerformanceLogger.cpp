@@ -58,7 +58,7 @@ namespace PhysiK
             << record.buildSolverDataMs << ','
             << record.assembleSystemMs << ','
             << record.assembleComponentsMs << ','
-            << record.addDefaultMassesMs << ','
+            << record.assembleMassesMs << ','
             << record.addGravityForcesMs << ','
             << record.assembleConnectionsMs << ','
             << record.assembleComponentCount << ','
@@ -70,10 +70,7 @@ namespace PhysiK
             << record.assembleTetStiffnessMs << ','
             << record.assembleMatrixAddBlockMs << ','
             << record.assembleRhsWriteMs << ','
-            << record.addDefaultMassesTotalMs << ','
-            << record.addDefaultMassLoopMs << ','
-            << record.addDefaultMassMatrixWriteMs << ','
-            << record.addDefaultMassDynamicNodeCount << ','
+            << record.assembleMassesTotalMs << ','
             << record.computeDeformationGradientMs << ','
             << record.extractRotationPolarMs << ','
             << record.averageExtractRotationPolarMs << ','
@@ -125,13 +122,12 @@ namespace PhysiK
             file
                 << "frameIndex,substepIndex,dt,totalStepMs,"
                 << "generateCollisionConnectionsMs,buildSolverDataMs,assembleSystemMs,"
-                << "assembleComponentsMs,addDefaultMassesMs,addGravityForcesMs,"
+                << "assembleComponentsMs,assembleMassesMs,addGravityForcesMs,"
                 << "assembleConnectionsMs,"
                 << "assembleComponentCount,assembleTetCount,assembleComponentTotalMs,"
                 << "assembleLinearFemMs,assembleCorotationalFemMs,assembleTetForceMs,"
                 << "assembleTetStiffnessMs,assembleMatrixAddBlockMs,assembleRhsWriteMs,"
-                << "addDefaultMassesTotalMs,addDefaultMassLoopMs,"
-                << "addDefaultMassMatrixWriteMs,addDefaultMassDynamicNodeCount,"
+                << "assembleMassesTotalMs,"
                 << "computeDeformationGradientMs,extractRotationPolarMs,"
                 << "averageExtractRotationPolarMs,rotateElementStiffnessMs,"
                 << "computeElasticForcesMs,tetMatrixWriteMs,polarCallCount,"
