@@ -2735,11 +2735,11 @@ void SmallTetMeshSimulatesAfterTetDeactivation()
     PHYSIK_DestroyWorld(world);
 }
 
-void TetMeshComponentDefaultFemModelIsLinear()
+void TetMeshComponentDefaultFemModelIsCorotational()
 {
     PhysiK::TetMeshPhysicsComponent component;
 
-    assert(component.GetFemModel() == PhysiK::FemModel::Linear);
+    assert(component.GetFemModel() == PhysiK::FemModel::Corotational);
 }
 
 void TetMeshComponentStoresSelectedFemModel()
@@ -4510,7 +4510,7 @@ int main()
     DeactivatingTetDoesNotDirtySparsePattern();
     SmallTetMeshSimulatesAfterTetDeactivation();
     TetMeshComponentStoresGeometryWithoutWorldNodes();
-    TetMeshComponentDefaultFemModelIsLinear();
+    TetMeshComponentDefaultFemModelIsCorotational();
     TetMeshComponentStoresSelectedFemModel();
     EventSystemDeliversSubscribedEventsOnlyOnce();
     TopologyMeshComponentDeclaresEventsAndClearsDirtyFlag();

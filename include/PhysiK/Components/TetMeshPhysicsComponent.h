@@ -13,7 +13,7 @@ namespace PhysiK
     struct TetMeshPhysicsComponentDesc
     {
         Material material;
-        FemModel femModel = FemModel::Linear;
+        FemModel femModel = FemModel::Corotational;
     };
 
     class PHYSIK_API TetMeshPhysicsComponent : public TetMeshComponent
@@ -35,7 +35,7 @@ namespace PhysiK
         std::vector<TetFemCache> tetFemCache;
 
         Material material;
-        FemModel selectedFemModel = FemModel::Linear;
+        FemModel selectedFemModel = FemModel::Corotational;
         FEMModel femModel;
         SparseBlockMatrix femSparseMatrix;
         bool femSparsePatternDirty = true;
