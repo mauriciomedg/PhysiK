@@ -9,6 +9,7 @@ namespace PhysiK
         Vec3 position;
         Vec3 restPosition;
         Vec3 velocity;
+        bool active = true;
         bool fixed = false;
     };
 }

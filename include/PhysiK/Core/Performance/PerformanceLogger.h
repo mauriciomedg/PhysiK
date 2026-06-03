@@ -19,7 +19,7 @@ namespace PhysiK
         double buildSolverDataMs = 0.0;
         double assembleSystemMs = 0.0;
         double assembleComponentsMs = 0.0;
-        double addDefaultMassesMs = 0.0;
+        double assembleMassesMs = 0.0;
         double addGravityForcesMs = 0.0;
         double assembleConnectionsMs = 0.0;
         int assembleComponentCount = 0;
@@ -31,10 +31,7 @@ namespace PhysiK
         double assembleTetStiffnessMs = 0.0;
         double assembleMatrixAddBlockMs = 0.0;
         double assembleRhsWriteMs = 0.0;
-        double addDefaultMassesTotalMs = 0.0;
-        double addDefaultMassLoopMs = 0.0;
-        double addDefaultMassMatrixWriteMs = 0.0;
-        int addDefaultMassDynamicNodeCount = 0;
+        double assembleMassesTotalMs = 0.0;
         double computeDeformationGradientMs = 0.0;
         double extractRotationPolarMs = 0.0;
         double averageExtractRotationPolarMs = 0.0;

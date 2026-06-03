@@ -197,7 +197,9 @@ namespace PhysiK
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
             const float mass = assembledMasses[static_cast<std::size_t>(nodeIndex)];
-            if (!nodes[static_cast<std::size_t>(nodeIndex)].fixed &&
+            const Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
+            if (node.active &&
+                !node.fixed &&
                 std::isfinite(mass) && mass > 0.0f)
             {
                 nodeToDynamicBlock[static_cast<std::size_t>(nodeIndex)] = dynamicBlockCount;

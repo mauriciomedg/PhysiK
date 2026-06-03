@@ -5,6 +5,8 @@
 #include <cmath>
 #include <memory>
 #include <optional>
+#include <stdexcept>
+#include <string>
 
 namespace PhysiK
 {
@@ -486,17 +488,19 @@ namespace PhysiK
                 performanceRecord->assembleComponentsMs;
         }
 
-        std::optional<PerformanceTimer> defaultMassTimer;
+        std::optional<PerformanceTimer> massAssemblyTimer;
         if (logPerformance)
         {
-            defaultMassTimer.emplace();
+            massAssemblyTimer.emplace();
         }
-        AddDefaultNodeMasses(solverData, performanceRecord);
+        solverData.AssembleMasses(static_cast<int>(nodes.size()));
+        ValidateNodeMasses(solverData);
         if (logPerformance)
         {
-            performanceRecord->addDefaultMassesMs = defaultMassTimer->ElapsedMilliseconds();
-            performanceRecord->addDefaultMassesTotalMs =
-                performanceRecord->addDefaultMassesMs;
+            performanceRecord->assembleMassesMs =
+                massAssemblyTimer->ElapsedMilliseconds();
+            performanceRecord->assembleMassesTotalMs =
+                performanceRecord->assembleMassesMs;
         }
 
         std::optional<PerformanceTimer> gravityTimer;
@@ -522,7 +526,7 @@ namespace PhysiK
                 connectionTimer->ElapsedMilliseconds();
             performanceRecord->assembleSystemMs =
                 performanceRecord->assembleComponentsMs +
-                performanceRecord->addDefaultMassesMs +
+                performanceRecord->assembleMassesMs +
                 performanceRecord->addGravityForcesMs +
                 performanceRecord->assembleConnectionsMs;
             performanceRecord->buildSolverDataMs = buildTimer->ElapsedMilliseconds();
@@ -532,81 +536,41 @@ namespace PhysiK
     void World::BuildSolverData(SolverData& solverData, float dt)
     {
         AssembleComponentSystems(solverData, dt);
-        AddDefaultNodeMasses(solverData);
+        solverData.AssembleMasses(static_cast<int>(nodes.size()));
+        ValidateNodeMasses(solverData);
         AddGravityForces(solverData);
         AssembleConnectionSystems(solverData, dt);
     }
 #endif
 
-    void World::AddDefaultNodeMasses(SolverData& solverData)
+    void World::ValidateNodeMasses(const SolverData& solverData) const
     {
-        solverData.AssembleMasses(static_cast<int>(nodes.size()));
-
         for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
-            if (nodes[static_cast<std::size_t>(i)].fixed ||
-                solverData.HasNodeMassContribution(i) ||
-                solverData.GetAssembledMassForNode(i) > 0.0f)
+            const Node& node = nodes[static_cast<std::size_t>(i)];
+            if (!node.active || node.fixed)
             {
                 continue;
             }
 
-            solverData.AddNodeMass(i, 1.0f);
-        }
-    }
-
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-    void World::AddDefaultNodeMasses(
-        SolverData& solverData,
-        PerformanceLogRecord* performanceRecord)
-    {
-        const bool logPerformance = performanceRecord != nullptr;
-        std::optional<PerformanceTimer> matrixWriteTimer;
-        if (logPerformance)
-        {
-            matrixWriteTimer.emplace();
-        }
-        solverData.AssembleMasses(static_cast<int>(nodes.size()));
-        if (logPerformance)
-        {
-            performanceRecord->addDefaultMassMatrixWriteMs =
-                matrixWriteTimer->ElapsedMilliseconds();
-        }
-
-        std::optional<PerformanceTimer> loopTimer;
-        if (logPerformance)
-        {
-            loopTimer.emplace();
-        }
-        int dynamicNodeCount = 0;
-        for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
-        {
-            if (nodes[static_cast<std::size_t>(i)].fixed ||
-                solverData.HasNodeMassContribution(i) ||
-                solverData.GetAssembledMassForNode(i) > 0.0f)
+            const float mass = solverData.GetAssembledMassForNode(i);
+            if (std::isfinite(mass) && mass > 0.0f)
             {
                 continue;
             }
 
-            solverData.AddNodeMass(i, 1.0f);
-            ++dynamicNodeCount;
-        }
-
-        if (logPerformance)
-        {
-            performanceRecord->addDefaultMassLoopMs = loopTimer->ElapsedMilliseconds();
-            performanceRecord->addDefaultMassDynamicNodeCount = dynamicNodeCount;
+            throw std::runtime_error(
+                "Non-fixed node has no physical mass contribution. nodeIndex=" +
+                std::to_string(i));
         }
     }
-#endif
 
     void World::AddGravityForces(SolverData& solverData)
     {
-        solverData.AssembleMasses(static_cast<int>(nodes.size()));
-
         for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
-            if (nodes[static_cast<std::size_t>(i)].fixed)
+            const Node& node = nodes[static_cast<std::size_t>(i)];
+            if (!node.active || node.fixed)
             {
                 continue;
             }
@@ -797,7 +761,8 @@ namespace PhysiK
         for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
             Node& node = nodes[static_cast<std::size_t>(i)];
-            if (node.fixed ||
+            if (!node.active ||
+                node.fixed ||
                 i >= static_cast<int>(masses.size()) ||
                 i >= static_cast<int>(forces.size()))
             {
@@ -827,6 +792,10 @@ namespace PhysiK
         return connection.node0 >= 0 && connection.node0 < nodeCount &&
             connection.node1 >= 0 && connection.node1 < nodeCount &&
             connection.node2 >= 0 && connection.node2 < nodeCount &&
-            connection.node3 >= 0 && connection.node3 < nodeCount;
+            connection.node3 >= 0 && connection.node3 < nodeCount &&
+            nodes[static_cast<std::size_t>(connection.node0)].active &&
+            nodes[static_cast<std::size_t>(connection.node1)].active &&
+            nodes[static_cast<std::size_t>(connection.node2)].active &&
+            nodes[static_cast<std::size_t>(connection.node3)].active;
     }
 }

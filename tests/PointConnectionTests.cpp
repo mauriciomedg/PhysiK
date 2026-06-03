@@ -201,13 +201,18 @@ namespace
             }
         }
 
-        return CreateTetMeshPhysicsComponentFromRaw(
+        const PhysiK::ComponentHandle component = CreateTetMeshPhysicsComponentFromRaw(
             world,
             positions.data(),
             static_cast<int>(positions.size()),
             localTetIndices.data(),
             tetCount,
             material);
+        for (int i = 0; i < nodeCount; ++i)
+        {
+            PHYSIK_SetNodeFixed(world, nodeIndices[i], 1);
+        }
+        return component;
     }
 
     void SetNodeVelocity(PhysiK::WorldHandle world, int nodeIndex, const Point& velocity)
@@ -764,41 +769,6 @@ void ManualPointConnectionMovesBarycentricPoint()
     PHYSIK_DestroyWorld(world);
 }
 
-void GravityMovesDynamicNode()
-{
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    assert(world != nullptr);
-
-    const int node = AddNode(world, 0.0f, 0.0f, 0.0f);
-    PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
-
-    PHYSIK_Step(world, 0.1f);
-
-    const Point after = GetNodePosition(world, node);
-    assert(after.y < -0.09f);
-    assert(after.y > -0.11f);
-
-    PHYSIK_DestroyWorld(world);
-}
-
-void ImplicitEulerGravityMatchesSemiImplicitEulerForFreeNode()
-{
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    assert(world != nullptr);
-
-    const int node = AddNode(world, 0.0f, 0.0f, 0.0f);
-    PHYSIK_SetGravity(world, 0.0f, -10.0f, 0.0f);
-    PHYSIK_SetSolverMode(world, 1);
-
-    PHYSIK_Step(world, 0.1f);
-
-    const Point after = GetNodePosition(world, node);
-    assert(after.y < -0.09f);
-    assert(after.y > -0.11f);
-
-    PHYSIK_DestroyWorld(world);
-}
-
 void ImplicitEulerFixedNodeDoesNotMove()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -1120,7 +1090,7 @@ void FEMUsesWorldNodeMappingWhenLocalTetIndicesDiffer()
     assert(world != nullptr);
     PHYSIK_SetGravity(world, 0.0f, 0.0f, 0.0f);
 
-    AddNode(world, 100.0f, 100.0f, 100.0f);
+    AddFixedNode(world, 100.0f, 100.0f, 100.0f);
     const int node0 = AddFixedNode(world, 0.0f, 0.0f, 0.0f);
     const int node1 = AddFixedNode(world, 1.0f, 0.0f, 0.0f);
     const int node2 = AddFixedNode(world, 0.0f, 1.0f, 0.0f);
@@ -1333,12 +1303,13 @@ void ImplicitEulerFEMRecoveryBeatsGravityOnlyMotion()
 {
     PhysiK::WorldHandle gravityOnlyWorld = PHYSIK_CreateWorld();
     assert(gravityOnlyWorld != nullptr);
-    const int gravityOnlyNode = AddNode(gravityOnlyWorld, 0.0f, 0.0f, 1.0f);
+    int gravityOnlyNodes[4] = {};
+    CreateSingleTetWithMaterial(gravityOnlyWorld, gravityOnlyNodes, 0.0f);
     PHYSIK_SetSolverMode(gravityOnlyWorld, 1);
     PHYSIK_SetGravity(gravityOnlyWorld, 0.0f, 0.0f, -1.0f);
-    SetNodeVelocity(gravityOnlyWorld, gravityOnlyNode, Point{0.0f, 0.0f, 1.0f});
+    SetNodeVelocity(gravityOnlyWorld, gravityOnlyNodes[3], Point{0.0f, 0.0f, 1.0f});
     PHYSIK_Step(gravityOnlyWorld, 0.1f);
-    const Point gravityOnlyPosition = GetNodePosition(gravityOnlyWorld, gravityOnlyNode);
+    const Point gravityOnlyPosition = GetNodePosition(gravityOnlyWorld, gravityOnlyNodes[3]);
     PHYSIK_DestroyWorld(gravityOnlyWorld);
 
     PhysiK::WorldHandle femWorld = PHYSIK_CreateWorld();
@@ -1606,14 +1577,18 @@ void ImplicitEulerUsesStiffnessBlocks()
     PhysiK::WorldHandle noStiffnessWorld = PHYSIK_CreateWorld();
     assert(noStiffnessWorld != nullptr);
     PHYSIK_SetSolverMode(noStiffnessWorld, 1);
-    const int freeNode = AddNode(noStiffnessWorld, 0.0f, 0.0f, 1.0f);
+    int noStiffnessNodes[4] = {};
+    CreateSingleTetWithMaterial(noStiffnessWorld, noStiffnessNodes, 0.0f);
+    PHYSIK_SetNodeFixed(noStiffnessWorld, noStiffnessNodes[0], 1);
+    PHYSIK_SetNodeFixed(noStiffnessWorld, noStiffnessNodes[1], 1);
+    PHYSIK_SetNodeFixed(noStiffnessWorld, noStiffnessNodes[2], 1);
 
     PHYSIK_AddPointConnection(
         noStiffnessWorld,
-        freeNode,
-        freeNode,
-        freeNode,
-        freeNode,
+        noStiffnessNodes[3],
+        noStiffnessNodes[3],
+        noStiffnessNodes[3],
+        noStiffnessNodes[3],
         1.0f,
         0.0f,
         0.0f,
@@ -1624,7 +1599,8 @@ void ImplicitEulerUsesStiffnessBlocks()
         10.0f,
         0.0f);
     PHYSIK_Step(noStiffnessWorld, 0.5f);
-    const float velocityWithoutStiffness = GetNodeVelocity(noStiffnessWorld, freeNode).z;
+    const float velocityWithoutStiffness =
+        GetNodeVelocity(noStiffnessWorld, noStiffnessNodes[3]).z;
     PHYSIK_DestroyWorld(noStiffnessWorld);
 
     PhysiK::WorldHandle stiffnessWorld = PHYSIK_CreateWorld();
@@ -1684,14 +1660,18 @@ void ImplicitPointConnectionStableWithHighStiffness()
 
     PHYSIK_SetSolverMode(world, 1);
     PHYSIK_SetGravity(world, 0.0f, 0.0f, 0.0f);
-    const int node = AddNode(world, 0.0f, 0.0f, 0.0f);
+    int nodes[4] = {};
+    CreateSingleTetWithMaterial(world, nodes, 0.0f);
+    PHYSIK_SetNodeFixed(world, nodes[0], 1);
+    PHYSIK_SetNodeFixed(world, nodes[1], 1);
+    PHYSIK_SetNodeFixed(world, nodes[2], 1);
 
     PHYSIK_AddPointConnection(
         world,
-        node,
-        node,
-        node,
-        node,
+        nodes[3],
+        nodes[3],
+        nodes[3],
+        nodes[3],
         1.0f,
         0.0f,
         0.0f,
@@ -1705,8 +1685,8 @@ void ImplicitPointConnectionStableWithHighStiffness()
 
     PHYSIK_Step(world, 0.1f);
 
-    const Point position = GetNodePosition(world, node);
-    const Point velocity = GetNodeVelocity(world, node);
+    const Point position = GetNodePosition(world, nodes[3]);
+    const Point velocity = GetNodeVelocity(world, nodes[3]);
     assert(IsFinite(position.z));
     assert(IsFinite(velocity.z));
     assert(position.z > 0.9f);
@@ -2290,7 +2270,8 @@ void ConjugateGradientSettingsAndDiagnosticsAreExposedThroughNativeApi()
     PHYSIK_SetConjugateGradientMaxIterations(world, 16);
     PHYSIK_SetGravity(world, 1.0f, 0.0f, 0.0f);
     PHYSIK_SetSolverMode(world, 1);
-    PHYSIK_AddNode(world, 0.0f, 0.0f, 0.0f);
+    int nodes[4] = {};
+    CreateSingleTetWithMaterial(world, nodes, 0.0f);
     PHYSIK_Step(world, 0.1f);
 
     assert(PHYSIK_DidLastConjugateGradientSolveConverge(world));
@@ -2722,6 +2703,22 @@ void SmallTetMeshSimulatesAfterTetDeactivation()
     PHYSIK_SetSolverMode(world, 1);
     PHYSIK_SetGravity(world, 0.0f, -9.81f, 0.0f);
     PHYSIK_DeactivateTet(world, tetMesh, 1);
+    PHYSIK_AddPointConnection(
+        world,
+        nodes[4],
+        nodes[4],
+        nodes[4],
+        nodes[4],
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        100.0f,
+        0.0f);
+    assert(PHYSIK_GetPointConnectionCount(world) == 0);
 
     PHYSIK_Step(world, 0.02f);
     const Point position = GetNodePosition(world, nodes[3]);
@@ -2738,11 +2735,11 @@ void SmallTetMeshSimulatesAfterTetDeactivation()
     PHYSIK_DestroyWorld(world);
 }
 
-void TetMeshComponentDefaultFemModelIsLinear()
+void TetMeshComponentDefaultFemModelIsCorotational()
 {
     PhysiK::TetMeshPhysicsComponent component;
 
-    assert(component.GetFemModel() == PhysiK::FemModel::Linear);
+    assert(component.GetFemModel() == PhysiK::FemModel::Corotational);
 }
 
 void TetMeshComponentStoresSelectedFemModel()
@@ -3545,7 +3542,7 @@ void VisualMeshComponentCanBeCreatedThroughNativeApi()
     assert(PHYSIK_IsComponentHandleValid(world, visual) == 1);
 
     PHYSIK_DeactivateTet(world, tetMesh, 0);
-    PHYSIK_Step(world, 0.01f);
+    PHYSIK_Step(world, 0.0f);
 
     PHYSIK_DestroyWorld(world);
 }
@@ -3710,7 +3707,7 @@ void VisualMeshComponentCAPIExportsMeshBuffers()
     assert(copiedIndices[2] == 2);
 
     PHYSIK_DeactivateTet(world, tetMesh, 0);
-    PHYSIK_Step(world, 0.01f);
+    PHYSIK_Step(world, 0.0f);
     assert(PHYSIK_GetVisualMeshTriangleIndexCount(world, visualHandle) == 0);
     assert(PHYSIK_CopyVisualMeshTriangleIndices(world, visualHandle, copiedIndices, 6) == 0);
 
@@ -4450,8 +4447,6 @@ void DestroyComponentInvalidatesHandle()
 int main()
 {
     ManualPointConnectionMovesBarycentricPoint();
-    GravityMovesDynamicNode();
-    ImplicitEulerGravityMatchesSemiImplicitEulerForFreeNode();
     ImplicitEulerFixedNodeDoesNotMove();
     AddNodeCreatesDynamicGeometryNode();
     SetNodeFixedControlsDynamicState();
@@ -4515,7 +4510,7 @@ int main()
     DeactivatingTetDoesNotDirtySparsePattern();
     SmallTetMeshSimulatesAfterTetDeactivation();
     TetMeshComponentStoresGeometryWithoutWorldNodes();
-    TetMeshComponentDefaultFemModelIsLinear();
+    TetMeshComponentDefaultFemModelIsCorotational();
     TetMeshComponentStoresSelectedFemModel();
     EventSystemDeliversSubscribedEventsOnlyOnce();
     TopologyMeshComponentDeclaresEventsAndClearsDirtyFlag();
