@@ -2637,7 +2637,6 @@ void DeactivatedTetsAreSkippedByLumpedMassAssembly()
         if (deactivateSecondTet)
         {
             PHYSIK_DeactivateTet(world, tetMesh, 1);
-            PHYSIK_SetNodeFixed(world, nodes[4], 1);
             assert(PHYSIK_GetActiveTetCount(world, tetMesh) == 1);
         }
 
@@ -2704,7 +2703,22 @@ void SmallTetMeshSimulatesAfterTetDeactivation()
     PHYSIK_SetSolverMode(world, 1);
     PHYSIK_SetGravity(world, 0.0f, -9.81f, 0.0f);
     PHYSIK_DeactivateTet(world, tetMesh, 1);
-    PHYSIK_SetNodeFixed(world, nodes[4], 1);
+    PHYSIK_AddPointConnection(
+        world,
+        nodes[4],
+        nodes[4],
+        nodes[4],
+        nodes[4],
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f,
+        100.0f,
+        0.0f);
+    assert(PHYSIK_GetPointConnectionCount(world) == 0);
 
     PHYSIK_Step(world, 0.02f);
     const Point position = GetNodePosition(world, nodes[3]);
@@ -3528,10 +3542,6 @@ void VisualMeshComponentCanBeCreatedThroughNativeApi()
     assert(PHYSIK_IsComponentHandleValid(world, visual) == 1);
 
     PHYSIK_DeactivateTet(world, tetMesh, 0);
-    for (int node : nodes)
-    {
-        PHYSIK_SetNodeFixed(world, node, 1);
-    }
     PHYSIK_Step(world, 0.0f);
 
     PHYSIK_DestroyWorld(world);

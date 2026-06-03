@@ -12,6 +12,7 @@
 #include "PhysiK/Geometry/TetMeshGenerator.h"
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -133,6 +134,82 @@ namespace
 
         return dynamic_cast<PhysiK::TetMeshPhysicsComponent*>(
             world->GetComponent(tetMeshComponent));
+    }
+
+    bool IsValidNodeIndex(const PhysiK::World& world, int nodeIndex)
+    {
+        return nodeIndex >= 0 &&
+            nodeIndex < static_cast<int>(world.GetNodes().size());
+    }
+
+    bool ActiveTetReferencesGlobalNode(
+        const PhysiK::TetMeshComponent& tetMesh,
+        int tetIndex,
+        int globalNodeIndex)
+    {
+        if (!tetMesh.IsTetActive(tetIndex))
+        {
+            return false;
+        }
+
+        for (int corner = 0; corner < 4; ++corner)
+        {
+            const int localNodeIndex = tetMesh.GetTetNodeIndex(tetIndex, corner);
+            if (tetMesh.GetGlobalNodeIndex(localNodeIndex) == globalNodeIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool ActiveTetReferencesGlobalNode(
+        const PhysiK::World& world,
+        int globalNodeIndex)
+    {
+        for (const std::unique_ptr<PhysiK::Component>& component : world.GetComponents())
+        {
+            const auto* tetMesh =
+                dynamic_cast<const PhysiK::TetMeshComponent*>(component.get());
+            if (tetMesh == nullptr || !tetMesh->active)
+            {
+                continue;
+            }
+
+            for (int tetIndex = 0; tetIndex < tetMesh->GetTetCount(); ++tetIndex)
+            {
+                if (ActiveTetReferencesGlobalNode(*tetMesh, tetIndex, globalNodeIndex))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    void ReconcileTetNodeActiveStates(
+        PhysiK::World& world,
+        const PhysiK::TetMeshComponent& tetMesh,
+        int tetIndex)
+    {
+        for (int corner = 0; corner < 4; ++corner)
+        {
+            const int localNodeIndex = tetMesh.GetTetNodeIndex(tetIndex, corner);
+            const int globalNodeIndex = tetMesh.GetGlobalNodeIndex(localNodeIndex);
+            if (!IsValidNodeIndex(world, globalNodeIndex))
+            {
+                continue;
+            }
+
+            PhysiK::Node& node = world.GetNode(globalNodeIndex);
+            node.active = ActiveTetReferencesGlobalNode(world, globalNodeIndex);
+            if (!node.active)
+            {
+                node.velocity = PhysiK::Vec3{};
+            }
+        }
     }
 
     PhysiK::VisualMeshComponent* AsVisualMesh(
@@ -1237,7 +1314,10 @@ extern "C"
             return;
         }
 
-        tetMesh->SetTetActive(tetIndex, active != 0);
+        if (tetMesh->SetTetActive(tetIndex, active != 0))
+        {
+            ReconcileTetNodeActiveStates(*worldPtr, *tetMesh, tetIndex);
+        }
     }
 
     PHYSIK_API void PHYSIK_DeactivateTet(

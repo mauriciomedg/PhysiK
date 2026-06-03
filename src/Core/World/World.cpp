@@ -547,7 +547,8 @@ namespace PhysiK
     {
         for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
-            if (nodes[static_cast<std::size_t>(i)].fixed)
+            const Node& node = nodes[static_cast<std::size_t>(i)];
+            if (!node.active || node.fixed)
             {
                 continue;
             }
@@ -568,7 +569,8 @@ namespace PhysiK
     {
         for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
-            if (nodes[static_cast<std::size_t>(i)].fixed)
+            const Node& node = nodes[static_cast<std::size_t>(i)];
+            if (!node.active || node.fixed)
             {
                 continue;
             }
@@ -759,7 +761,8 @@ namespace PhysiK
         for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
         {
             Node& node = nodes[static_cast<std::size_t>(i)];
-            if (node.fixed ||
+            if (!node.active ||
+                node.fixed ||
                 i >= static_cast<int>(masses.size()) ||
                 i >= static_cast<int>(forces.size()))
             {
@@ -789,6 +792,10 @@ namespace PhysiK
         return connection.node0 >= 0 && connection.node0 < nodeCount &&
             connection.node1 >= 0 && connection.node1 < nodeCount &&
             connection.node2 >= 0 && connection.node2 < nodeCount &&
-            connection.node3 >= 0 && connection.node3 < nodeCount;
+            connection.node3 >= 0 && connection.node3 < nodeCount &&
+            nodes[static_cast<std::size_t>(connection.node0)].active &&
+            nodes[static_cast<std::size_t>(connection.node1)].active &&
+            nodes[static_cast<std::size_t>(connection.node2)].active &&
+            nodes[static_cast<std::size_t>(connection.node3)].active;
     }
 }
