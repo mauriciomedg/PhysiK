@@ -41,8 +41,6 @@ namespace PhysiK
         void SubscribeToEvent(Component* listener, PhysicsEventType type);
         void UnsubscribeFromEvent(Component* listener, PhysicsEventType type);
         void EmitEvent(const PhysicsEvent& event);
-        void SetExternalLogicCallback(ExternalLogicCallback callback, void* userData);
-        void ClearExternalLogicCallback();
 
         void SetSubstepCount(int count);
         int GetSubstepCount() const;
@@ -74,7 +72,6 @@ namespace PhysiK
         bool IsComponentHandleValid(ComponentHandle handle) const;
         void RegisterComponentForExecution(Component* component);
         void UnregisterComponentFromExecution(Component* component);
-        void RunExternalLogic();
         void PreUpdateComponents(float frameDt);
         void PostUpdateComponents(float frameDt);
         void BuildSolverData(SolverData& solverData, float dt);
@@ -102,9 +99,6 @@ namespace PhysiK
 
         CollisionDetectionEngine collisionDetectionEngine;
         EventSystem eventSystem;
-
-        ExternalLogicCallback externalLogicCallback = nullptr;
-        void* externalLogicUserData = nullptr;
 
         Vec3 gravity;
         int substepCount = 1;

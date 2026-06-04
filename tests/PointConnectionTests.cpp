@@ -974,7 +974,7 @@ void MultipleForceSourcesCoexist()
     PHYSIK_DestroyWorld(world);
 }
 
-void ExternalLogicHookRunsOnceBeforeSubsteps()
+void ScriptComponentCallbackRunsOnceBeforeSubsteps()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
@@ -982,7 +982,14 @@ void ExternalLogicHookRunsOnceBeforeSubsteps()
     ExternalLogicTestState state;
     CreateSingleTet(world, state.nodes);
     PHYSIK_SetSubstepCount(world, 4);
-    PHYSIK_SetExternalLogicCallback(world, AddPointConnectionFromExternalLogic, &state);
+    const PhysiK::ComponentHandle script =
+        PHYSIK_CreateScriptComponent(world);
+    assert(PHYSIK_IsComponentHandleValid(world, script) == 1);
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        script,
+        AddPointConnectionFromExternalLogic,
+        &state);
 
     const Point before = GetTetCentroid(world, state.nodes);
 
@@ -994,13 +1001,12 @@ void ExternalLogicHookRunsOnceBeforeSubsteps()
     assert(after.z > before.z);
     assert(PHYSIK_GetPointConnectionCount(world) == 0);
 
-    PHYSIK_ClearExternalLogicCallback(world);
     PHYSIK_DestroyWorld(world);
 }
 
 
 
-void KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps()
+void KinematicUpdateRunsAfterScriptComponentBeforePhysicsSubsteps()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
@@ -1025,7 +1031,14 @@ void KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps()
         PHYSIK_SetCollisionComponentKinematicTarget(worldHandle, callbackState->sphere, 0.25f, 0.25f, 0.25f);
     };
 
-    PHYSIK_SetExternalLogicCallback(world, moveSphereInExternalLogic, &state);
+    const PhysiK::ComponentHandle script =
+        PHYSIK_CreateScriptComponent(world);
+    assert(PHYSIK_IsComponentHandleValid(world, script) == 1);
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        script,
+        moveSphereInExternalLogic,
+        &state);
     PHYSIK_SetSubstepCount(world, 3);
 
     const Point before = GetTetCentroid(world, nodes);
@@ -1035,7 +1048,6 @@ void KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps()
     assert(state.callbackCount == 1);
     assert(after.z > before.z);
 
-    PHYSIK_ClearExternalLogicCallback(world);
     PHYSIK_DestroyWorld(world);
 }
 
@@ -4403,8 +4415,8 @@ int main()
     CollisionSphereConnectionSettingsAffectGeneratedConnections();
     CollisionSphereConnectionSettingsCAPIHandlesInvalidInputs();
     MultipleForceSourcesCoexist();
-    ExternalLogicHookRunsOnceBeforeSubsteps();
-    KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
+    ScriptComponentCallbackRunsOnceBeforeSubsteps();
+    KinematicUpdateRunsAfterScriptComponentBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();
     FEMUsesWorldNodeMappingWhenLocalTetIndicesDiffer();
     TetMeshPhysicsUsesCreationRestDataForRuntimeForces();

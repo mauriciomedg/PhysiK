@@ -36,7 +36,6 @@ namespace PhysiK
             return;
         }
 
-        RunExternalLogic();
         PreUpdateComponents(frameDt);
         if (frameDt == 0.0f)
         {
@@ -149,18 +148,6 @@ namespace PhysiK
     void World::EmitEvent(const PhysicsEvent& event)
     {
         eventSystem.Emit(event);
-    }
-
-    void World::SetExternalLogicCallback(ExternalLogicCallback callback, void* userData)
-    {
-        externalLogicCallback = callback;
-        externalLogicUserData = userData;
-    }
-
-    void World::ClearExternalLogicCallback()
-    {
-        externalLogicCallback = nullptr;
-        externalLogicUserData = nullptr;
     }
 
     void World::SetSubstepCount(int count)
@@ -383,14 +370,6 @@ namespace PhysiK
             {
                 ++iterator;
             }
-        }
-    }
-
-    void World::RunExternalLogic()
-    {
-        if (externalLogicCallback != nullptr)
-        {
-            externalLogicCallback(static_cast<WorldHandle>(this), externalLogicUserData);
         }
     }
 

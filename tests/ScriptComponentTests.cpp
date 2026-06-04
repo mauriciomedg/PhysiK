@@ -532,6 +532,170 @@ void ScriptComponentApiIgnoresWrongComponentType()
     PHYSIK_DestroyWorld(world);
 }
 
+void ScriptComponentCallbackRunsThroughWorldStep()
+{
+    PhysiK::WorldHandle world =
+        PHYSIK_CreateWorld();
+    Require(
+        world != nullptr,
+        "world creation failed for script world-step callback test");
+
+    const PhysiK::ComponentHandle script =
+        PHYSIK_CreateScriptComponent(world);
+    ScriptCallbackTestContext context;
+
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        script,
+        RecordScriptCallback,
+        &context);
+
+    PHYSIK_Step(
+        world,
+        0.0f);
+
+    Require(
+        context.callCount == 1,
+        "script callback should execute once through World::Step");
+    Require(
+        context.receivedWorld == world,
+        "script callback through World::Step should receive world handle");
+    Require(
+        context.receivedUserData == &context,
+        "script callback through World::Step should receive user data");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void MultipleScriptComponentCallbacksRunThroughWorldStep()
+{
+    PhysiK::WorldHandle world =
+        PHYSIK_CreateWorld();
+    Require(
+        world != nullptr,
+        "world creation failed for multiple script world-step test");
+
+    const PhysiK::ComponentHandle scriptA =
+        PHYSIK_CreateScriptComponent(world);
+    const PhysiK::ComponentHandle scriptB =
+        PHYSIK_CreateScriptComponent(world);
+    const PhysiK::ComponentHandle scriptC =
+        PHYSIK_CreateScriptComponent(world);
+
+    ScriptCallbackTestContext contextA;
+    ScriptCallbackTestContext contextB;
+    ScriptCallbackTestContext contextC;
+
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        scriptA,
+        RecordScriptCallback,
+        &contextA);
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        scriptB,
+        RecordScriptCallback,
+        &contextB);
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        scriptC,
+        RecordScriptCallback,
+        &contextC);
+
+    PHYSIK_Step(
+        world,
+        0.0f);
+
+    Require(
+        contextA.callCount == 1,
+        "script component A should execute once through World::Step");
+    Require(
+        contextB.callCount == 1,
+        "script component B should execute once through World::Step");
+    Require(
+        contextC.callCount == 1,
+        "script component C should execute once through World::Step");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void ClearedScriptComponentCallbackDoesNotRunThroughWorldStep()
+{
+    PhysiK::WorldHandle world =
+        PHYSIK_CreateWorld();
+    Require(
+        world != nullptr,
+        "world creation failed for cleared script world-step test");
+
+    const PhysiK::ComponentHandle script =
+        PHYSIK_CreateScriptComponent(world);
+    ScriptCallbackTestContext context;
+
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        script,
+        RecordScriptCallback,
+        &context);
+    PHYSIK_ClearScriptComponentCallback(
+        world,
+        script);
+
+    PHYSIK_Step(
+        world,
+        0.0f);
+
+    Require(
+        context.callCount == 0,
+        "cleared script callback should not execute through World::Step");
+
+    PHYSIK_DestroyWorld(world);
+}
+
+void DestroyedScriptComponentCallbackDoesNotRunThroughWorldStep()
+{
+    PhysiK::WorldHandle world =
+        PHYSIK_CreateWorld();
+    Require(
+        world != nullptr,
+        "world creation failed for destroyed script world-step test");
+
+    const PhysiK::ComponentHandle scriptA =
+        PHYSIK_CreateScriptComponent(world);
+    const PhysiK::ComponentHandle scriptB =
+        PHYSIK_CreateScriptComponent(world);
+
+    ScriptCallbackTestContext contextA;
+    ScriptCallbackTestContext contextB;
+
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        scriptA,
+        RecordScriptCallback,
+        &contextA);
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        scriptB,
+        RecordScriptCallback,
+        &contextB);
+
+    PHYSIK_DestroyComponent(
+        world,
+        scriptA);
+
+    PHYSIK_Step(
+        world,
+        0.0f);
+
+    Require(
+        contextA.callCount == 0,
+        "destroyed script callback should not execute through World::Step");
+    Require(
+        contextB.callCount == 1,
+        "remaining script callback should execute through World::Step");
+
+    PHYSIK_DestroyWorld(world);
+}
+
 int main()
 {
     ScriptComponentDefaultStateHasNoCallback();
@@ -547,6 +711,10 @@ int main()
     ScriptComponentApiUsesGenericDestroyComponent();
     ScriptComponentApiHandlesInvalidScriptHandle();
     ScriptComponentApiIgnoresWrongComponentType();
+    ScriptComponentCallbackRunsThroughWorldStep();
+    MultipleScriptComponentCallbacksRunThroughWorldStep();
+    ClearedScriptComponentCallbackDoesNotRunThroughWorldStep();
+    DestroyedScriptComponentCallbackDoesNotRunThroughWorldStep();
 
     return 0;
 }

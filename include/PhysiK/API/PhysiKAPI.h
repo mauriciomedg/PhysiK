@@ -81,12 +81,6 @@ extern "C"
         float x,
         float y,
         float z);
-    PHYSIK_API void PHYSIK_SetExternalLogicCallback(
-        PhysiK::WorldHandle world,
-        PhysiK::ExternalLogicCallback callback,
-        void* userData);
-    PHYSIK_API void PHYSIK_ClearExternalLogicCallback(PhysiK::WorldHandle world);
-
     PHYSIK_API int PHYSIK_AddNode(
         PhysiK::WorldHandle world,
         float x,
