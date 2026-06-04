@@ -39,6 +39,7 @@ target_sources(
         include/PhysiK/Components/Component.h
         include/PhysiK/Components/CollisionComponent.h
         include/PhysiK/Components/CollisionSphereComponent.h
+        include/PhysiK/Components/ScriptComponent.h
         include/PhysiK/Components/SurfaceExtractionComponent.h
         include/PhysiK/Components/SurfaceVisualComponent.h
         include/PhysiK/Components/TetMeshComponent.h
@@ -68,6 +69,7 @@ target_sources(
         src/API/PhysiKAPI.cpp
         src/Components/CollisionComponent.cpp
         src/Components/CollisionSphereComponent.cpp
+        src/Components/ScriptComponent.cpp
         src/Components/SurfaceExtractionComponent.cpp
         src/Components/SurfaceVisualComponent.cpp
         src/Components/TetMeshComponent.cpp
@@ -109,6 +111,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Components/Component.h
     include/PhysiK/Components/CollisionComponent.h
     include/PhysiK/Components/CollisionSphereComponent.h
+    include/PhysiK/Components/ScriptComponent.h
     include/PhysiK/Components/SurfaceExtractionComponent.h
     include/PhysiK/Components/SurfaceVisualComponent.h
     include/PhysiK/Components/TetMeshComponent.h
@@ -176,6 +179,13 @@ if(PHYSIK_BUILD_TESTS)
     target_link_libraries(PhysiKTests PRIVATE PhysiK::PhysiK)
     target_compile_features(PhysiKTests PRIVATE cxx_std_17)
 
+    add_executable(
+        ScriptComponentTests
+        tests/ScriptComponentTests.cpp
+        src/Components/ScriptComponent.cpp)
+    target_link_libraries(ScriptComponentTests PRIVATE PhysiK::PhysiK)
+    target_compile_features(ScriptComponentTests PRIVATE cxx_std_17)
+
     if(WIN32)
         add_custom_command(
             TARGET PhysiKTests
@@ -184,7 +194,16 @@ if(PHYSIK_BUILD_TESTS)
                 $<TARGET_FILE:PhysiK>
                 $<TARGET_FILE_DIR:PhysiKTests>
         )
+
+        add_custom_command(
+            TARGET ScriptComponentTests
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:PhysiK>
+                $<TARGET_FILE_DIR:ScriptComponentTests>
+        )
     endif()
 
     add_test(NAME PhysiKTests COMMAND PhysiKTests)
+    add_test(NAME ScriptComponentTests COMMAND ScriptComponentTests)
 endif()
