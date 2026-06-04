@@ -10,6 +10,7 @@
 #include "PhysiK/Components/VisualMeshComponent.h"
 #include "PhysiK/Core/World/World.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
@@ -305,6 +306,57 @@ void WorldExecutesDuplicatePriorityComponents()
         "duplicate-priority components should preserve both recorded ids");
 }
 
+void WorldExecutesAllScriptPriorityComponentsBeforeCollision()
+{
+    using PhysiK::ComponentExecutionPriority;
+
+    PhysiK::World world;
+    std::vector<int> callOrder;
+
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::CollisionSphereComponent,
+            20,
+            callOrder));
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::ScriptComponent,
+            1,
+            callOrder));
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::ScriptComponent,
+            2,
+            callOrder));
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::ScriptComponent,
+            3,
+            callOrder));
+
+    world.Step(0.0f);
+
+    Require(
+        callOrder.size() == 4u,
+        "World should execute all ScriptComponent-priority and collision components");
+    Require(
+        callOrder[3] == 20,
+        "CollisionSphereComponent-priority component should execute after all scripts");
+
+    std::vector<int> scriptIds{
+        callOrder[0],
+        callOrder[1],
+        callOrder[2]};
+    std::sort(
+        scriptIds.begin(),
+        scriptIds.end());
+
+    const std::vector<int> expectedScriptIds{1, 2, 3};
+    Require(
+        scriptIds == expectedScriptIds,
+        "all ScriptComponent-priority instances should execute before collision");
+}
+
 void WorldUnregistersDestroyedComponentsFromExecution()
 {
     using PhysiK::ComponentExecutionPriority;
@@ -436,6 +488,7 @@ int main()
     ComponentExecutionPriorityMultimapPreservesPriorityOrderAndDuplicates();
     WorldExecutesComponentsInPriorityOrder();
     WorldExecutesDuplicatePriorityComponents();
+    WorldExecutesAllScriptPriorityComponentsBeforeCollision();
     WorldUnregistersDestroyedComponentsFromExecution();
     WorldReusedSlotRegistersNewComponentOnly();
     WorldComponentHandlesRemainStableWithOrderedExecution();
