@@ -76,12 +76,6 @@ extern "C"
         PhysiK::WorldHandle world);
     PHYSIK_API int PHYSIK_DidLastConjugateGradientSolveConverge(
         PhysiK::WorldHandle world);
-    PHYSIK_API void PHYSIK_EnablePerformanceLogging(
-        PhysiK::WorldHandle world,
-        int enabled);
-    PHYSIK_API void PHYSIK_SetPerformanceLogPath(
-        PhysiK::WorldHandle world,
-        const char* path);
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,

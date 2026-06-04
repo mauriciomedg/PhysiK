@@ -407,26 +407,6 @@ extern "C"
             : 0;
     }
 
-    PHYSIK_API void PHYSIK_EnablePerformanceLogging(
-        PhysiK::WorldHandle world,
-        int enabled)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            worldPtr->EnablePerformanceLogging(enabled != 0);
-        }
-    }
-
-    PHYSIK_API void PHYSIK_SetPerformanceLogPath(
-        PhysiK::WorldHandle world,
-        const char* path)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            worldPtr->SetPerformanceLogPath(path);
-        }
-    }
-
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,

@@ -19,8 +19,6 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
-#include <fstream>
 #include <limits>
 #include <string>
 #include <vector>
@@ -2364,57 +2362,6 @@ void SolverDataAcceptsFiniteUnconvergedCgApproximation()
     }
 }
 
-void PerformanceLoggingWritesCsvForImplicitStep()
-{
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-    const std::filesystem::path logPath =
-        std::filesystem::path("logs") / "physik_performance_test.csv";
-    std::error_code error;
-    std::filesystem::remove(logPath, error);
-
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    Require(world != nullptr, "world creation failed for performance logging test");
-
-    int nodes[4] = {};
-    CreateSingleTetWithMaterial(world, nodes, 100.0f, 0.0f, 1.0f);
-    PHYSIK_SetSolverMode(world, 1);
-    PHYSIK_SetPerformanceLogPath(world, logPath.string().c_str());
-
-    PHYSIK_Step(world, 0.01f);
-    PHYSIK_DestroyWorld(world);
-
-    Require(
-        std::filesystem::exists(logPath),
-        "performance logging did not create the CSV file");
-
-    std::ifstream file(logPath);
-    std::string header;
-    std::string row;
-    std::getline(file, header);
-    std::getline(file, row);
-
-    Require(
-        header.find("frameIndex,substepIndex,dt,totalStepMs") != std::string::npos,
-        "performance CSV header is missing expected timing columns");
-    Require(
-        header.find("cgIterations,cgResidual,dynamicBlockCount,tetCount,activeTetCount") !=
-            std::string::npos,
-        "performance CSV header is missing expected solver/topology columns");
-    Require(!row.empty(), "performance CSV did not contain a data row");
-
-    std::filesystem::remove(logPath, error);
-#else
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    Require(world != nullptr, "world creation failed for performance logging no-op test");
-
-    PHYSIK_SetPerformanceLogPath(world, "logs/physik_performance_disabled_test.csv");
-    PHYSIK_EnablePerformanceLogging(world, 1);
-    PHYSIK_Step(world, 0.01f);
-
-    PHYSIK_DestroyWorld(world);
-#endif
-}
-
 void ImplicitEulerLinearTetUsesSparseCgPath()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -4499,7 +4446,6 @@ int main()
     CurrentLinearSolverSolvesKnownSparseSystem();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     SolverDataAcceptsFiniteUnconvergedCgApproximation();
-    PerformanceLoggingWritesCsvForImplicitStep();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();
     MultiTetImplicitEulerSparseCgSmokeTest();
