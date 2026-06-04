@@ -193,7 +193,9 @@ if(PHYSIK_BUILD_TESTS)
     add_executable(
         ScriptComponentTests
         tests/ScriptComponentTests.cpp
-        src/Components/ScriptComponent.cpp)
+        src/Components/ScriptComponent.cpp
+        src/Core/PhysicsConnections/PointConnection.cpp
+        src/Core/World/World.cpp)
     target_link_libraries(ScriptComponentTests PRIVATE PhysiK::PhysiK)
     target_compile_features(ScriptComponentTests PRIVATE cxx_std_17)
 

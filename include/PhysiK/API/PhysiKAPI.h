@@ -169,6 +169,19 @@ extern "C"
         float z,
         float radius);
 
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateScriptComponent(
+        PhysiK::WorldHandle world);
+
+    PHYSIK_API void PHYSIK_SetScriptComponentCallback(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle scriptComponent,
+        PhysiK::ExternalLogicCallback callback,
+        void* userData);
+
+    PHYSIK_API void PHYSIK_ClearScriptComponentCallback(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle scriptComponent);
+
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceExtractionComponent(
         PhysiK::WorldHandle world,
         PhysiK::ComponentHandle hostTetMesh);
