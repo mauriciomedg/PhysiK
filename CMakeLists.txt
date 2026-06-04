@@ -37,6 +37,7 @@ target_sources(
         include/PhysiK/PhysicsData/Tet.h
 
         include/PhysiK/Components/Component.h
+        include/PhysiK/Components/ComponentExecutionPriority.h
         include/PhysiK/Components/CollisionComponent.h
         include/PhysiK/Components/CollisionSphereComponent.h
         include/PhysiK/Components/ScriptComponent.h
@@ -109,6 +110,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/PhysicsData/Contact.h
     include/PhysiK/PhysicsData/Tet.h
     include/PhysiK/Components/Component.h
+    include/PhysiK/Components/ComponentExecutionPriority.h
     include/PhysiK/Components/CollisionComponent.h
     include/PhysiK/Components/CollisionSphereComponent.h
     include/PhysiK/Components/ScriptComponent.h
@@ -180,6 +182,12 @@ if(PHYSIK_BUILD_TESTS)
     target_compile_features(PhysiKTests PRIVATE cxx_std_17)
 
     add_executable(
+        ComponentExecutionPriorityTests
+        tests/ComponentExecutionPriorityTests.cpp)
+    target_link_libraries(ComponentExecutionPriorityTests PRIVATE PhysiK::PhysiK)
+    target_compile_features(ComponentExecutionPriorityTests PRIVATE cxx_std_17)
+
+    add_executable(
         ScriptComponentTests
         tests/ScriptComponentTests.cpp
         src/Components/ScriptComponent.cpp)
@@ -196,6 +204,14 @@ if(PHYSIK_BUILD_TESTS)
         )
 
         add_custom_command(
+            TARGET ComponentExecutionPriorityTests
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:PhysiK>
+                $<TARGET_FILE_DIR:ComponentExecutionPriorityTests>
+        )
+
+        add_custom_command(
             TARGET ScriptComponentTests
             POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -205,5 +221,6 @@ if(PHYSIK_BUILD_TESTS)
     endif()
 
     add_test(NAME PhysiKTests COMMAND PhysiKTests)
+    add_test(NAME ComponentExecutionPriorityTests COMMAND ComponentExecutionPriorityTests)
     add_test(NAME ScriptComponentTests COMMAND ScriptComponentTests)
 endif()

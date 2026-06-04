@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "PhysiK/Components/ComponentExecutionPriority.h"
 #include "PhysiK/Core/Events/PhysicsEvent.h"
 
 namespace PhysiK
@@ -15,6 +16,13 @@ namespace PhysiK
         bool active = true;
         std::vector<PhysicsEventType> listenedEvents;
         std::vector<PhysicsEventType> emittedEvents;
+
+        virtual ComponentExecutionPriority
+        GetExecutionPriority() const
+        {
+            return ComponentExecutionPriority::
+                Default;
+        }
 
         virtual void PreUpdate(World&, float)
         {
