@@ -106,7 +106,9 @@ namespace PhysiK
             return;
         }
 
-        eventSystem.UnsubscribeAll(components[handle.index].get());
+        Component* component = components[handle.index].get();
+        UnregisterComponentFromExecution(component);
+        eventSystem.UnsubscribeAll(component);
         components[handle.index].reset();
         ++componentGenerations[handle.index];
 
@@ -318,6 +320,7 @@ namespace PhysiK
             freeComponentSlots.pop_back();
             components[slotIndex] = std::move(component);
             Component* addedComponent = components[slotIndex].get();
+            RegisterComponentForExecution(addedComponent);
             for (PhysicsEventType eventType : addedComponent->listenedEvents)
             {
                 eventSystem.Subscribe(addedComponent, eventType);
@@ -328,6 +331,7 @@ namespace PhysiK
         components.push_back(std::move(component));
         componentGenerations.push_back(1u);
         Component* addedComponent = components.back().get();
+        RegisterComponentForExecution(addedComponent);
         for (PhysicsEventType eventType : addedComponent->listenedEvents)
         {
             eventSystem.Subscribe(addedComponent, eventType);
@@ -349,6 +353,39 @@ namespace PhysiK
             components[handle.index] != nullptr;
     }
 
+    void World::RegisterComponentForExecution(Component* component)
+    {
+        if (component == nullptr)
+        {
+            return;
+        }
+
+        orderedComponents.emplace(
+            component->GetExecutionPriority(),
+            component);
+    }
+
+    void World::UnregisterComponentFromExecution(Component* component)
+    {
+        if (component == nullptr)
+        {
+            return;
+        }
+
+        for (auto iterator = orderedComponents.begin();
+             iterator != orderedComponents.end();)
+        {
+            if (iterator->second == component)
+            {
+                iterator = orderedComponents.erase(iterator);
+            }
+            else
+            {
+                ++iterator;
+            }
+        }
+    }
+
     void World::RunExternalLogic()
     {
         if (externalLogicCallback != nullptr)
@@ -359,8 +396,9 @@ namespace PhysiK
 
     void World::PreUpdateComponents(float frameDt)
     {
-        for (const std::unique_ptr<Component>& component : components)
+        for (const auto& entry : orderedComponents)
         {
+            Component* component = entry.second;
             if (component != nullptr && component->active)
             {
                 component->PreUpdate(*this, frameDt);
@@ -370,8 +408,9 @@ namespace PhysiK
 
     void World::PostUpdateComponents(float frameDt)
     {
-        for (const std::unique_ptr<Component>& component : components)
+        for (const auto& entry : orderedComponents)
         {
+            Component* component = entry.second;
             if (component != nullptr && component->active)
             {
                 component->PostUpdate(*this, frameDt);
@@ -443,8 +482,9 @@ namespace PhysiK
 
     void World::AssembleComponentSystems(SolverData& solverData, float dt)
     {
-        for (const std::unique_ptr<Component>& component : components)
+        for (const auto& entry : orderedComponents)
         {
+            Component* component = entry.second;
             if (component != nullptr && component->active)
             {
                 component->UpdateSystem(*this, solverData, dt);

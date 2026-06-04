@@ -8,10 +8,12 @@
 #include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/TopologyMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
+#include "PhysiK/Core/World/World.h"
 
 #include <cstdio>
 #include <cstdlib>
 #include <map>
+#include <memory>
 #include <vector>
 
 namespace
@@ -21,6 +23,39 @@ namespace
     {
     };
 
+    class RecordingComponent :
+        public PhysiK::Component
+    {
+    public:
+        RecordingComponent(
+            PhysiK::ComponentExecutionPriority priority,
+            int id,
+            std::vector<int>& callOrder)
+            : priority(priority)
+            , id(id)
+            , callOrder(callOrder)
+        {
+        }
+
+        PhysiK::ComponentExecutionPriority
+        GetExecutionPriority() const override
+        {
+            return priority;
+        }
+
+        void PreUpdate(
+            PhysiK::World&,
+            float) override
+        {
+            callOrder.push_back(id);
+        }
+
+    private:
+        PhysiK::ComponentExecutionPriority priority;
+        int id;
+        std::vector<int>& callOrder;
+    };
+
     void Require(bool condition, const char* message)
     {
         if (!condition)
@@ -28,6 +63,17 @@ namespace
             std::fprintf(stderr, "ComponentExecutionPriorityTests failed: %s\n", message);
             std::exit(1);
         }
+    }
+
+    std::unique_ptr<RecordingComponent> MakeRecordingComponent(
+        PhysiK::ComponentExecutionPriority priority,
+        int id,
+        std::vector<int>& callOrder)
+    {
+        return std::make_unique<RecordingComponent>(
+            priority,
+            id,
+            callOrder);
     }
 }
 
@@ -194,6 +240,193 @@ void ComponentExecutionPriorityMultimapPreservesPriorityOrderAndDuplicates()
         "duplicate CollisionSphereComponent entries should preserve inserted values");
 }
 
+void WorldExecutesComponentsInPriorityOrder()
+{
+    using PhysiK::ComponentExecutionPriority;
+
+    PhysiK::World world;
+    std::vector<int> callOrder;
+
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::VisualMeshComponent,
+            9,
+            callOrder));
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::TetMeshPhysicsComponent,
+            4,
+            callOrder));
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::ScriptComponent,
+            1,
+            callOrder));
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::CollisionSphereComponent,
+            2,
+            callOrder));
+
+    world.Step(0.0f);
+
+    const std::vector<int> expectedOrder{1, 2, 4, 9};
+    Require(
+        callOrder == expectedOrder,
+        "World should execute PreUpdate in component priority order");
+}
+
+void WorldExecutesDuplicatePriorityComponents()
+{
+    using PhysiK::ComponentExecutionPriority;
+
+    PhysiK::World world;
+    std::vector<int> callOrder;
+
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::CollisionSphereComponent,
+            10,
+            callOrder));
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::CollisionSphereComponent,
+            20,
+            callOrder));
+
+    world.Step(0.0f);
+
+    Require(
+        callOrder.size() == 2u,
+        "World should execute both duplicate-priority components");
+    Require(
+        (callOrder[0] == 10 && callOrder[1] == 20) ||
+            (callOrder[0] == 20 && callOrder[1] == 10),
+        "duplicate-priority components should preserve both recorded ids");
+}
+
+void WorldUnregistersDestroyedComponentsFromExecution()
+{
+    using PhysiK::ComponentExecutionPriority;
+
+    PhysiK::World world;
+    std::vector<int> callOrder;
+
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::ScriptComponent,
+            1,
+            callOrder));
+    const PhysiK::ComponentHandle destroyedHandle =
+        world.AddComponent(
+            MakeRecordingComponent(
+                ComponentExecutionPriority::CollisionSphereComponent,
+                2,
+                callOrder));
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::VisualMeshComponent,
+            3,
+            callOrder));
+
+    world.DestroyComponent(destroyedHandle);
+    world.Step(0.0f);
+
+    const std::vector<int> expectedOrder{1, 3};
+    Require(
+        callOrder == expectedOrder,
+        "destroyed component should be absent from ordered execution");
+}
+
+void WorldReusedSlotRegistersNewComponentOnly()
+{
+    using PhysiK::ComponentExecutionPriority;
+
+    PhysiK::World world;
+    std::vector<int> callOrder;
+
+    const PhysiK::ComponentHandle destroyedHandle =
+        world.AddComponent(
+            MakeRecordingComponent(
+                ComponentExecutionPriority::CollisionSphereComponent,
+                1,
+                callOrder));
+
+    world.DestroyComponent(destroyedHandle);
+
+    world.AddComponent(
+        MakeRecordingComponent(
+            ComponentExecutionPriority::ScriptComponent,
+            2,
+            callOrder));
+
+    world.Step(0.0f);
+
+    const std::vector<int> expectedOrder{2};
+    Require(
+        callOrder == expectedOrder,
+        "reused slot should execute only the newly registered component");
+}
+
+void WorldComponentHandlesRemainStableWithOrderedExecution()
+{
+    using PhysiK::ComponentExecutionPriority;
+
+    PhysiK::World world;
+    std::vector<int> callOrder;
+
+    const PhysiK::ComponentHandle firstHandle =
+        world.AddComponent(
+            MakeRecordingComponent(
+                ComponentExecutionPriority::VisualMeshComponent,
+                1,
+                callOrder));
+    const PhysiK::ComponentHandle secondHandle =
+        world.AddComponent(
+            MakeRecordingComponent(
+                ComponentExecutionPriority::ScriptComponent,
+                2,
+                callOrder));
+
+    PhysiK::Component* firstComponent =
+        world.GetComponent(firstHandle);
+    PhysiK::Component* secondComponent =
+        world.GetComponent(secondHandle);
+
+    Require(
+        firstComponent != nullptr,
+        "first component handle should resolve");
+    Require(
+        secondComponent != nullptr,
+        "second component handle should resolve");
+    Require(
+        firstComponent->GetExecutionPriority() ==
+            ComponentExecutionPriority::VisualMeshComponent,
+        "first component handle should still refer to the vector slot component");
+    Require(
+        secondComponent->GetExecutionPriority() ==
+            ComponentExecutionPriority::ScriptComponent,
+        "second component handle should still refer to the vector slot component");
+
+    const PhysiK::ComponentHandle firstIndexHandle =
+        world.GetComponentHandleByIndex(
+            static_cast<int>(
+                firstHandle.index));
+    const PhysiK::ComponentHandle secondIndexHandle =
+        world.GetComponentHandleByIndex(
+            static_cast<int>(
+                secondHandle.index));
+
+    Require(
+        firstIndexHandle.index == firstHandle.index &&
+            firstIndexHandle.generation == firstHandle.generation,
+        "GetComponentHandleByIndex should preserve first handle");
+    Require(
+        secondIndexHandle.index == secondHandle.index &&
+            secondIndexHandle.generation == secondHandle.generation,
+        "GetComponentHandleByIndex should preserve second handle");
+}
+
 int main()
 {
     DefaultComponentPriorityIsDefault();
@@ -201,6 +434,11 @@ int main()
     ConcreteComponentsReportExecutionPriorities();
     ComponentExecutionPriorityLessOrdersAdjacentHierarchy();
     ComponentExecutionPriorityMultimapPreservesPriorityOrderAndDuplicates();
+    WorldExecutesComponentsInPriorityOrder();
+    WorldExecutesDuplicatePriorityComponents();
+    WorldUnregistersDestroyedComponentsFromExecution();
+    WorldReusedSlotRegistersNewComponentOnly();
+    WorldComponentHandlesRemainStableWithOrderedExecution();
 
     return 0;
 }

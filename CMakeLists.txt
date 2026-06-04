@@ -184,7 +184,9 @@ if(PHYSIK_BUILD_TESTS)
     add_executable(
         ComponentExecutionPriorityTests
         tests/ComponentExecutionPriorityTests.cpp
-        src/Components/ScriptComponent.cpp)
+        src/Components/ScriptComponent.cpp
+        src/Core/PhysicsConnections/PointConnection.cpp
+        src/Core/World/World.cpp)
     target_link_libraries(ComponentExecutionPriorityTests PRIVATE PhysiK::PhysiK)
     target_compile_features(ComponentExecutionPriorityTests PRIVATE cxx_std_17)
 

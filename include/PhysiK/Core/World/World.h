@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -71,6 +72,8 @@ namespace PhysiK
 
     private:
         bool IsComponentHandleValid(ComponentHandle handle) const;
+        void RegisterComponentForExecution(Component* component);
+        void UnregisterComponentFromExecution(Component* component);
         void RunExternalLogic();
         void PreUpdateComponents(float frameDt);
         void PostUpdateComponents(float frameDt);
@@ -88,6 +91,11 @@ namespace PhysiK
         std::vector<Node> nodes;
 
         std::vector<std::unique_ptr<Component>> components;
+        std::multimap<
+            ComponentExecutionPriority,
+            Component*,
+            ComponentExecutionPriorityLess>
+            orderedComponents;
         std::vector<std::uint32_t> componentGenerations;
         std::vector<std::uint32_t> freeComponentSlots;
         std::vector<std::unique_ptr<PhysicsConnection>> transientConnections;
