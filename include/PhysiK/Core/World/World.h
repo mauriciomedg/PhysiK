@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <map>
 #include <memory>
 #include <vector>
@@ -83,7 +84,9 @@ namespace PhysiK
         bool SolveImplicitLinearSystem(SolverData& solverData, float dt);
         bool IntegrateImplicitEuler(const SolverData& solverData, float dt);
         void IntegrateExplicitEuler(const SolverData& solverData, float dt);
-        void ClearTransientConnections();
+        void MarkSubstepConnectionBegin();
+        void ClearSubstepConnections();
+        void ClearFrameConnections();
 
         std::vector<Node> nodes;
 
@@ -96,6 +99,7 @@ namespace PhysiK
         std::vector<std::uint32_t> componentGenerations;
         std::vector<std::uint32_t> freeComponentSlots;
         std::vector<std::unique_ptr<PhysicsConnection>> transientConnections;
+        std::size_t firstSubstepConnectionIndex = 0u;
 
         CollisionDetectionEngine collisionDetectionEngine;
         EventSystem eventSystem;

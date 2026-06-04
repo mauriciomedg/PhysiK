@@ -8,6 +8,8 @@
 #include "PhysiK/Components/TetMeshPhysicsComponent.h"
 #include "PhysiK/Components/TopologyMeshComponent.h"
 #include "PhysiK/Components/VisualMeshComponent.h"
+#include "PhysiK/Core/PhysicsConnections/PhysicsConnection.h"
+#include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/World/World.h"
 
 #include <algorithm>
@@ -55,6 +57,82 @@ namespace
         PhysiK::ComponentExecutionPriority priority;
         int id;
         std::vector<int>& callOrder;
+    };
+
+    class RecordingConnection :
+        public PhysiK::PhysicsConnection
+    {
+    public:
+        explicit RecordingConnection(int& assemblyCount)
+            : assemblyCount(assemblyCount)
+        {
+        }
+
+        void UpdateSystem(
+            PhysiK::World&,
+            PhysiK::SolverData&,
+            float) override
+        {
+            ++assemblyCount;
+        }
+
+    private:
+        int& assemblyCount;
+    };
+
+    class FrameConnectionComponent :
+        public PhysiK::Component
+    {
+    public:
+        FrameConnectionComponent(
+            int& preUpdateCount,
+            int& frameConnectionAssemblyCount)
+            : preUpdateCount(preUpdateCount)
+            , frameConnectionAssemblyCount(frameConnectionAssemblyCount)
+        {
+        }
+
+        void PreUpdate(
+            PhysiK::World& world,
+            float) override
+        {
+            ++preUpdateCount;
+            world.AddTransientConnection(
+                std::make_unique<RecordingConnection>(
+                    frameConnectionAssemblyCount));
+        }
+
+    private:
+        int& preUpdateCount;
+        int& frameConnectionAssemblyCount;
+    };
+
+    class SubstepConnectionComponent :
+        public PhysiK::Component
+    {
+    public:
+        SubstepConnectionComponent(
+            int& createdCount,
+            int& substepConnectionAssemblyCount)
+            : createdCount(createdCount)
+            , substepConnectionAssemblyCount(substepConnectionAssemblyCount)
+        {
+        }
+
+        void UpdateSystem(
+            PhysiK::World& world,
+            PhysiK::SolverData&,
+            float) override
+        {
+            ++createdCount;
+            world.AddTransientConnection(
+                std::make_unique<RecordingConnection>(
+                    substepConnectionAssemblyCount));
+        }
+
+    private:
+        int& createdCount;
+        int& substepConnectionAssemblyCount;
     };
 
     void Require(bool condition, const char* message)
@@ -479,6 +557,194 @@ void WorldComponentHandlesRemainStableWithOrderedExecution()
         "GetComponentHandleByIndex should preserve second handle");
 }
 
+void WorldFrameConnectionsSurviveEverySubstep()
+{
+    PhysiK::World world;
+    int preUpdateCount = 0;
+    int frameConnectionAssemblies = 0;
+
+    world.SetSubstepCount(3);
+    world.AddComponent(
+        std::make_unique<FrameConnectionComponent>(
+            preUpdateCount,
+            frameConnectionAssemblies));
+
+    world.Step(0.1f);
+
+    Require(
+        preUpdateCount == 1,
+        "frame connection component should run PreUpdate once per frame");
+    Require(
+        frameConnectionAssemblies == 3,
+        "frame-scoped connection should assemble once in every substep");
+    Require(
+        world.GetTransientConnectionCount() == 0,
+        "frame-scoped connections should be cleared after the frame");
+}
+
+void WorldSubstepConnectionsAreRecreatedAndTrimmed()
+{
+    PhysiK::World world;
+    int substepConnectionsCreated = 0;
+    int substepConnectionAssemblies = 0;
+
+    world.SetSubstepCount(3);
+    world.AddComponent(
+        std::make_unique<SubstepConnectionComponent>(
+            substepConnectionsCreated,
+            substepConnectionAssemblies));
+
+    world.Step(0.1f);
+
+    Require(
+        substepConnectionsCreated == 3,
+        "substep component should create one connection per substep");
+    Require(
+        substepConnectionAssemblies == 3,
+        "substep connections should assemble once and not survive into later substeps");
+    Require(
+        world.GetTransientConnectionCount() == 0,
+        "substep-scoped connections should be cleared after the frame");
+}
+
+void WorldFrameAndSubstepConnectionsCoexist()
+{
+    PhysiK::World world;
+    int preUpdateCount = 0;
+    int frameConnectionAssemblies = 0;
+    int substepConnectionsCreated = 0;
+    int substepConnectionAssemblies = 0;
+
+    world.SetSubstepCount(3);
+    world.AddComponent(
+        std::make_unique<FrameConnectionComponent>(
+            preUpdateCount,
+            frameConnectionAssemblies));
+    world.AddComponent(
+        std::make_unique<SubstepConnectionComponent>(
+            substepConnectionsCreated,
+            substepConnectionAssemblies));
+
+    world.Step(0.1f);
+
+    Require(
+        preUpdateCount == 1,
+        "frame connection component should run once when coexisting with substep connections");
+    Require(
+        frameConnectionAssemblies == 3,
+        "frame connection should persist through all substeps");
+    Require(
+        substepConnectionsCreated == 3,
+        "substep connection should be recreated each substep");
+    Require(
+        substepConnectionAssemblies == 3,
+        "only the current substep connection should assemble each substep");
+    Require(
+        world.GetTransientConnectionCount() == 0,
+        "all connections should be cleared after mixed frame/substep lifecycle");
+}
+
+void WorldClearsAllConnectionsAfterPositiveFrame()
+{
+    PhysiK::World world;
+    int preUpdateCount = 0;
+    int frameConnectionAssemblies = 0;
+
+    world.SetSubstepCount(2);
+    world.AddComponent(
+        std::make_unique<FrameConnectionComponent>(
+            preUpdateCount,
+            frameConnectionAssemblies));
+
+    world.Step(0.1f);
+
+    Require(
+        world.GetTransientConnectionCount() == 0,
+        "positive-dt frame should flush the complete connection table");
+}
+
+void WorldZeroDtFrameFlushesFrameConnections()
+{
+    PhysiK::World world;
+    int preUpdateCount = 0;
+    int frameConnectionAssemblies = 0;
+
+    world.AddComponent(
+        std::make_unique<FrameConnectionComponent>(
+            preUpdateCount,
+            frameConnectionAssemblies));
+
+    world.Step(0.0f);
+
+    Require(
+        preUpdateCount == 1,
+        "zero-dt frame should still run PreUpdate");
+    Require(
+        frameConnectionAssemblies == 0,
+        "zero-dt frame should not assemble frame connections");
+    Require(
+        world.GetTransientConnectionCount() == 0,
+        "zero-dt frame should flush frame-scoped connection requests");
+}
+
+void WorldNegativeDtDoesNotRunConnectionLifecycle()
+{
+    PhysiK::World world;
+    int preUpdateCount = 0;
+    int frameConnectionAssemblies = 0;
+
+    world.AddComponent(
+        std::make_unique<FrameConnectionComponent>(
+            preUpdateCount,
+            frameConnectionAssemblies));
+
+    world.Step(-1.0f);
+
+    Require(
+        preUpdateCount == 0,
+        "negative dt should not run PreUpdate");
+    Require(
+        frameConnectionAssemblies == 0,
+        "negative dt should not assemble connections");
+    Require(
+        world.GetTransientConnectionCount() == 0,
+        "negative dt should not add or clear connections through lifecycle work");
+}
+
+void WorldOneSubstepConnectionLifecycleWorks()
+{
+    PhysiK::World world;
+    int preUpdateCount = 0;
+    int frameConnectionAssemblies = 0;
+    int substepConnectionsCreated = 0;
+    int substepConnectionAssemblies = 0;
+
+    world.SetSubstepCount(1);
+    world.AddComponent(
+        std::make_unique<FrameConnectionComponent>(
+            preUpdateCount,
+            frameConnectionAssemblies));
+    world.AddComponent(
+        std::make_unique<SubstepConnectionComponent>(
+            substepConnectionsCreated,
+            substepConnectionAssemblies));
+
+    world.Step(0.1f);
+
+    Require(
+        frameConnectionAssemblies == 1,
+        "one-substep frame connection should assemble once");
+    Require(
+        substepConnectionsCreated == 1,
+        "one-substep component should create one substep connection");
+    Require(
+        substepConnectionAssemblies == 1,
+        "one-substep substep connection should assemble once");
+    Require(
+        world.GetTransientConnectionCount() == 0,
+        "one-substep frame should clear the complete connection table");
+}
+
 int main()
 {
     DefaultComponentPriorityIsDefault();
@@ -492,6 +758,13 @@ int main()
     WorldUnregistersDestroyedComponentsFromExecution();
     WorldReusedSlotRegistersNewComponentOnly();
     WorldComponentHandlesRemainStableWithOrderedExecution();
+    WorldFrameConnectionsSurviveEverySubstep();
+    WorldSubstepConnectionsAreRecreatedAndTrimmed();
+    WorldFrameAndSubstepConnectionsCoexist();
+    WorldClearsAllConnectionsAfterPositiveFrame();
+    WorldZeroDtFrameFlushesFrameConnections();
+    WorldNegativeDtDoesNotRunConnectionLifecycle();
+    WorldOneSubstepConnectionLifecycleWorks();
 
     return 0;
 }

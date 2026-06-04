@@ -37,9 +37,11 @@ namespace PhysiK
         }
 
         PreUpdateComponents(frameDt);
+        MarkSubstepConnectionBegin();
         if (frameDt == 0.0f)
         {
             PostUpdateComponents(frameDt);
+            ClearFrameConnections();
             return;
         }
 
@@ -63,10 +65,11 @@ namespace PhysiK
                 IntegrateExplicitEuler(solverData, substepDt);
             }
 
-            ClearTransientConnections();
+            ClearSubstepConnections();
         }
 
         PostUpdateComponents(frameDt);
+        ClearFrameConnections();
     }
 
     int World::AddNode(const Vec3& position)
@@ -574,9 +577,25 @@ namespace PhysiK
         }
     }
 
-    void World::ClearTransientConnections()
+    void World::MarkSubstepConnectionBegin()
+    {
+        firstSubstepConnectionIndex = transientConnections.size();
+    }
+
+    void World::ClearSubstepConnections()
+    {
+        if (firstSubstepConnectionIndex > transientConnections.size())
+        {
+            firstSubstepConnectionIndex = transientConnections.size();
+        }
+
+        transientConnections.resize(firstSubstepConnectionIndex);
+    }
+
+    void World::ClearFrameConnections()
     {
         transientConnections.clear();
+        firstSubstepConnectionIndex = 0u;
     }
 
     bool World::HasValidNodeIndices(const PointConnection& connection) const
