@@ -36,6 +36,13 @@ namespace PhysiK
         this->surfaceExtractionHandle = surfaceExtractionHandle;
     }
 
+    ComponentExecutionPriority
+    SurfaceVisualComponent::GetExecutionPriority() const
+    {
+        return ComponentExecutionPriority::
+            SurfaceVisualComponent;
+    }
+
     void SurfaceVisualComponent::RebuildVisualSurfaceTopology(const World& world)
     {
         visualVertices.clear();

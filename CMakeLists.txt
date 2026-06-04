@@ -183,7 +183,8 @@ if(PHYSIK_BUILD_TESTS)
 
     add_executable(
         ComponentExecutionPriorityTests
-        tests/ComponentExecutionPriorityTests.cpp)
+        tests/ComponentExecutionPriorityTests.cpp
+        src/Components/ScriptComponent.cpp)
     target_link_libraries(ComponentExecutionPriorityTests PRIVATE PhysiK::PhysiK)
     target_compile_features(ComponentExecutionPriorityTests PRIVATE cxx_std_17)
 

@@ -9,6 +9,9 @@ namespace PhysiK
         public Component
     {
     public:
+        ComponentExecutionPriority
+        GetExecutionPriority() const override;
+
         void SetExternalLogicCallback(
             ExternalLogicCallback callback,
             void* userData);

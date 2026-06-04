@@ -4,6 +4,13 @@
 
 namespace PhysiK
 {
+    ComponentExecutionPriority
+    ScriptComponent::GetExecutionPriority() const
+    {
+        return ComponentExecutionPriority::
+            ScriptComponent;
+    }
+
     void ScriptComponent::SetExternalLogicCallback(
         ExternalLogicCallback callback,
         void* userData)

@@ -30,6 +30,9 @@ namespace PhysiK
             ComponentHandle sourceTetMeshHandle,
             ComponentHandle destinationTetMeshHandle);
 
+        ComponentExecutionPriority
+        GetExecutionPriority() const override;
+
         ComponentHandle sourceTetMeshHandle;
         ComponentHandle destinationTetMeshHandle;
         std::vector<TetMeshMappedVertex> embeddedDestinationVertices;

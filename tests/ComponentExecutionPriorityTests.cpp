@@ -1,5 +1,13 @@
 #include "PhysiK/Components/Component.h"
 #include "PhysiK/Components/ComponentExecutionPriority.h"
+#include "PhysiK/Components/ScriptComponent.h"
+#include "PhysiK/Components/SurfaceExtractionComponent.h"
+#include "PhysiK/Components/SurfaceVisualComponent.h"
+#include "PhysiK/Components/TetMeshComponent.h"
+#include "PhysiK/Components/TetMeshMapperComponent.h"
+#include "PhysiK/Components/TetMeshPhysicsComponent.h"
+#include "PhysiK/Components/TopologyMeshComponent.h"
+#include "PhysiK/Components/VisualMeshComponent.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -52,6 +60,80 @@ void ComponentExecutionPriorityLessOrdersValues()
             PhysiK::ComponentExecutionPriority::
                 ScriptComponent),
         "VisualMeshComponent should not sort before ScriptComponent");
+}
+
+void ConcreteComponentsReportExecutionPriorities()
+{
+    using PhysiK::ComponentExecutionPriority;
+
+    PhysiK::ScriptComponent scriptComponent;
+    PhysiK::TetMeshComponent tetMeshComponent;
+    PhysiK::TetMeshPhysicsComponent tetMeshPhysicsComponent;
+    PhysiK::TopologyMeshComponent topologyMeshComponent;
+    PhysiK::TetMeshMapperComponent tetMeshMapperComponent;
+    PhysiK::SurfaceExtractionComponent surfaceExtractionComponent;
+    PhysiK::SurfaceVisualComponent surfaceVisualComponent;
+    PhysiK::VisualMeshComponent visualMeshComponent;
+
+    Require(
+        scriptComponent.GetExecutionPriority() ==
+            ComponentExecutionPriority::ScriptComponent,
+        "ScriptComponent should report ScriptComponent priority");
+    Require(
+        tetMeshComponent.GetExecutionPriority() ==
+            ComponentExecutionPriority::TetMeshComponent,
+        "TetMeshComponent should report TetMeshComponent priority");
+    Require(
+        tetMeshPhysicsComponent.GetExecutionPriority() ==
+            ComponentExecutionPriority::TetMeshPhysicsComponent,
+        "TetMeshPhysicsComponent should report TetMeshPhysicsComponent priority");
+    Require(
+        topologyMeshComponent.GetExecutionPriority() ==
+            ComponentExecutionPriority::TopologyMeshComponent,
+        "TopologyMeshComponent should report TopologyMeshComponent priority");
+    Require(
+        tetMeshMapperComponent.GetExecutionPriority() ==
+            ComponentExecutionPriority::TetMeshMapperComponent,
+        "TetMeshMapperComponent should report TetMeshMapperComponent priority");
+    Require(
+        surfaceExtractionComponent.GetExecutionPriority() ==
+            ComponentExecutionPriority::SurfaceExtractionComponent,
+        "SurfaceExtractionComponent should report SurfaceExtractionComponent priority");
+    Require(
+        surfaceVisualComponent.GetExecutionPriority() ==
+            ComponentExecutionPriority::SurfaceVisualComponent,
+        "SurfaceVisualComponent should report SurfaceVisualComponent priority");
+    Require(
+        visualMeshComponent.GetExecutionPriority() ==
+            ComponentExecutionPriority::VisualMeshComponent,
+        "VisualMeshComponent should report VisualMeshComponent priority");
+}
+
+void ComponentExecutionPriorityLessOrdersAdjacentHierarchy()
+{
+    using PhysiK::ComponentExecutionPriority;
+
+    const PhysiK::ComponentExecutionPriorityLess less;
+    const std::vector<ComponentExecutionPriority> hierarchy{
+        ComponentExecutionPriority::ScriptComponent,
+        ComponentExecutionPriority::CollisionSphereComponent,
+        ComponentExecutionPriority::TetMeshComponent,
+        ComponentExecutionPriority::TetMeshPhysicsComponent,
+        ComponentExecutionPriority::TopologyMeshComponent,
+        ComponentExecutionPriority::TetMeshMapperComponent,
+        ComponentExecutionPriority::SurfaceExtractionComponent,
+        ComponentExecutionPriority::SurfaceVisualComponent,
+        ComponentExecutionPriority::VisualMeshComponent,
+        ComponentExecutionPriority::Default};
+
+    for (std::size_t index = 1; index < hierarchy.size(); ++index)
+    {
+        Require(
+            less(
+                hierarchy[index - 1u],
+                hierarchy[index]),
+            "component execution priorities should sort adjacent hierarchy entries");
+    }
 }
 
 void ComponentExecutionPriorityMultimapPreservesPriorityOrderAndDuplicates()
@@ -116,6 +198,8 @@ int main()
 {
     DefaultComponentPriorityIsDefault();
     ComponentExecutionPriorityLessOrdersValues();
+    ConcreteComponentsReportExecutionPriorities();
+    ComponentExecutionPriorityLessOrdersAdjacentHierarchy();
     ComponentExecutionPriorityMultimapPreservesPriorityOrderAndDuplicates();
 
     return 0;

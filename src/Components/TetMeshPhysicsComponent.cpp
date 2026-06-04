@@ -133,6 +133,13 @@ namespace PhysiK
         }
     }
 
+    ComponentExecutionPriority
+    TetMeshPhysicsComponent::GetExecutionPriority() const
+    {
+        return ComponentExecutionPriority::
+            TetMeshPhysicsComponent;
+    }
+
     std::unique_ptr<TetMeshPhysicsComponent>
     TetMeshPhysicsComponent::CreateFromGeneratedTetMesh(
         World& world,

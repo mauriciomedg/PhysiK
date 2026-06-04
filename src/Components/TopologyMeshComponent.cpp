@@ -63,6 +63,13 @@ namespace PhysiK
         this->hostTetMeshHandle = hostTetMeshHandle;
     }
 
+    ComponentExecutionPriority
+    TopologyMeshComponent::GetExecutionPriority() const
+    {
+        return ComponentExecutionPriority::
+            TopologyMeshComponent;
+    }
+
     int TopologyMeshComponent::GetTetIslandId(int tetIndex) const
     {
         if (tetIndex < 0 || tetIndex >= static_cast<int>(tetIslandIds.size()))

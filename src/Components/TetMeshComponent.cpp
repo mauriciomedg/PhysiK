@@ -21,6 +21,13 @@ namespace PhysiK
         }
     }
 
+    ComponentExecutionPriority
+    TetMeshComponent::GetExecutionPriority() const
+    {
+        return ComponentExecutionPriority::
+            TetMeshComponent;
+    }
+
     void TetMeshComponent::SetGeometry(const GeneratedTetMesh& generatedMesh)
     {
         restNodePositions.clear();

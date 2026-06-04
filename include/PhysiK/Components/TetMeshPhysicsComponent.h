@@ -29,6 +29,9 @@ namespace PhysiK
             const GeneratedTetMesh& generatedMesh,
             const TetMeshPhysicsComponentDesc& desc);
 
+        ComponentExecutionPriority
+        GetExecutionPriority() const override;
+
         int globalNodeBeginIndex = -1;
         int globalNodeCount = 0;
         std::vector<Vec3> nodeVelocities;

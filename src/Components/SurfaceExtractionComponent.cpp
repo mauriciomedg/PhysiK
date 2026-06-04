@@ -134,6 +134,13 @@ namespace PhysiK
         }
     }
 
+    ComponentExecutionPriority
+    SurfaceExtractionComponent::GetExecutionPriority() const
+    {
+        return ComponentExecutionPriority::
+            SurfaceExtractionComponent;
+    }
+
     SurfaceExtractionComponent::SurfaceExtractionComponent()
     {
         listenedEvents.push_back(PhysicsEventType::TetMeshTopologyChanged);
