@@ -76,6 +76,13 @@ namespace PhysiK
         return component;
     }
 
+    ComponentExecutionPriority
+    CollisionSphereComponent::GetExecutionPriority() const
+    {
+        return ComponentExecutionPriority::
+            CollisionSphereComponent;
+    }
+
     void CollisionSphereComponent::SetConnectionSettings(float stiffness, float damping)
     {
         SetConnectionStiffness(stiffness);

@@ -55,6 +55,13 @@ namespace PhysiK
         this->debugEntityName = std::move(debugEntityName);
     }
 
+    ComponentExecutionPriority
+    VisualMeshComponent::GetExecutionPriority() const
+    {
+        return ComponentExecutionPriority::
+            VisualMeshComponent;
+    }
+
     void VisualMeshComponent::SetVisualMesh(
         const Vec3* vertices,
         int vertexCount,

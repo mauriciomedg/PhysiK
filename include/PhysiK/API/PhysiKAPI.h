@@ -76,23 +76,11 @@ extern "C"
         PhysiK::WorldHandle world);
     PHYSIK_API int PHYSIK_DidLastConjugateGradientSolveConverge(
         PhysiK::WorldHandle world);
-    PHYSIK_API void PHYSIK_EnablePerformanceLogging(
-        PhysiK::WorldHandle world,
-        int enabled);
-    PHYSIK_API void PHYSIK_SetPerformanceLogPath(
-        PhysiK::WorldHandle world,
-        const char* path);
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,
         float y,
         float z);
-    PHYSIK_API void PHYSIK_SetExternalLogicCallback(
-        PhysiK::WorldHandle world,
-        PhysiK::ExternalLogicCallback callback,
-        void* userData);
-    PHYSIK_API void PHYSIK_ClearExternalLogicCallback(PhysiK::WorldHandle world);
-
     PHYSIK_API int PHYSIK_AddNode(
         PhysiK::WorldHandle world,
         float x,
@@ -174,6 +162,19 @@ extern "C"
         float y,
         float z,
         float radius);
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateScriptComponent(
+        PhysiK::WorldHandle world);
+
+    PHYSIK_API void PHYSIK_SetScriptComponentCallback(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle scriptComponent,
+        PhysiK::ExternalLogicCallback callback,
+        void* userData);
+
+    PHYSIK_API void PHYSIK_ClearScriptComponentCallback(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle scriptComponent);
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceExtractionComponent(
         PhysiK::WorldHandle world,

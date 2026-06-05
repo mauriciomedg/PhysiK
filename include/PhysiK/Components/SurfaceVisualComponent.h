@@ -17,6 +17,9 @@ namespace PhysiK
         SurfaceVisualComponent();
         explicit SurfaceVisualComponent(ComponentHandle surfaceExtractionHandle);
 
+        ComponentExecutionPriority
+        GetExecutionPriority() const override;
+
         void RebuildVisualSurfaceTopology(const World& world);
         void UpdateVisualSurfaceGeometry(const World& world);
 

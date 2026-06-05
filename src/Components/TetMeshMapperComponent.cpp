@@ -104,6 +104,13 @@ namespace PhysiK
         listenedEvents.push_back(PhysicsEventType::TetMeshTopologyChanged);
     }
 
+    ComponentExecutionPriority
+    TetMeshMapperComponent::GetExecutionPriority() const
+    {
+        return ComponentExecutionPriority::
+            TetMeshMapperComponent;
+    }
+
     bool TetMeshMapperComponent::BuildTetMeshMapping(World& world)
     {
         embeddedDestinationVertices.clear();

@@ -2,6 +2,7 @@
 
 #include "PhysiK/Components/CollisionComponent.h"
 #include "PhysiK/Components/CollisionSphereComponent.h"
+#include "PhysiK/Components/ScriptComponent.h"
 #include "PhysiK/Components/SurfaceExtractionComponent.h"
 #include "PhysiK/Components/SurfaceVisualComponent.h"
 #include "PhysiK/Components/TetMeshComponent.h"
@@ -108,6 +109,19 @@ namespace
 
         return dynamic_cast<PhysiK::CollisionSphereComponent*>(
             world->GetComponent(sphereComponent));
+    }
+
+    PhysiK::ScriptComponent* AsScriptComponent(
+        PhysiK::World* world,
+        PhysiK::ComponentHandle component)
+    {
+        if (world == nullptr)
+        {
+            return nullptr;
+        }
+
+        return dynamic_cast<PhysiK::ScriptComponent*>(
+            world->GetComponent(component));
     }
 
     PhysiK::TetMeshComponent* AsTetMesh(
@@ -407,26 +421,6 @@ extern "C"
             : 0;
     }
 
-    PHYSIK_API void PHYSIK_EnablePerformanceLogging(
-        PhysiK::WorldHandle world,
-        int enabled)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            worldPtr->EnablePerformanceLogging(enabled != 0);
-        }
-    }
-
-    PHYSIK_API void PHYSIK_SetPerformanceLogPath(
-        PhysiK::WorldHandle world,
-        const char* path)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            worldPtr->SetPerformanceLogPath(path);
-        }
-    }
-
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,
@@ -436,25 +430,6 @@ extern "C"
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
             worldPtr->SetGravity(PhysiK::Vec3{x, y, z});
-        }
-    }
-
-    PHYSIK_API void PHYSIK_SetExternalLogicCallback(
-        PhysiK::WorldHandle world,
-        PhysiK::ExternalLogicCallback callback,
-        void* userData)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            worldPtr->SetExternalLogicCallback(callback, userData);
-        }
-    }
-
-    PHYSIK_API void PHYSIK_ClearExternalLogicCallback(PhysiK::WorldHandle world)
-    {
-        if (PhysiK::World* worldPtr = AsWorld(world))
-        {
-            worldPtr->ClearExternalLogicCallback();
         }
     }
 
@@ -737,6 +712,54 @@ extern "C"
             hostTetMesh,
             std::string{});
         return worldPtr->AddComponent(std::move(component));
+    }
+
+    PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateScriptComponent(
+        PhysiK::WorldHandle world)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+
+        if (worldPtr == nullptr)
+        {
+            return PhysiK::ComponentHandle{};
+        }
+
+        return worldPtr->AddComponent(
+            std::make_unique<PhysiK::ScriptComponent>());
+    }
+
+    PHYSIK_API void PHYSIK_SetScriptComponentCallback(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle scriptComponent,
+        PhysiK::ExternalLogicCallback callback,
+        void* userData)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        PhysiK::ScriptComponent* component =
+            AsScriptComponent(worldPtr, scriptComponent);
+
+        if (component == nullptr)
+        {
+            return;
+        }
+
+        component->SetExternalLogicCallback(callback, userData);
+    }
+
+    PHYSIK_API void PHYSIK_ClearScriptComponentCallback(
+        PhysiK::WorldHandle world,
+        PhysiK::ComponentHandle scriptComponent)
+    {
+        PhysiK::World* worldPtr = AsWorld(world);
+        PhysiK::ScriptComponent* component =
+            AsScriptComponent(worldPtr, scriptComponent);
+
+        if (component == nullptr)
+        {
+            return;
+        }
+
+        component->ClearExternalLogicCallback();
     }
 
     PHYSIK_API PhysiK::ComponentHandle PHYSIK_CreateSurfaceExtractionComponent(

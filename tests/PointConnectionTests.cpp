@@ -19,8 +19,6 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
-#include <fstream>
 #include <limits>
 #include <string>
 #include <vector>
@@ -976,7 +974,7 @@ void MultipleForceSourcesCoexist()
     PHYSIK_DestroyWorld(world);
 }
 
-void ExternalLogicHookRunsOnceBeforeSubsteps()
+void ScriptComponentCallbackRunsOnceBeforeSubsteps()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
@@ -984,7 +982,14 @@ void ExternalLogicHookRunsOnceBeforeSubsteps()
     ExternalLogicTestState state;
     CreateSingleTet(world, state.nodes);
     PHYSIK_SetSubstepCount(world, 4);
-    PHYSIK_SetExternalLogicCallback(world, AddPointConnectionFromExternalLogic, &state);
+    const PhysiK::ComponentHandle script =
+        PHYSIK_CreateScriptComponent(world);
+    assert(PHYSIK_IsComponentHandleValid(world, script) == 1);
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        script,
+        AddPointConnectionFromExternalLogic,
+        &state);
 
     const Point before = GetTetCentroid(world, state.nodes);
 
@@ -996,13 +1001,12 @@ void ExternalLogicHookRunsOnceBeforeSubsteps()
     assert(after.z > before.z);
     assert(PHYSIK_GetPointConnectionCount(world) == 0);
 
-    PHYSIK_ClearExternalLogicCallback(world);
     PHYSIK_DestroyWorld(world);
 }
 
 
 
-void KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps()
+void KinematicUpdateRunsAfterScriptComponentBeforePhysicsSubsteps()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
     assert(world != nullptr);
@@ -1027,7 +1031,14 @@ void KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps()
         PHYSIK_SetCollisionComponentKinematicTarget(worldHandle, callbackState->sphere, 0.25f, 0.25f, 0.25f);
     };
 
-    PHYSIK_SetExternalLogicCallback(world, moveSphereInExternalLogic, &state);
+    const PhysiK::ComponentHandle script =
+        PHYSIK_CreateScriptComponent(world);
+    assert(PHYSIK_IsComponentHandleValid(world, script) == 1);
+    PHYSIK_SetScriptComponentCallback(
+        world,
+        script,
+        moveSphereInExternalLogic,
+        &state);
     PHYSIK_SetSubstepCount(world, 3);
 
     const Point before = GetTetCentroid(world, nodes);
@@ -1037,7 +1048,6 @@ void KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps()
     assert(state.callbackCount == 1);
     assert(after.z > before.z);
 
-    PHYSIK_ClearExternalLogicCallback(world);
     PHYSIK_DestroyWorld(world);
 }
 
@@ -2362,57 +2372,6 @@ void SolverDataAcceptsFiniteUnconvergedCgApproximation()
     {
         assert(std::isfinite(value));
     }
-}
-
-void PerformanceLoggingWritesCsvForImplicitStep()
-{
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-    const std::filesystem::path logPath =
-        std::filesystem::path("logs") / "physik_performance_test.csv";
-    std::error_code error;
-    std::filesystem::remove(logPath, error);
-
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    Require(world != nullptr, "world creation failed for performance logging test");
-
-    int nodes[4] = {};
-    CreateSingleTetWithMaterial(world, nodes, 100.0f, 0.0f, 1.0f);
-    PHYSIK_SetSolverMode(world, 1);
-    PHYSIK_SetPerformanceLogPath(world, logPath.string().c_str());
-
-    PHYSIK_Step(world, 0.01f);
-    PHYSIK_DestroyWorld(world);
-
-    Require(
-        std::filesystem::exists(logPath),
-        "performance logging did not create the CSV file");
-
-    std::ifstream file(logPath);
-    std::string header;
-    std::string row;
-    std::getline(file, header);
-    std::getline(file, row);
-
-    Require(
-        header.find("frameIndex,substepIndex,dt,totalStepMs") != std::string::npos,
-        "performance CSV header is missing expected timing columns");
-    Require(
-        header.find("cgIterations,cgResidual,dynamicBlockCount,tetCount,activeTetCount") !=
-            std::string::npos,
-        "performance CSV header is missing expected solver/topology columns");
-    Require(!row.empty(), "performance CSV did not contain a data row");
-
-    std::filesystem::remove(logPath, error);
-#else
-    PhysiK::WorldHandle world = PHYSIK_CreateWorld();
-    Require(world != nullptr, "world creation failed for performance logging no-op test");
-
-    PHYSIK_SetPerformanceLogPath(world, "logs/physik_performance_disabled_test.csv");
-    PHYSIK_EnablePerformanceLogging(world, 1);
-    PHYSIK_Step(world, 0.01f);
-
-    PHYSIK_DestroyWorld(world);
-#endif
 }
 
 void ImplicitEulerLinearTetUsesSparseCgPath()
@@ -4456,8 +4415,8 @@ int main()
     CollisionSphereConnectionSettingsAffectGeneratedConnections();
     CollisionSphereConnectionSettingsCAPIHandlesInvalidInputs();
     MultipleForceSourcesCoexist();
-    ExternalLogicHookRunsOnceBeforeSubsteps();
-    KinematicUpdateRunsAfterExternalLogicBeforePhysicsSubsteps();
+    ScriptComponentCallbackRunsOnceBeforeSubsteps();
+    KinematicUpdateRunsAfterScriptComponentBeforePhysicsSubsteps();
     FEMElasticityMovesDistortedTetTowardRestShape();
     FEMUsesWorldNodeMappingWhenLocalTetIndicesDiffer();
     TetMeshPhysicsUsesCreationRestDataForRuntimeForces();
@@ -4499,7 +4458,6 @@ int main()
     CurrentLinearSolverSolvesKnownSparseSystem();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     SolverDataAcceptsFiniteUnconvergedCgApproximation();
-    PerformanceLoggingWritesCsvForImplicitStep();
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();
     MultiTetImplicitEulerSparseCgSmokeTest();

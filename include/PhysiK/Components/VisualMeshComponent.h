@@ -32,6 +32,9 @@ namespace PhysiK
         VisualMeshComponent();
         VisualMeshComponent(ComponentHandle hostTetMeshHandle, std::string debugEntityName);
 
+        ComponentExecutionPriority
+        GetExecutionPriority() const override;
+
         ComponentHandle hostTetMeshHandle;
         std::string debugEntityName;
         bool topologyDirty = false;

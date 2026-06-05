@@ -14,6 +14,9 @@ namespace PhysiK
         TopologyMeshComponent();
         explicit TopologyMeshComponent(ComponentHandle hostTetMeshHandle);
 
+        ComponentExecutionPriority
+        GetExecutionPriority() const override;
+
         ComponentHandle hostTetMeshHandle;
         bool topologyDirty = true;
         std::vector<int> tetIslandIds;

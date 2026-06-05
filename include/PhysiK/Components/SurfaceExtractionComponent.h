@@ -14,6 +14,9 @@ namespace PhysiK
         SurfaceExtractionComponent();
         explicit SurfaceExtractionComponent(ComponentHandle hostTetMeshHandle);
 
+        ComponentExecutionPriority
+        GetExecutionPriority() const override;
+
         ComponentHandle hostTetMeshHandle;
         std::vector<int> surfaceTriangleIndices;
         bool surfaceDirty = true;

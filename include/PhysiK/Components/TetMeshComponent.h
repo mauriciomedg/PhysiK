@@ -20,6 +20,9 @@ namespace PhysiK
 
         bool topologyDirty = false;
 
+        ComponentExecutionPriority
+        GetExecutionPriority() const override;
+
         void SetGeometry(const GeneratedTetMesh& generatedMesh);
 
         int GetNodeCount() const;

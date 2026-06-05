@@ -47,6 +47,9 @@ namespace PhysiK
             const Vec3& position,
             float radius);
 
+        ComponentExecutionPriority
+        GetExecutionPriority() const override;
+
         float radius = 0.5f;
 
         void SetConnectionSettings(float stiffness, float damping);
