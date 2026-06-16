@@ -313,6 +313,40 @@ namespace
         return matrix.FindBlockIndex(rowBlock, colBlock) >= 0;
     }
 
+    bool NearlyEqual(const PhysiK::Mat3& a, const PhysiK::Mat3& b, float tolerance = 0.00001f)
+    {
+        return NearlyEqual(a.columns[0], b.columns[0], tolerance) &&
+            NearlyEqual(a.columns[1], b.columns[1], tolerance) &&
+            NearlyEqual(a.columns[2], b.columns[2], tolerance);
+    }
+
+    bool SparseMatricesNearlyEqual(
+        const PhysiK::SparseBlockMatrix& a,
+        const PhysiK::SparseBlockMatrix& b,
+        float tolerance = 0.00001f)
+    {
+        if (a.blockCount != b.blockCount ||
+            a.rowStart != b.rowStart ||
+            a.colIndex != b.colIndex ||
+            a.values.size() != b.values.size())
+        {
+            return false;
+        }
+
+        for (int blockIndex = 0; blockIndex < static_cast<int>(a.values.size()); ++blockIndex)
+        {
+            if (!NearlyEqual(
+                a.values[static_cast<std::size_t>(blockIndex)],
+                b.values[static_cast<std::size_t>(blockIndex)],
+                tolerance))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     std::vector<std::pair<int, int>> BuildSparsePatternFromTetConnectivity(
         const std::vector<PhysiK::Tet>& tets)
     {
@@ -2051,7 +2085,87 @@ void SparseBlockMatrixAddBlockAccumulatesContributions()
 
     assert(matrix.AddBlock(0, 0, DiagonalBlock(7.0f)));
     assert(NearlyEqual(GetMat3Value(matrix.values[static_cast<std::size_t>(blockIndex)], 2, 2), 7.0f));
+    assert(matrix.AddBlockAtIndex(blockIndex, DiagonalBlock(2.0f)));
+    assert(NearlyEqual(GetMat3Value(matrix.values[static_cast<std::size_t>(blockIndex)], 0, 0), 9.0f));
+    assert(!matrix.AddBlockAtIndex(-1, DiagonalBlock(1.0f)));
+    assert(!matrix.AddBlockAtIndex(static_cast<int>(matrix.values.size()), DiagonalBlock(1.0f)));
 }
+
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+void SolverDataImplicitPatternCacheReusesIdenticalPattern()
+{
+    std::vector<PhysiK::Node> nodes(2);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+    nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
+    nodes[1].velocity = PhysiK::Vec3{0.5f, 0.0f, 0.0f};
+
+    PhysiK::SolverData solverData;
+    solverData.AddNodeMass(0, 2.0f);
+    solverData.AddNodeMass(1, 3.0f);
+    solverData.AddStiffnessBlock(0, 0, DiagonalBlock(1.0f));
+    solverData.AddStiffnessBlock(0, 1, DiagonalBlock(-0.25f));
+    solverData.AddStiffnessBlock(1, 0, DiagonalBlock(-0.25f));
+    solverData.AddStiffnessBlock(1, 1, DiagonalBlock(1.5f));
+
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.2f));
+    const PhysiK::SparseBlockMatrix firstMatrix = solverData.GetImplicitMatrixForTesting();
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+    assert(solverData.GetImplicitPatternReuseCount() == 0);
+
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.2f));
+    assert(SparseMatricesNearlyEqual(firstMatrix, solverData.GetImplicitMatrixForTesting()));
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+    assert(solverData.GetImplicitPatternReuseCount() == 1);
+}
+
+void SolverDataImplicitPatternCacheRebuildsWhenDynamicNodesChange()
+{
+    std::vector<PhysiK::Node> nodes(2);
+
+    PhysiK::SolverData solverData;
+    solverData.AddNodeMass(0, 1.0f);
+    solverData.AddNodeMass(1, 1.0f);
+    solverData.AddStiffnessBlock(0, 1, DiagonalBlock(0.5f));
+
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+
+    nodes[1].fixed = true;
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 2);
+    assert(solverData.GetImplicitPatternReuseCount() == 0);
+
+    nodes[1].fixed = false;
+    nodes[0].active = false;
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 3);
+}
+
+void SolverDataImplicitPatternCacheRebuildsWhenStiffnessCoordinatesChange()
+{
+    std::vector<PhysiK::Node> nodes(2);
+
+    PhysiK::SolverData solverData;
+    solverData.AddNodeMass(0, 1.0f);
+    solverData.AddNodeMass(1, 1.0f);
+    solverData.AddStiffnessBlock(0, 0, DiagonalBlock(0.5f));
+
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+
+    solverData.Clear();
+    solverData.AddNodeMass(0, 1.0f);
+    solverData.AddNodeMass(1, 1.0f);
+    solverData.AddStiffnessBlock(0, 1, DiagonalBlock(0.5f));
+
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 2);
+
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 2);
+    assert(solverData.GetImplicitPatternReuseCount() == 1);
+}
+#endif
 
 void SparseBlockMatrixSingleTetPatternContainsAllCouplings()
 {
@@ -4446,6 +4560,11 @@ int main()
     CollisionSphereOverlapQueryInvalidInputsReturnZero();
     SparseBlockMatrixStoresAndMultipliesBlocks();
     SparseBlockMatrixAddBlockAccumulatesContributions();
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+    SolverDataImplicitPatternCacheReusesIdenticalPattern();
+    SolverDataImplicitPatternCacheRebuildsWhenDynamicNodesChange();
+    SolverDataImplicitPatternCacheRebuildsWhenStiffnessCoordinatesChange();
+#endif
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
     TetMeshComponentCachesFemSparsePattern();

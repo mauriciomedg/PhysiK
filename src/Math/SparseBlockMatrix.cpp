@@ -121,7 +121,17 @@ namespace PhysiK
     bool SparseBlockMatrix::AddBlock(int rowBlock, int colBlock, const Mat3& block)
     {
         const int blockIndex = FindBlockIndex(rowBlock, colBlock);
+        return AddBlockAtIndex(blockIndex, block);
+    }
+
+    bool SparseBlockMatrix::AddBlockAtIndex(int blockIndex, const Mat3& block)
+    {
         if (blockIndex < 0)
+        {
+            return false;
+        }
+
+        if (blockIndex >= static_cast<int>(values.size()))
         {
             return false;
         }

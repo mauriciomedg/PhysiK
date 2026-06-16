@@ -96,9 +96,29 @@ namespace PhysiK
             return assembledForces;
         }
 
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        int GetImplicitPatternRebuildCount() const
+        {
+            return implicitPatternRebuildCount;
+        }
+
+        int GetImplicitPatternReuseCount() const
+        {
+            return implicitPatternReuseCount;
+        }
+
+        const SparseBlockMatrix& GetImplicitMatrixForTesting() const
+        {
+            return matrix;
+        }
+#endif
+
     private:
         bool BuildDynamicNodeMapping(const std::vector<Node>& nodes);
         bool AssembleImplicitMatrixAndRhs(const std::vector<Node>& nodes, float dt);
+        bool RebuildImplicitPattern(
+            const std::vector<Node>& nodes,
+            const std::vector<std::pair<int, int>>& stiffnessCoordinateSignature);
 
         std::vector<NodeForce> nodeForces;
         std::vector<NodeMass> nodeMasses;
@@ -112,5 +132,14 @@ namespace PhysiK
         SparseBlockMatrix matrix;
         std::vector<float> deltaVelocity;
         LinearSolveResult lastLinearSolveResult;
+
+        bool implicitPatternDirty = true;
+        int cachedDynamicBlockCount = 0;
+        std::vector<int> cachedNodeToDynamicBlock;
+        std::vector<int> massBlockIndices;
+        std::vector<int> stiffnessBlockMatrixIndices;
+        std::vector<std::pair<int, int>> cachedStiffnessBlockCoordinates;
+        int implicitPatternRebuildCount = 0;
+        int implicitPatternReuseCount = 0;
     };
 }

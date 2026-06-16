@@ -29,6 +29,7 @@ namespace PhysiK
             const std::vector<std::pair<int, int>>& blockCoordinates);
 
         bool AddBlock(int rowBlock, int colBlock, const Mat3& block);
+        bool AddBlockAtIndex(int blockIndex, const Mat3& block);
         void Multiply(
             const std::vector<float>& input,
             std::vector<float>& output) const;

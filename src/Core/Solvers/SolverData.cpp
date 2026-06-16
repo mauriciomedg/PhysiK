@@ -52,7 +52,6 @@ namespace PhysiK
         nodeToDynamicBlock.clear();
         dynamicBlockCount = 0;
         rhs.clear();
-        matrix.Clear();
         deltaVelocity.clear();
         lastLinearSolveResult = LinearSolveResult{};
     }
@@ -103,7 +102,6 @@ namespace PhysiK
         nodeToDynamicBlock.clear();
         dynamicBlockCount = 0;
         rhs.clear();
-        matrix.Clear();
         deltaVelocity.clear();
         lastLinearSolveResult = LinearSolveResult{};
 
@@ -217,10 +215,6 @@ namespace PhysiK
         const std::size_t dimension = static_cast<std::size_t>(dynamicBlockCount * 3);
         rhs.assign(dimension, 0.0f);
 
-        std::vector<std::pair<int, int>> blockCoordinates;
-        blockCoordinates.reserve(
-            static_cast<std::size_t>(dynamicBlockCount) + stiffnessBlocks.size());
-
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
             const int dynamicBlock = GetDynamicBlockForNode(nodeIndex);
@@ -234,13 +228,17 @@ namespace PhysiK
             {
                 return false;
             }
-
-            blockCoordinates.push_back({dynamicBlock, dynamicBlock});
         }
 
         const float stiffnessScale = dt * dt;
-        for (const StiffnessBlock& block : stiffnessBlocks)
+        std::vector<std::pair<int, int>> stiffnessCoordinateSignature;
+        stiffnessCoordinateSignature.assign(stiffnessBlocks.size(), {-1, -1});
+
+        for (int stiffnessIndex = 0;
+            stiffnessIndex < static_cast<int>(stiffnessBlocks.size());
+            ++stiffnessIndex)
         {
+            const StiffnessBlock& block = stiffnessBlocks[static_cast<std::size_t>(stiffnessIndex)];
             if (block.nodeA < 0 || block.nodeA >= static_cast<int>(nodes.size()) ||
                 block.nodeB < 0 || block.nodeB >= static_cast<int>(nodes.size()))
             {
@@ -281,10 +279,28 @@ namespace PhysiK
                 continue;
             }
 
-            blockCoordinates.push_back({rowBlock, columnBlock});
+            stiffnessCoordinateSignature[static_cast<std::size_t>(stiffnessIndex)] =
+                {rowBlock, columnBlock};
         }
 
-        matrix.BuildPattern(dynamicBlockCount, blockCoordinates);
+        const bool rebuildPattern = implicitPatternDirty ||
+            cachedDynamicBlockCount != dynamicBlockCount ||
+            cachedNodeToDynamicBlock != nodeToDynamicBlock ||
+            cachedStiffnessBlockCoordinates != stiffnessCoordinateSignature;
+
+        if (rebuildPattern)
+        {
+            if (!RebuildImplicitPattern(nodes, stiffnessCoordinateSignature))
+            {
+                return false;
+            }
+            ++implicitPatternRebuildCount;
+        }
+        else
+        {
+            matrix.ClearValues();
+            ++implicitPatternReuseCount;
+        }
 
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
@@ -295,14 +311,18 @@ namespace PhysiK
             }
 
             const float mass = assembledMasses[static_cast<std::size_t>(nodeIndex)];
-            if (!matrix.AddBlock(dynamicBlock, dynamicBlock, ScaledIdentity(mass)))
+            const int matrixBlockIndex = massBlockIndices[static_cast<std::size_t>(nodeIndex)];
+            if (!matrix.AddBlockAtIndex(matrixBlockIndex, ScaledIdentity(mass)))
             {
                 return false;
             }
         }
 
-        for (const StiffnessBlock& block : stiffnessBlocks)
+        for (int stiffnessIndex = 0;
+            stiffnessIndex < static_cast<int>(stiffnessBlocks.size());
+            ++stiffnessIndex)
         {
+            const StiffnessBlock& block = stiffnessBlocks[static_cast<std::size_t>(stiffnessIndex)];
             if (block.nodeA < 0 || block.nodeA >= static_cast<int>(nodes.size()) ||
                 block.nodeB < 0 || block.nodeB >= static_cast<int>(nodes.size()) ||
                 !IsFinite(block.block))
@@ -317,7 +337,9 @@ namespace PhysiK
                 continue;
             }
 
-            if (!matrix.AddBlock(rowBlock, columnBlock, Scale(block.block, stiffnessScale)))
+            const int matrixBlockIndex =
+                stiffnessBlockMatrixIndices[static_cast<std::size_t>(stiffnessIndex)];
+            if (!matrix.AddBlockAtIndex(matrixBlockIndex, Scale(block.block, stiffnessScale)))
             {
                 return false;
             }
@@ -338,6 +360,83 @@ namespace PhysiK
             rhs[static_cast<std::size_t>(baseDof + 2)] += dt * force.z;
         }
 
+        return true;
+    }
+
+    bool SolverData::RebuildImplicitPattern(
+        const std::vector<Node>& nodes,
+        const std::vector<std::pair<int, int>>& stiffnessCoordinateSignature)
+    {
+        std::vector<std::pair<int, int>> blockCoordinates;
+        blockCoordinates.reserve(
+            static_cast<std::size_t>(dynamicBlockCount) + stiffnessBlocks.size());
+
+        for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
+        {
+            const int dynamicBlock = GetDynamicBlockForNode(nodeIndex);
+            if (dynamicBlock < 0)
+            {
+                continue;
+            }
+
+            blockCoordinates.push_back({dynamicBlock, dynamicBlock});
+        }
+
+        for (const std::pair<int, int>& coordinate : stiffnessCoordinateSignature)
+        {
+            if (coordinate.first < 0 || coordinate.second < 0)
+            {
+                continue;
+            }
+
+            blockCoordinates.push_back(coordinate);
+        }
+
+        matrix.BuildPattern(dynamicBlockCount, blockCoordinates);
+
+        massBlockIndices.assign(nodes.size(), -1);
+        for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
+        {
+            const int dynamicBlock = GetDynamicBlockForNode(nodeIndex);
+            if (dynamicBlock < 0)
+            {
+                continue;
+            }
+
+            const int blockIndex = matrix.FindBlockIndex(dynamicBlock, dynamicBlock);
+            if (blockIndex < 0)
+            {
+                return false;
+            }
+
+            massBlockIndices[static_cast<std::size_t>(nodeIndex)] = blockIndex;
+        }
+
+        stiffnessBlockMatrixIndices.assign(stiffnessBlocks.size(), -1);
+        for (int stiffnessIndex = 0;
+            stiffnessIndex < static_cast<int>(stiffnessCoordinateSignature.size());
+            ++stiffnessIndex)
+        {
+            const std::pair<int, int>& coordinate =
+                stiffnessCoordinateSignature[static_cast<std::size_t>(stiffnessIndex)];
+            if (coordinate.first < 0 || coordinate.second < 0)
+            {
+                continue;
+            }
+
+            const int blockIndex = matrix.FindBlockIndex(coordinate.first, coordinate.second);
+            if (blockIndex < 0)
+            {
+                return false;
+            }
+
+            stiffnessBlockMatrixIndices[static_cast<std::size_t>(stiffnessIndex)] = blockIndex;
+        }
+
+        cachedDynamicBlockCount = dynamicBlockCount;
+        cachedNodeToDynamicBlock = nodeToDynamicBlock;
+        cachedStiffnessBlockCoordinates = stiffnessCoordinateSignature;
+        implicitPatternDirty = false;
         return true;
     }
 }
