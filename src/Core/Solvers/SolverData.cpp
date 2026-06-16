@@ -44,6 +44,16 @@ namespace PhysiK
 
     void SolverData::Clear()
     {
+        ClearTransientState();
+        matrix.Clear();
+        implicitPatternDirty = true;
+        cachedDynamicBlockCount = 0;
+        cachedNodeToDynamicBlock.clear();
+        cachedBlockCoordinates.clear();
+    }
+
+    void SolverData::ClearTransientState()
+    {
         nodeForces.clear();
         nodeMasses.clear();
         stiffnessBlocks.clear();
@@ -52,9 +62,13 @@ namespace PhysiK
         nodeToDynamicBlock.clear();
         dynamicBlockCount = 0;
         rhs.clear();
-        matrix.Clear();
         deltaVelocity.clear();
         lastLinearSolveResult = LinearSolveResult{};
+    }
+
+    void SolverData::MarkImplicitPatternDirty()
+    {
+        implicitPatternDirty = true;
     }
 
     void SolverData::AssembleMasses(int nodeCount)
@@ -98,12 +112,17 @@ namespace PhysiK
 
     bool SolverData::PrecomputeImplicitSolve(const std::vector<Node>& nodes, float dt)
     {
-        AssembleMasses(static_cast<int>(nodes.size()));
+        // World::BuildSolverData assembles masses before validation and gravity.
+        // Keep this fallback so direct SolverData users and tests remain safe.
+        if (assembledMasses.size() != nodes.size())
+        {
+            AssembleMasses(static_cast<int>(nodes.size()));
+        }
+
         assembledForces.assign(nodes.size(), Vec3{});
         nodeToDynamicBlock.clear();
         dynamicBlockCount = 0;
         rhs.clear();
-        matrix.Clear();
         deltaVelocity.clear();
         lastLinearSolveResult = LinearSolveResult{};
 
@@ -284,7 +303,25 @@ namespace PhysiK
             blockCoordinates.push_back({rowBlock, columnBlock});
         }
 
-        matrix.BuildPattern(dynamicBlockCount, blockCoordinates);
+        const bool rebuildPattern = implicitPatternDirty ||
+            cachedDynamicBlockCount != dynamicBlockCount ||
+            cachedNodeToDynamicBlock != nodeToDynamicBlock ||
+            cachedBlockCoordinates != blockCoordinates;
+
+        if (rebuildPattern)
+        {
+            matrix.BuildPattern(dynamicBlockCount, blockCoordinates);
+            cachedDynamicBlockCount = dynamicBlockCount;
+            cachedNodeToDynamicBlock = nodeToDynamicBlock;
+            cachedBlockCoordinates = blockCoordinates;
+            implicitPatternDirty = false;
+            ++implicitPatternRebuildCount;
+        }
+        else
+        {
+            matrix.ClearValues();
+            ++implicitPatternReuseCount;
+        }
 
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {

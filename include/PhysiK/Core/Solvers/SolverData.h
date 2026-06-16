@@ -1,5 +1,6 @@
 #pragma once
 
+#include <utility>
 #include <vector>
 
 #include "PhysiK/API/PhysiKAPI.h"
@@ -34,6 +35,8 @@ namespace PhysiK
         };
 
         void Clear();
+        void ClearTransientState();
+        void MarkImplicitPatternDirty();
 
         void AddNodeForce(int node, const Vec3& force)
         {
@@ -96,6 +99,18 @@ namespace PhysiK
             return assembledForces;
         }
 
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        int GetImplicitPatternRebuildCount() const
+        {
+            return implicitPatternRebuildCount;
+        }
+
+        int GetImplicitPatternReuseCount() const
+        {
+            return implicitPatternReuseCount;
+        }
+#endif
+
     private:
         bool BuildDynamicNodeMapping(const std::vector<Node>& nodes);
         bool AssembleImplicitMatrixAndRhs(const std::vector<Node>& nodes, float dt);
@@ -112,5 +127,12 @@ namespace PhysiK
         SparseBlockMatrix matrix;
         std::vector<float> deltaVelocity;
         LinearSolveResult lastLinearSolveResult;
+
+        bool implicitPatternDirty = true;
+        int cachedDynamicBlockCount = 0;
+        std::vector<int> cachedNodeToDynamicBlock;
+        std::vector<std::pair<int, int>> cachedBlockCoordinates;
+        int implicitPatternRebuildCount = 0;
+        int implicitPatternReuseCount = 0;
     };
 }

@@ -48,9 +48,9 @@ namespace PhysiK
         const int steps = std::max(1, substepCount);
         const float substepDt = frameDt / static_cast<float>(steps);
 
+        SolverData solverData;
         for (int i = 0; i < steps; ++i)
         {
-            SolverData solverData;
             PrecomputeSolve(solverData, substepDt);
 
             if (solverMode == SolverMode::ImplicitEuler)
@@ -476,7 +476,7 @@ namespace PhysiK
 
     void World::PrecomputeSolve(SolverData& solverData, float dt)
     {
-        solverData.Clear();
+        solverData.ClearTransientState();
         BuildSolverData(solverData, dt);
         solverData.PrecomputeImplicitSolve(nodes, dt);
     }

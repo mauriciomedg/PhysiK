@@ -2374,6 +2374,108 @@ void SolverDataAcceptsFiniteUnconvergedCgApproximation()
     }
 }
 
+void SolverDataPrecomputeImplicitSolveFallsBackToAssembleMasses()
+{
+    std::vector<PhysiK::Node> nodes(1);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+
+    PhysiK::SolverData solverData;
+    solverData.AddNodeMass(0, 2.0f);
+    solverData.AddNodeForce(0, PhysiK::Vec3{1.0f, 0.0f, 0.0f});
+
+    assert(solverData.GetAssembledMasses().empty());
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetAssembledMasses().size() == 1);
+    assert(NearlyEqual(solverData.GetAssembledMassForNode(0), 2.0f));
+    assert(solverData.GetDynamicBlockCount() == 1);
+}
+
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+void SolverDataImplicitPatternReusesStablePattern()
+{
+    std::vector<PhysiK::Node> nodes(2);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+    nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
+
+    auto addStableAssembly = [](PhysiK::SolverData& solverData)
+    {
+        solverData.AddNodeMass(0, 1.0f);
+        solverData.AddNodeMass(1, 1.0f);
+        solverData.AddStiffnessBlock(0, 0, DiagonalBlock(1.0f));
+        solverData.AddStiffnessBlock(0, 1, DiagonalBlock(-0.25f));
+        solverData.AddStiffnessBlock(1, 0, DiagonalBlock(-0.25f));
+        solverData.AddStiffnessBlock(1, 1, DiagonalBlock(1.0f));
+    };
+
+    PhysiK::SolverData solverData;
+    addStableAssembly(solverData);
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+    assert(solverData.GetImplicitPatternReuseCount() == 0);
+
+    solverData.ClearTransientState();
+    addStableAssembly(solverData);
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+    assert(solverData.GetImplicitPatternReuseCount() == 1);
+}
+
+void SolverDataImplicitPatternRebuildsWhenFixedStateChanges()
+{
+    std::vector<PhysiK::Node> nodes(2);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+    nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
+
+    auto addAssembly = [](PhysiK::SolverData& solverData)
+    {
+        solverData.AddNodeMass(0, 1.0f);
+        solverData.AddNodeMass(1, 1.0f);
+        solverData.AddStiffnessBlock(0, 1, DiagonalBlock(0.5f));
+    };
+
+    PhysiK::SolverData solverData;
+    addAssembly(solverData);
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+
+    solverData.ClearTransientState();
+    nodes[1].fixed = true;
+    addAssembly(solverData);
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 2);
+    assert(solverData.GetImplicitPatternReuseCount() == 0);
+}
+
+void SolverDataImplicitPatternRebuildsWhenStiffnessCoordinatesChange()
+{
+    std::vector<PhysiK::Node> nodes(2);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+    nodes[1].position = PhysiK::Vec3{1.0f, 0.0f, 0.0f};
+
+    PhysiK::SolverData solverData;
+    solverData.AddNodeMass(0, 1.0f);
+    solverData.AddNodeMass(1, 1.0f);
+    solverData.AddStiffnessBlock(0, 0, DiagonalBlock(0.5f));
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+
+    solverData.ClearTransientState();
+    solverData.AddNodeMass(0, 1.0f);
+    solverData.AddNodeMass(1, 1.0f);
+    solverData.AddStiffnessBlock(0, 1, DiagonalBlock(0.5f));
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 2);
+
+    solverData.ClearTransientState();
+    solverData.AddNodeMass(0, 1.0f);
+    solverData.AddNodeMass(1, 1.0f);
+    solverData.AddStiffnessBlock(0, 1, DiagonalBlock(0.5f));
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetImplicitPatternRebuildCount() == 2);
+    assert(solverData.GetImplicitPatternReuseCount() == 1);
+}
+#endif
+
 void ImplicitEulerLinearTetUsesSparseCgPath()
 {
     PhysiK::WorldHandle world = PHYSIK_CreateWorld();
@@ -4458,6 +4560,12 @@ int main()
     CurrentLinearSolverSolvesKnownSparseSystem();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     SolverDataAcceptsFiniteUnconvergedCgApproximation();
+    SolverDataPrecomputeImplicitSolveFallsBackToAssembleMasses();
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+    SolverDataImplicitPatternReusesStablePattern();
+    SolverDataImplicitPatternRebuildsWhenFixedStateChanges();
+    SolverDataImplicitPatternRebuildsWhenStiffnessCoordinatesChange();
+#endif
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();
     MultiTetImplicitEulerSparseCgSmokeTest();
