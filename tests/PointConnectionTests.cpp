@@ -347,6 +347,55 @@ namespace
         return true;
     }
 
+    bool SolverDataAssemblyNearlyEqual(
+        const PhysiK::SolverData& a,
+        const PhysiK::SolverData& b,
+        float tolerance = 0.00001f)
+    {
+        if (a.GetNodeMasses().size() != b.GetNodeMasses().size() ||
+            a.GetNodeForces().size() != b.GetNodeForces().size() ||
+            a.GetStiffnessBlocks().size() != b.GetStiffnessBlocks().size())
+        {
+            return false;
+        }
+
+        for (int i = 0; i < static_cast<int>(a.GetNodeMasses().size()); ++i)
+        {
+            const PhysiK::SolverData::NodeMass& lhs = a.GetNodeMasses()[static_cast<std::size_t>(i)];
+            const PhysiK::SolverData::NodeMass& rhs = b.GetNodeMasses()[static_cast<std::size_t>(i)];
+            if (lhs.node != rhs.node || !NearlyEqual(lhs.mass, rhs.mass, tolerance))
+            {
+                return false;
+            }
+        }
+
+        for (int i = 0; i < static_cast<int>(a.GetNodeForces().size()); ++i)
+        {
+            const PhysiK::SolverData::NodeForce& lhs = a.GetNodeForces()[static_cast<std::size_t>(i)];
+            const PhysiK::SolverData::NodeForce& rhs = b.GetNodeForces()[static_cast<std::size_t>(i)];
+            if (lhs.node != rhs.node || !NearlyEqual(lhs.force, rhs.force, tolerance))
+            {
+                return false;
+            }
+        }
+
+        for (int i = 0; i < static_cast<int>(a.GetStiffnessBlocks().size()); ++i)
+        {
+            const PhysiK::SolverData::StiffnessBlock& lhs =
+                a.GetStiffnessBlocks()[static_cast<std::size_t>(i)];
+            const PhysiK::SolverData::StiffnessBlock& rhs =
+                b.GetStiffnessBlocks()[static_cast<std::size_t>(i)];
+            if (lhs.nodeA != rhs.nodeA ||
+                lhs.nodeB != rhs.nodeB ||
+                !NearlyEqual(lhs.block, rhs.block, tolerance))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     std::vector<std::pair<int, int>> BuildSparsePatternFromTetConnectivity(
         const std::vector<PhysiK::Tet>& tets)
     {
@@ -2214,6 +2263,91 @@ void WorldStepRebuildsImplicitPatternOnceAfterTopologyChange()
     PHYSIK_Step(worldHandle, 0.03f);
     assert(solverData.GetImplicitPatternRebuildCount() == 2);
     assert(solverData.GetImplicitPatternReuseCount() == 7);
+
+    PHYSIK_DestroyWorld(worldHandle);
+}
+
+void TetMeshPhysicsComponentFemCacheProducesIdenticalAssemblyOnReuse()
+{
+    PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
+    assert(worldHandle != nullptr);
+    PhysiK::World* world = static_cast<PhysiK::World*>(worldHandle);
+
+    const PhysiK::Vec3 positions[] = {
+        PhysiK::Vec3{0.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 1.0f, 0.0f},
+        PhysiK::Vec3{0.0f, 0.0f, 1.0f}};
+    for (const PhysiK::Vec3& position : positions)
+    {
+        PHYSIK_AddNode(worldHandle, position.x, position.y, position.z);
+    }
+
+    PhysiK::TetMeshPhysicsComponent component;
+    component.globalNodeBeginIndex = 0;
+    component.globalNodeCount = 4;
+    component.restNodePositions.assign(positions, positions + 4);
+    component.nodePositions = component.restNodePositions;
+    component.tets.push_back(CreateUnitTet());
+    component.material = PhysiK::Material{1.0f, 25.0f, 0.3f, 0.0f};
+    component.RebuildFemRestData();
+
+    PhysiK::SolverData firstSolverData;
+    component.UpdateSystem(*world, firstSolverData, 0.01f);
+    assert(component.GetFemCacheRebuildCount() == 1);
+    assert(component.GetFemCacheReuseCount() == 0);
+
+    PhysiK::SolverData secondSolverData;
+    component.UpdateSystem(*world, secondSolverData, 0.01f);
+    assert(component.GetFemCacheRebuildCount() == 1);
+    assert(component.GetFemCacheReuseCount() == 1);
+    assert(SolverDataAssemblyNearlyEqual(firstSolverData, secondSolverData));
+
+    PHYSIK_DestroyWorld(worldHandle);
+}
+
+void TetMeshPhysicsComponentFemCacheRebuildsAfterDeactivation()
+{
+    PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
+    assert(worldHandle != nullptr);
+    PhysiK::World* world = static_cast<PhysiK::World*>(worldHandle);
+
+    const std::vector<PhysiK::Node> sourceNodes = CreateTwoTetNodes();
+    for (const PhysiK::Node& node : sourceNodes)
+    {
+        PHYSIK_AddNode(worldHandle, node.position.x, node.position.y, node.position.z);
+    }
+
+    PhysiK::TetMeshPhysicsComponent component;
+    component.globalNodeBeginIndex = 0;
+    component.globalNodeCount = 5;
+    component.restNodePositions = RestPositionsFromNodes(sourceNodes);
+    component.nodePositions = component.restNodePositions;
+    component.tets.push_back(CreateUnitTet());
+    component.tets.push_back(CreateLowerUnitTet());
+    component.material = PhysiK::Material{1.0f, 25.0f, 0.3f, 0.0f};
+    component.RebuildFemRestData();
+
+    PhysiK::SolverData solverData;
+    component.UpdateSystem(*world, solverData, 0.01f);
+    assert(component.GetFemCacheRebuildCount() == 1);
+    assert(component.GetFemCacheReuseCount() == 0);
+
+    solverData.ClearTransientState();
+    component.UpdateSystem(*world, solverData, 0.01f);
+    assert(component.GetFemCacheRebuildCount() == 1);
+    assert(component.GetFemCacheReuseCount() == 1);
+
+    assert(component.DeactivateTet(1));
+    solverData.ClearTransientState();
+    component.UpdateSystem(*world, solverData, 0.01f);
+    assert(component.GetFemCacheRebuildCount() == 2);
+    assert(component.GetFemCacheReuseCount() == 1);
+
+    solverData.ClearTransientState();
+    component.UpdateSystem(*world, solverData, 0.01f);
+    assert(component.GetFemCacheRebuildCount() == 2);
+    assert(component.GetFemCacheReuseCount() == 2);
 
     PHYSIK_DestroyWorld(worldHandle);
 }
@@ -4618,6 +4752,8 @@ int main()
     SolverDataImplicitPatternCacheRebuildsWhenStiffnessCoordinatesChange();
     WorldStepReusesImplicitPatternAcrossSubstepsAndFrames();
     WorldStepRebuildsImplicitPatternOnceAfterTopologyChange();
+    TetMeshPhysicsComponentFemCacheProducesIdenticalAssemblyOnReuse();
+    TetMeshPhysicsComponentFemCacheRebuildsAfterDeactivation();
 #endif
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();

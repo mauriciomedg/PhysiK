@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "PhysiK/Components/TetMeshComponent.h"
@@ -19,6 +20,16 @@ namespace PhysiK
     class PHYSIK_API TetMeshPhysicsComponent : public TetMeshComponent
     {
     public:
+        struct CachedTetEntry
+        {
+            int tetIndex = -1;
+            int localNodeIndices[4] = {-1, -1, -1, -1};
+            int globalNodeIndices[4] = {-1, -1, -1, -1};
+            float nodalMass = 0.0f;
+            TetFemCache femCache;
+            std::pair<int, int> stiffnessNodePairs[16];
+        };
+
         static std::unique_ptr<TetMeshPhysicsComponent> CreateFromGeneratedTetMesh(
             World& world,
             const GeneratedTetMesh& generatedMesh,
@@ -36,6 +47,11 @@ namespace PhysiK
         int globalNodeCount = 0;
         std::vector<Vec3> nodeVelocities;
         std::vector<TetFemCache> tetFemCache;
+        std::vector<CachedTetEntry> cachedTetEntries;
+        std::vector<Tet> cachedActiveTets;
+        std::vector<TetFemCache> cachedActiveTetFemCache;
+        std::vector<int> cachedLocalToGlobalNodeIndices;
+        bool femCacheDirty = true;
 
         Material material;
         FemModel selectedFemModel = FemModel::Corotational;
@@ -60,6 +76,9 @@ namespace PhysiK
             femSparsePatternDirty = true;
         }
 
+        void MarkFEMCacheDirty();
+        void RebuildFEMCacheIfNeeded(const World& world);
+        void RebuildFEMCache(const World& world);
         void RebuildFemRestData();
         void RebuildTetFemCache();
         void EnsureFemSparsePattern(int worldNodeCount);
@@ -77,10 +96,30 @@ namespace PhysiK
             return femSparseMatrix;
         }
 
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        int GetFemCacheRebuildCount() const
+        {
+            return femCacheRebuildCount;
+        }
+
+        int GetFemCacheReuseCount() const
+        {
+            return femCacheReuseCount;
+        }
+#endif
+
         void UpdateSystem(
             World& world,
             SolverData& solverData,
             float dt) override;
         void PostUpdate(World& world, float dt) override;
+
+    private:
+        int GetCachedGlobalNodeIndex(int localNodeIndex) const;
+
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        int femCacheRebuildCount = 0;
+        int femCacheReuseCount = 0;
+#endif
     };
 }

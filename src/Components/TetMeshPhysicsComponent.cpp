@@ -105,6 +105,71 @@ namespace PhysiK
             }
         }
 
+        void ApplyElementContribution(
+            const TetElementContribution& contribution,
+            SparseBlockMatrix& femSparseMatrix,
+            SolverData& solverData,
+            const std::vector<int>& cachedLocalToGlobalNodeIndices)
+        {
+            for (int node = 0; node < 4; ++node)
+            {
+                const int localNodeIndex = contribution.localNodeIndices[node];
+                if (localNodeIndex < 0 ||
+                    localNodeIndex >= static_cast<int>(cachedLocalToGlobalNodeIndices.size()))
+                {
+                    continue;
+                }
+
+                const int globalNodeIndex =
+                    cachedLocalToGlobalNodeIndices[static_cast<std::size_t>(localNodeIndex)];
+                if (globalNodeIndex < 0)
+                {
+                    continue;
+                }
+
+                solverData.AddNodeForce(globalNodeIndex, contribution.forces[node]);
+            }
+
+            for (int rowNode = 0; rowNode < 4; ++rowNode)
+            {
+                const int localRow = contribution.localNodeIndices[rowNode];
+                if (localRow < 0 ||
+                    localRow >= static_cast<int>(cachedLocalToGlobalNodeIndices.size()))
+                {
+                    continue;
+                }
+
+                const int globalRow =
+                    cachedLocalToGlobalNodeIndices[static_cast<std::size_t>(localRow)];
+                if (globalRow < 0)
+                {
+                    continue;
+                }
+
+                for (int columnNode = 0; columnNode < 4; ++columnNode)
+                {
+                    const int localColumn = contribution.localNodeIndices[columnNode];
+                    if (localColumn < 0 ||
+                        localColumn >= static_cast<int>(cachedLocalToGlobalNodeIndices.size()))
+                    {
+                        continue;
+                    }
+
+                    const int globalColumn =
+                        cachedLocalToGlobalNodeIndices[static_cast<std::size_t>(localColumn)];
+                    if (globalColumn < 0)
+                    {
+                        continue;
+                    }
+
+                    femSparseMatrix.AddBlock(
+                        globalRow,
+                        globalColumn,
+                        contribution.stiffness[rowNode][columnNode]);
+                }
+            }
+        }
+
         void ApplyMassContribution(
             const TetMassContribution& contribution,
             const World& world,
@@ -175,6 +240,106 @@ namespace PhysiK
             ApplyMaterialToTet(tet, material);
         }
         RebuildTetFemCache();
+        MarkFEMCacheDirty();
+    }
+
+    void TetMeshPhysicsComponent::MarkFEMCacheDirty()
+    {
+        femCacheDirty = true;
+    }
+
+    void TetMeshPhysicsComponent::RebuildFEMCacheIfNeeded(const World& world)
+    {
+        if (!femCacheDirty)
+        {
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            ++femCacheReuseCount;
+#endif
+            return;
+        }
+
+        RebuildFEMCache(world);
+    }
+
+    void TetMeshPhysicsComponent::RebuildFEMCache(const World& world)
+    {
+        (void)world;
+
+        cachedTetEntries.clear();
+        cachedActiveTets.clear();
+        cachedActiveTetFemCache.clear();
+        cachedLocalToGlobalNodeIndices.assign(
+            static_cast<std::size_t>(std::max(0, globalNodeCount)),
+            -1);
+
+        for (int localNodeIndex = 0; localNodeIndex < globalNodeCount; ++localNodeIndex)
+        {
+            cachedLocalToGlobalNodeIndices[static_cast<std::size_t>(localNodeIndex)] =
+                GetGlobalNodeIndex(localNodeIndex);
+        }
+
+        const float density = std::max(0.0f, material.density);
+        if (!std::isfinite(density))
+        {
+            femCacheDirty = false;
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+            ++femCacheRebuildCount;
+#endif
+            return;
+        }
+
+        cachedTetEntries.reserve(tets.size());
+        cachedActiveTets.reserve(tets.size());
+        cachedActiveTetFemCache.reserve(tets.size());
+
+        for (int tetIndex = 0; tetIndex < static_cast<int>(tets.size()); ++tetIndex)
+        {
+            const Tet& tet = tets[static_cast<std::size_t>(tetIndex)];
+            if (!tet.active)
+            {
+                continue;
+            }
+
+            const int localNodeIndices[4] = {tet.node0, tet.node1, tet.node2, tet.node3};
+            CachedTetEntry entry;
+            entry.tetIndex = tetIndex;
+            bool hasValidGlobalNodes = true;
+            for (int node = 0; node < 4; ++node)
+            {
+                entry.localNodeIndices[node] = localNodeIndices[node];
+                entry.globalNodeIndices[node] = GetCachedGlobalNodeIndex(localNodeIndices[node]);
+                hasValidGlobalNodes = hasValidGlobalNodes && entry.globalNodeIndices[node] >= 0;
+            }
+
+            for (int row = 0; row < 4; ++row)
+            {
+                for (int column = 0; column < 4; ++column)
+                {
+                    entry.stiffnessNodePairs[row * 4 + column] = {
+                        entry.globalNodeIndices[row],
+                        entry.globalNodeIndices[column]};
+                }
+            }
+
+            if (!hasValidGlobalNodes ||
+                !std::isfinite(tet.restVolume) ||
+                tet.restVolume <= 0.0f)
+            {
+                continue;
+            }
+
+            entry.nodalMass = density * tet.restVolume * 0.25f;
+            entry.femCache = FEMModel::BuildTetFemCache(tet);
+
+            cachedTetEntries.push_back(entry);
+            cachedActiveTets.push_back(tet);
+            cachedActiveTetFemCache.push_back(entry.femCache);
+        }
+
+        femCacheDirty = false;
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        ++femCacheRebuildCount;
+#endif
     }
 
     void TetMeshPhysicsComponent::RebuildFemRestData()
@@ -186,6 +351,7 @@ namespace PhysiK
         }
 
         RebuildTetFemCache();
+        MarkFEMCacheDirty();
         femSparsePatternDirty = true;
     }
 
@@ -197,6 +363,7 @@ namespace PhysiK
         {
             tetFemCache.push_back(FEMModel::BuildTetFemCache(tet));
         }
+        MarkFEMCacheDirty();
     }
 
     void TetMeshPhysicsComponent::EnsureFemSparsePattern(int worldNodeCount)
@@ -263,7 +430,12 @@ namespace PhysiK
 
     bool TetMeshPhysicsComponent::SetTetActive(int tetIndex, bool active)
     {
-        return TetMeshComponent::SetTetActive(tetIndex, active);
+        const bool changed = TetMeshComponent::SetTetActive(tetIndex, active);
+        if (changed)
+        {
+            MarkFEMCacheDirty();
+        }
+        return changed;
     }
 
     bool TetMeshPhysicsComponent::DeactivateTet(int tetIndex)
@@ -283,28 +455,36 @@ namespace PhysiK
             return;
         }
 
-        std::vector<TetMassContribution> massContributions;
-        FEMModel::ComputeLumpedMass(material, tets, massContributions);
-        for (const TetMassContribution& contribution : massContributions)
+        RebuildFEMCacheIfNeeded(world);
+
+        for (const CachedTetEntry& entry : cachedTetEntries)
         {
-            ApplyMassContribution(
-                contribution,
-                world,
-                solverData,
-                *this);
+            if (!std::isfinite(entry.nodalMass) || entry.nodalMass <= 0.0f)
+            {
+                continue;
+            }
+
+            for (int node = 0; node < 4; ++node)
+            {
+                const int globalNodeIndex = entry.globalNodeIndices[node];
+                if (globalNodeIndex < 0 ||
+                    globalNodeIndex >= static_cast<int>(world.GetNodes().size()) ||
+                    world.IsNodeFixed(globalNodeIndex))
+                {
+                    continue;
+                }
+
+                solverData.AddNodeMass(globalNodeIndex, entry.nodalMass);
+            }
         }
 
         EnsureFemSparsePattern(static_cast<int>(world.GetNodes().size()));
-        if (tetFemCache.size() != tets.size())
-        {
-            RebuildTetFemCache();
-        }
 
         std::vector<TetElementContribution> elementContributions;
         FEMModel::ComputeForces(
             GetFemModel(),
-            tets,
-            tetFemCache,
+            cachedActiveTets,
+            cachedActiveTetFemCache,
             nodePositions,
             nodeVelocities,
             elementContributions);
@@ -316,7 +496,7 @@ namespace PhysiK
                 contribution,
                 femSparseMatrix,
                 solverData,
-                *this);
+                cachedLocalToGlobalNodeIndices);
         }
 
         for (int rowBlock = 0; rowBlock < femSparseMatrix.blockCount; ++rowBlock)
@@ -340,5 +520,16 @@ namespace PhysiK
             SyncCurrentPositionsFromWorld(world);
         }
         TetMeshComponent::PostUpdate(world, dt);
+    }
+
+    int TetMeshPhysicsComponent::GetCachedGlobalNodeIndex(int localNodeIndex) const
+    {
+        if (localNodeIndex < 0 ||
+            localNodeIndex >= static_cast<int>(cachedLocalToGlobalNodeIndices.size()))
+        {
+            return -1;
+        }
+
+        return cachedLocalToGlobalNodeIndices[static_cast<std::size_t>(localNodeIndex)];
     }
 }
