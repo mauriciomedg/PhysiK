@@ -112,7 +112,13 @@ namespace PhysiK
 
     bool SolverData::PrecomputeImplicitSolve(const std::vector<Node>& nodes, float dt)
     {
-        AssembleMasses(static_cast<int>(nodes.size()));
+        // World::BuildSolverData assembles masses before validation and gravity.
+        // Keep this fallback so direct SolverData users and tests remain safe.
+        if (assembledMasses.size() != nodes.size())
+        {
+            AssembleMasses(static_cast<int>(nodes.size()));
+        }
+
         assembledForces.assign(nodes.size(), Vec3{});
         nodeToDynamicBlock.clear();
         dynamicBlockCount = 0;

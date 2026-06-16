@@ -2374,6 +2374,22 @@ void SolverDataAcceptsFiniteUnconvergedCgApproximation()
     }
 }
 
+void SolverDataPrecomputeImplicitSolveFallsBackToAssembleMasses()
+{
+    std::vector<PhysiK::Node> nodes(1);
+    nodes[0].position = PhysiK::Vec3{0.0f, 0.0f, 0.0f};
+
+    PhysiK::SolverData solverData;
+    solverData.AddNodeMass(0, 2.0f);
+    solverData.AddNodeForce(0, PhysiK::Vec3{1.0f, 0.0f, 0.0f});
+
+    assert(solverData.GetAssembledMasses().empty());
+    assert(solverData.PrecomputeImplicitSolve(nodes, 0.1f));
+    assert(solverData.GetAssembledMasses().size() == 1);
+    assert(NearlyEqual(solverData.GetAssembledMassForNode(0), 2.0f));
+    assert(solverData.GetDynamicBlockCount() == 1);
+}
+
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
 void SolverDataImplicitPatternReusesStablePattern()
 {
@@ -4544,6 +4560,7 @@ int main()
     CurrentLinearSolverSolvesKnownSparseSystem();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     SolverDataAcceptsFiniteUnconvergedCgApproximation();
+    SolverDataPrecomputeImplicitSolveFallsBackToAssembleMasses();
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
     SolverDataImplicitPatternReusesStablePattern();
     SolverDataImplicitPatternRebuildsWhenFixedStateChanges();
