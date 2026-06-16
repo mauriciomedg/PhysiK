@@ -44,6 +44,18 @@ namespace PhysiK
 
     void SolverData::Clear()
     {
+        ClearTransientState();
+        matrix.Clear();
+        implicitPatternDirty = true;
+        cachedDynamicBlockCount = 0;
+        cachedNodeToDynamicBlock.clear();
+        massBlockIndices.clear();
+        stiffnessBlockMatrixIndices.clear();
+        cachedStiffnessBlockCoordinates.clear();
+    }
+
+    void SolverData::ClearTransientState()
+    {
         nodeForces.clear();
         nodeMasses.clear();
         stiffnessBlocks.clear();
@@ -54,6 +66,11 @@ namespace PhysiK
         rhs.clear();
         deltaVelocity.clear();
         lastLinearSolveResult = LinearSolveResult{};
+    }
+
+    void SolverData::MarkImplicitPatternDirty()
+    {
+        implicitPatternDirty = true;
     }
 
     void SolverData::AssembleMasses(int nodeCount)

@@ -34,6 +34,8 @@ namespace PhysiK
         };
 
         void Clear();
+        void ClearTransientState();
+        void MarkImplicitPatternDirty();
 
         void AddNodeForce(int node, const Vec3& force)
         {

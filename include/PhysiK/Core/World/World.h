@@ -54,6 +54,7 @@ namespace PhysiK
         int GetLastConjugateGradientIterations() const;
         float GetLastConjugateGradientResidualNorm() const;
         bool DidLastConjugateGradientSolveConverge() const;
+        void MarkSolverPatternDirty();
         void SetGravity(const Vec3& value);
         const Vec3& GetGravity() const;
 
@@ -68,6 +69,13 @@ namespace PhysiK
 
         int GetTransientConnectionCount() const;
         bool HasValidNodeIndices(const PointConnection& connection) const;
+
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+        const SolverData& GetSolverDataForTesting() const
+        {
+            return solverData;
+        }
+#endif
 
     private:
         bool IsComponentHandleValid(ComponentHandle handle) const;
@@ -103,6 +111,7 @@ namespace PhysiK
 
         CollisionDetectionEngine collisionDetectionEngine;
         EventSystem eventSystem;
+        SolverData solverData;
 
         Vec3 gravity;
         int substepCount = 1;

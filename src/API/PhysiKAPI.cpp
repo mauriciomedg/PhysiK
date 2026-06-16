@@ -1339,6 +1339,7 @@ extern "C"
 
         if (tetMesh->SetTetActive(tetIndex, active != 0))
         {
+            worldPtr->MarkSolverPatternDirty();
             ReconcileTetNodeActiveStates(*worldPtr, *tetMesh, tetIndex);
         }
     }

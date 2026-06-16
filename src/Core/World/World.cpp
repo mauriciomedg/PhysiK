@@ -50,7 +50,6 @@ namespace PhysiK
 
         for (int i = 0; i < steps; ++i)
         {
-            SolverData solverData;
             PrecomputeSolve(solverData, substepDt);
 
             if (solverMode == SolverMode::ImplicitEuler)
@@ -78,6 +77,7 @@ namespace PhysiK
         node.position = position;
         node.restPosition = position;
         nodes.push_back(node);
+        MarkSolverPatternDirty();
         return static_cast<int>(nodes.size()) - 1;
     }
 
@@ -113,6 +113,7 @@ namespace PhysiK
         eventSystem.UnsubscribeAll(component);
         components[handle.index].reset();
         ++componentGenerations[handle.index];
+        MarkSolverPatternDirty();
 
         if (componentGenerations[handle.index] == 0u)
         {
@@ -219,6 +220,11 @@ namespace PhysiK
         return lastConjugateGradientResult.converged;
     }
 
+    void World::MarkSolverPatternDirty()
+    {
+        solverData.MarkImplicitPatternDirty();
+    }
+
     void World::SetGravity(const Vec3& value)
     {
         gravity = value;
@@ -258,14 +264,21 @@ namespace PhysiK
     {
         assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
         Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
+        if (node.fixed == fixed)
+        {
+            return;
+        }
+
         if (fixed)
         {
             node.fixed = true;
             node.velocity = Vec3{};
+            MarkSolverPatternDirty();
             return;
         }
 
         node.fixed = false;
+        MarkSolverPatternDirty();
     }
 
     bool World::IsNodeFixed(int nodeIndex) const
@@ -315,6 +328,7 @@ namespace PhysiK
             {
                 eventSystem.Subscribe(addedComponent, eventType);
             }
+            MarkSolverPatternDirty();
             return ComponentHandle{slotIndex, componentGenerations[slotIndex]};
         }
 
@@ -326,6 +340,7 @@ namespace PhysiK
         {
             eventSystem.Subscribe(addedComponent, eventType);
         }
+        MarkSolverPatternDirty();
 
         return ComponentHandle{
             static_cast<std::uint32_t>(components.size() - 1u),
@@ -476,7 +491,7 @@ namespace PhysiK
 
     void World::PrecomputeSolve(SolverData& solverData, float dt)
     {
-        solverData.Clear();
+        solverData.ClearTransientState();
         BuildSolverData(solverData, dt);
         solverData.PrecomputeImplicitSolve(nodes, dt);
     }

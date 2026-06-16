@@ -2165,6 +2165,58 @@ void SolverDataImplicitPatternCacheRebuildsWhenStiffnessCoordinatesChange()
     assert(solverData.GetImplicitPatternRebuildCount() == 2);
     assert(solverData.GetImplicitPatternReuseCount() == 1);
 }
+
+void WorldStepReusesImplicitPatternAcrossSubstepsAndFrames()
+{
+    PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
+    assert(worldHandle != nullptr);
+    PhysiK::World* world = static_cast<PhysiK::World*>(worldHandle);
+
+    int nodes[4] = {};
+    CreateSingleTetWithMaterial(worldHandle, nodes, 0.0f, 0.0f, 1.0f);
+    PHYSIK_SetSolverMode(worldHandle, 1);
+    PHYSIK_SetSubstepCount(worldHandle, 4);
+
+    PHYSIK_Step(worldHandle, 0.04f);
+    const PhysiK::SolverData& solverData = world->GetSolverDataForTesting();
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+    assert(solverData.GetImplicitPatternReuseCount() == 3);
+
+    PHYSIK_Step(worldHandle, 0.04f);
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+    assert(solverData.GetImplicitPatternReuseCount() == 7);
+
+    PHYSIK_DestroyWorld(worldHandle);
+}
+
+void WorldStepRebuildsImplicitPatternOnceAfterTopologyChange()
+{
+    PhysiK::WorldHandle worldHandle = PHYSIK_CreateWorld();
+    assert(worldHandle != nullptr);
+    PhysiK::World* world = static_cast<PhysiK::World*>(worldHandle);
+
+    int nodes[5] = {};
+    const PhysiK::ComponentHandle tetMesh =
+        CreateTwoTetMesh(worldHandle, nodes, 0.0f, 1.0f);
+    PHYSIK_SetSolverMode(worldHandle, 1);
+    PHYSIK_SetSubstepCount(worldHandle, 3);
+
+    PHYSIK_Step(worldHandle, 0.03f);
+    const PhysiK::SolverData& solverData = world->GetSolverDataForTesting();
+    assert(solverData.GetImplicitPatternRebuildCount() == 1);
+    assert(solverData.GetImplicitPatternReuseCount() == 2);
+
+    PHYSIK_DeactivateTet(worldHandle, tetMesh, 1);
+    PHYSIK_Step(worldHandle, 0.03f);
+    assert(solverData.GetImplicitPatternRebuildCount() == 2);
+    assert(solverData.GetImplicitPatternReuseCount() == 4);
+
+    PHYSIK_Step(worldHandle, 0.03f);
+    assert(solverData.GetImplicitPatternRebuildCount() == 2);
+    assert(solverData.GetImplicitPatternReuseCount() == 7);
+
+    PHYSIK_DestroyWorld(worldHandle);
+}
 #endif
 
 void SparseBlockMatrixSingleTetPatternContainsAllCouplings()
@@ -4564,6 +4616,8 @@ int main()
     SolverDataImplicitPatternCacheReusesIdenticalPattern();
     SolverDataImplicitPatternCacheRebuildsWhenDynamicNodesChange();
     SolverDataImplicitPatternCacheRebuildsWhenStiffnessCoordinatesChange();
+    WorldStepReusesImplicitPatternAcrossSubstepsAndFrames();
+    WorldStepRebuildsImplicitPatternOnceAfterTopologyChange();
 #endif
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
