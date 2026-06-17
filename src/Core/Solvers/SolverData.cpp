@@ -110,7 +110,10 @@ namespace PhysiK
         return assembledMasses[static_cast<std::size_t>(nodeIndex)];
     }
 
-    bool SolverData::PrecomputeImplicitSolve(const std::vector<Node>& nodes, float dt)
+    bool SolverData::PrecomputeImplicitSolve(
+        const std::vector<Node>& nodes,
+        const std::vector<Vec3>& nodeVelocities,
+        float dt)
     {
         // World::BuildSolverData assembles masses before validation and gravity.
         // Keep this fallback so direct SolverData users and tests remain safe.
@@ -147,7 +150,7 @@ namespace PhysiK
             return false;
         }
 
-        return AssembleImplicitMatrixAndRhs(nodes, dt);
+        return AssembleImplicitMatrixAndRhs(nodes, nodeVelocities, dt);
     }
 
     bool SolverData::SolveImplicitLinearSystem(const ConjugateGradientSettings& cgSettings)
@@ -231,6 +234,7 @@ namespace PhysiK
 
     bool SolverData::AssembleImplicitMatrixAndRhs(
         const std::vector<Node>& nodes,
+        const std::vector<Vec3>& nodeVelocities,
         float dt)
     {
         const std::size_t dimension = static_cast<std::size_t>(dynamicBlockCount * 3);
@@ -277,7 +281,12 @@ namespace PhysiK
                 return false;
             }
 
-            const Vec3& columnVelocity = nodes[static_cast<std::size_t>(block.nodeB)].velocity;
+            if (block.nodeB >= static_cast<int>(nodeVelocities.size()))
+            {
+                return false;
+            }
+
+            const Vec3& columnVelocity = nodeVelocities[static_cast<std::size_t>(block.nodeB)];
             if (!IsFinite(columnVelocity))
             {
                 return false;

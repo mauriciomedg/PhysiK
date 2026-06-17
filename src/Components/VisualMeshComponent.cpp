@@ -287,16 +287,16 @@ namespace PhysiK
             const int worldNode2 = hostTetMesh->GetGlobalNodeIndex(nodeIndices[2]);
             const int worldNode3 = hostTetMesh->GetGlobalNodeIndex(nodeIndices[3]);
             const Vec3& current0 = worldNode0 >= 0 ?
-                world.GetNode(worldNode0).position :
+                world.GetNodePosition(worldNode0) :
                 hostTetMesh->GetLocalCurrentPosition(nodeIndices[0]);
             const Vec3& current1 = worldNode1 >= 0 ?
-                world.GetNode(worldNode1).position :
+                world.GetNodePosition(worldNode1) :
                 hostTetMesh->GetLocalCurrentPosition(nodeIndices[1]);
             const Vec3& current2 = worldNode2 >= 0 ?
-                world.GetNode(worldNode2).position :
+                world.GetNodePosition(worldNode2) :
                 hostTetMesh->GetLocalCurrentPosition(nodeIndices[2]);
             const Vec3& current3 = worldNode3 >= 0 ?
-                world.GetNode(worldNode3).position :
+                world.GetNodePosition(worldNode3) :
                 hostTetMesh->GetLocalCurrentPosition(nodeIndices[3]);
             deformedVisualVertices[vertexIndex] =
                 current0 * weights.x +

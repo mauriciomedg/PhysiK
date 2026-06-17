@@ -161,15 +161,11 @@ namespace PhysiK
                     continue;
                 }
 
-                const Node& node0 = world.GetNode(worldNodes[0]);
-                const Node& node1 = world.GetNode(worldNodes[1]);
-                const Node& node2 = world.GetNode(worldNodes[2]);
-                const Node& node3 = world.GetNode(worldNodes[3]);
-
-                const Vec3 point = node0.position * centroidWeights.x +
-                    node1.position * centroidWeights.y +
-                    node2.position * centroidWeights.z +
-                    node3.position * centroidWeights.w;
+                const Vec3 point =
+                    world.GetNodePosition(worldNodes[0]) * centroidWeights.x +
+                    world.GetNodePosition(worldNodes[1]) * centroidWeights.y +
+                    world.GetNodePosition(worldNodes[2]) * centroidWeights.z +
+                    world.GetNodePosition(worldNodes[3]) * centroidWeights.w;
                 const Vec3 centerToPoint = point - transform.position;
                 const float distance = centerToPoint.Length();
 
@@ -249,7 +245,7 @@ namespace PhysiK
                 for (int localNode = 0; localNode < 4; ++localNode)
                 {
                     const Vec3 difference =
-                        world.GetNode(nodes[localNode]).position - sphereCenter;
+                        world.GetNodePosition(nodes[localNode]) - sphereCenter;
                     const float distanceSquared = difference.LengthSquared();
                     const float distance = std::sqrt(std::max(0.0f, distanceSquared));
                     if (!hasDistance || distance < minNodeDistance)

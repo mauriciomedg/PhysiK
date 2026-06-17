@@ -72,7 +72,10 @@ namespace PhysiK
         bool HasNodeMassContribution(int nodeIndex) const;
         float GetAssembledMassForNode(int nodeIndex) const;
 
-        bool PrecomputeImplicitSolve(const std::vector<Node>& nodes, float dt);
+        bool PrecomputeImplicitSolve(
+            const std::vector<Node>& nodes,
+            const std::vector<Vec3>& nodeVelocities,
+            float dt);
         bool SolveImplicitLinearSystem(const ConjugateGradientSettings& settings);
         const LinearSolveResult& GetLastLinearSolveResult() const;
         int GetLastCgIterationCount() const;
@@ -113,7 +116,10 @@ namespace PhysiK
 
     private:
         bool BuildDynamicNodeMapping(const std::vector<Node>& nodes);
-        bool AssembleImplicitMatrixAndRhs(const std::vector<Node>& nodes, float dt);
+        bool AssembleImplicitMatrixAndRhs(
+            const std::vector<Node>& nodes,
+            const std::vector<Vec3>& nodeVelocities,
+            float dt);
 
         std::vector<NodeForce> nodeForces;
         std::vector<NodeMass> nodeMasses;

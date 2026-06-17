@@ -557,6 +557,47 @@ void WorldComponentHandlesRemainStableWithOrderedExecution()
         "GetComponentHandleByIndex should preserve second handle");
 }
 
+void WorldNodesReferenceWorldStateStorage()
+{
+    PhysiK::World world;
+
+    const int firstNode = world.AddNode(PhysiK::Vec3{1.0f, 2.0f, 3.0f});
+    const int secondNode = world.AddNode(PhysiK::Vec3{4.0f, 5.0f, 6.0f});
+
+    Require(
+        firstNode == 0 && secondNode == 1,
+        "node indices should remain sequential");
+    Require(
+        world.GetNode(firstNode).stateIndex == firstNode &&
+            world.GetNode(secondNode).stateIndex == secondNode,
+        "node metadata should point to matching world state slots");
+
+    Require(
+        world.GetNodePosition(firstNode).x == 1.0f &&
+            world.GetNodePosition(firstNode).y == 2.0f &&
+            world.GetNodePosition(firstNode).z == 3.0f,
+        "node position should be stored in WorldState");
+
+    world.GetNodeVelocity(firstNode) = PhysiK::Vec3{7.0f, 8.0f, 9.0f};
+    Require(
+        world.GetNodeVelocity(firstNode).x == 7.0f &&
+            world.GetNodeVelocity(firstNode).y == 8.0f &&
+            world.GetNodeVelocity(firstNode).z == 9.0f,
+        "node velocity accessor should reference WorldState");
+
+    world.SetNodePosition(firstNode, PhysiK::Vec3{10.0f, 11.0f, 12.0f});
+    Require(
+        world.GetNodePosition(firstNode).x == 10.0f &&
+            world.GetNodePosition(firstNode).y == 11.0f &&
+            world.GetNodePosition(firstNode).z == 12.0f,
+        "SetNodePosition should update WorldState position");
+    Require(
+        world.GetNodeVelocity(firstNode).x == 0.0f &&
+            world.GetNodeVelocity(firstNode).y == 0.0f &&
+            world.GetNodeVelocity(firstNode).z == 0.0f,
+        "SetNodePosition should preserve existing velocity reset behavior");
+}
+
 void WorldFrameConnectionsSurviveEverySubstep()
 {
     PhysiK::World world;
@@ -758,6 +799,7 @@ int main()
     WorldUnregistersDestroyedComponentsFromExecution();
     WorldReusedSlotRegistersNewComponentOnly();
     WorldComponentHandlesRemainStableWithOrderedExecution();
+    WorldNodesReferenceWorldStateStorage();
     WorldFrameConnectionsSurviveEverySubstep();
     WorldSubstepConnectionsAreRecreatedAndTrimmed();
     WorldFrameAndSubstepConnectionsCoexist();

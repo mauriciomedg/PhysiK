@@ -11,6 +11,7 @@
 #include "PhysiK/Core/Events/EventSystem.h"
 #include "PhysiK/Core/PhysicsConnections/PhysicsConnection.h"
 #include "PhysiK/Core/PhysicsConnections/PointConnection.h"
+#include "PhysiK/Core/World/WorldState.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 #include "PhysiK/Math/Vec3.h"
@@ -60,6 +61,12 @@ namespace PhysiK
         Node& GetNode(int index);
         const Node& GetNode(int index) const;
         const std::vector<Node>& GetNodes() const;
+        Vec3& GetNodePosition(int nodeIndex);
+        const Vec3& GetNodePosition(int nodeIndex) const;
+        Vec3& GetNodeVelocity(int nodeIndex);
+        const Vec3& GetNodeVelocity(int nodeIndex) const;
+        float& GetNodeMass(int nodeIndex);
+        float GetNodeMass(int nodeIndex) const;
         void SetNodePosition(int index, const Vec3& position);
         void SetNodeFixed(int nodeIndex, bool fixed);
         bool IsNodeFixed(int nodeIndex) const;
@@ -89,6 +96,7 @@ namespace PhysiK
         void ClearFrameConnections();
 
         std::vector<Node> nodes;
+        WorldState state;
 
         std::vector<std::unique_ptr<Component>> components;
         std::multimap<

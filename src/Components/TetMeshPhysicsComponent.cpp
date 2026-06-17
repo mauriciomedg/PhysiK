@@ -226,9 +226,9 @@ namespace PhysiK
             }
 
             nodePositions[static_cast<std::size_t>(localIndex)] =
-                world.GetNode(worldNodeIndex).position;
+                world.GetNodePosition(worldNodeIndex);
             nodeVelocities[static_cast<std::size_t>(localIndex)] =
-                world.GetNode(worldNodeIndex).velocity;
+                world.GetNodeVelocity(worldNodeIndex);
         }
     }
 
