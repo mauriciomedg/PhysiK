@@ -295,11 +295,109 @@ namespace PhysiK
         return state.masses[static_cast<std::size_t>(stateIndex)];
     }
 
+    bool World::NodeHasRotation(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        return nodes[static_cast<std::size_t>(nodeIndex)].hasRotation;
+    }
+
+    void World::SetNodeHasRotation(int nodeIndex, bool hasRotation)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        nodes[static_cast<std::size_t>(nodeIndex)].hasRotation = hasRotation;
+    }
+
+    Quaternion& World::GetNodeOrientation(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.orientations[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Quaternion& World::GetNodeOrientation(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.orientations[static_cast<std::size_t>(stateIndex)];
+    }
+
+    void World::SetNodeOrientation(int nodeIndex, const Quaternion& orientation)
+    {
+        GetNodeOrientation(nodeIndex) = orientation;
+    }
+
+    Vec3& World::GetNodeAngularVelocity(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.angularVelocities[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Vec3& World::GetNodeAngularVelocity(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.angularVelocities[static_cast<std::size_t>(stateIndex)];
+    }
+
+    void World::SetNodeAngularVelocity(int nodeIndex, const Vec3& angularVelocity)
+    {
+        GetNodeAngularVelocity(nodeIndex) = angularVelocity;
+    }
+
+    Vec3& World::GetNodeTorque(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.torques[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Vec3& World::GetNodeTorque(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.torques[static_cast<std::size_t>(stateIndex)];
+    }
+
+    void World::SetNodeTorque(int nodeIndex, const Vec3& torque)
+    {
+        GetNodeTorque(nodeIndex) = torque;
+    }
+
+    Mat3& World::GetNodeInverseInertia(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.inverseInertias[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Mat3& World::GetNodeInverseInertia(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.inverseInertias[static_cast<std::size_t>(stateIndex)];
+    }
+
+    void World::SetNodeInverseInertia(int nodeIndex, const Mat3& inverseInertia)
+    {
+        GetNodeInverseInertia(nodeIndex) = inverseInertia;
+    }
+
     void World::SetNodePosition(int index, const Vec3& position)
     {
         assert(index >= 0 && index < static_cast<int>(nodes.size()));
         GetNodePosition(index) = position;
         GetNodeVelocity(index) = Vec3{};
+        GetNodeAngularVelocity(index) = Vec3{};
+        GetNodeTorque(index) = Vec3{};
     }
 
     void World::SetNodeFixed(int nodeIndex, bool fixed)
@@ -310,6 +408,8 @@ namespace PhysiK
         {
             node.fixed = true;
             GetNodeVelocity(nodeIndex) = Vec3{};
+            GetNodeAngularVelocity(nodeIndex) = Vec3{};
+            GetNodeTorque(nodeIndex) = Vec3{};
             return;
         }
 

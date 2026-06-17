@@ -14,6 +14,8 @@
 #include "PhysiK/Core/World/WorldState.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
+#include "PhysiK/Math/Mat3.h"
+#include "PhysiK/Math/Quaternion.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/PhysicsData/Node.h"
 
@@ -67,6 +69,20 @@ namespace PhysiK
         const Vec3& GetNodeVelocity(int nodeIndex) const;
         float& GetNodeMass(int nodeIndex);
         float GetNodeMass(int nodeIndex) const;
+        bool NodeHasRotation(int nodeIndex) const;
+        void SetNodeHasRotation(int nodeIndex, bool hasRotation);
+        Quaternion& GetNodeOrientation(int nodeIndex);
+        const Quaternion& GetNodeOrientation(int nodeIndex) const;
+        void SetNodeOrientation(int nodeIndex, const Quaternion& orientation);
+        Vec3& GetNodeAngularVelocity(int nodeIndex);
+        const Vec3& GetNodeAngularVelocity(int nodeIndex) const;
+        void SetNodeAngularVelocity(int nodeIndex, const Vec3& angularVelocity);
+        Vec3& GetNodeTorque(int nodeIndex);
+        const Vec3& GetNodeTorque(int nodeIndex) const;
+        void SetNodeTorque(int nodeIndex, const Vec3& torque);
+        Mat3& GetNodeInverseInertia(int nodeIndex);
+        const Mat3& GetNodeInverseInertia(int nodeIndex) const;
+        void SetNodeInverseInertia(int nodeIndex, const Mat3& inverseInertia);
         void SetNodePosition(int index, const Vec3& position);
         void SetNodeFixed(int nodeIndex, bool fixed);
         bool IsNodeFixed(int nodeIndex) const;

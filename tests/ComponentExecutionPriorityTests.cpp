@@ -557,6 +557,59 @@ void WorldComponentHandlesRemainStableWithOrderedExecution()
         "GetComponentHandleByIndex should preserve second handle");
 }
 
+void WorldStateAddsRotationalDefaults()
+{
+    PhysiK::WorldState state;
+
+    const int stateIndex = state.AddNodeState(
+        PhysiK::Vec3{1.0f, 2.0f, 3.0f},
+        PhysiK::Vec3{4.0f, 5.0f, 6.0f},
+        7.0f);
+
+    Require(
+        stateIndex == 0 && state.IsValidStateIndex(stateIndex),
+        "WorldState should create a valid first state index");
+    Require(
+        state.positions.size() == 1u &&
+            state.positions.size() == state.velocities.size() &&
+            state.positions.size() == state.forces.size() &&
+            state.positions.size() == state.masses.size() &&
+            state.positions.size() == state.orientations.size() &&
+            state.positions.size() == state.angularVelocities.size() &&
+            state.positions.size() == state.torques.size() &&
+            state.positions.size() == state.inverseInertias.size(),
+        "WorldState arrays should stay size-synchronized");
+
+    const PhysiK::Quaternion& orientation = state.orientations[0];
+    Require(
+        orientation.w == 1.0f &&
+            orientation.x == 0.0f &&
+            orientation.y == 0.0f &&
+            orientation.z == 0.0f,
+        "WorldState should default orientation to identity");
+    Require(
+        state.angularVelocities[0].x == 0.0f &&
+            state.angularVelocities[0].y == 0.0f &&
+            state.angularVelocities[0].z == 0.0f &&
+            state.torques[0].x == 0.0f &&
+            state.torques[0].y == 0.0f &&
+            state.torques[0].z == 0.0f,
+        "WorldState should default angular velocity and torque to zero");
+
+    const PhysiK::Mat3& inverseInertia = state.inverseInertias[0];
+    Require(
+        inverseInertia.columns[0].x == 0.0f &&
+            inverseInertia.columns[0].y == 0.0f &&
+            inverseInertia.columns[0].z == 0.0f &&
+            inverseInertia.columns[1].x == 0.0f &&
+            inverseInertia.columns[1].y == 0.0f &&
+            inverseInertia.columns[1].z == 0.0f &&
+            inverseInertia.columns[2].x == 0.0f &&
+            inverseInertia.columns[2].y == 0.0f &&
+            inverseInertia.columns[2].z == 0.0f,
+        "WorldState should default inverse inertia to zero");
+}
+
 void WorldNodesReferenceWorldStateStorage()
 {
     PhysiK::World world;
@@ -571,6 +624,10 @@ void WorldNodesReferenceWorldStateStorage()
         world.GetNode(firstNode).stateIndex == firstNode &&
             world.GetNode(secondNode).stateIndex == secondNode,
         "node metadata should point to matching world state slots");
+    Require(
+        !world.NodeHasRotation(firstNode) &&
+            !world.NodeHasRotation(secondNode),
+        "new FEM-style nodes should not advertise rotational state");
 
     Require(
         world.GetNodePosition(firstNode).x == 1.0f &&
@@ -596,6 +653,54 @@ void WorldNodesReferenceWorldStateStorage()
             world.GetNodeVelocity(firstNode).y == 0.0f &&
             world.GetNodeVelocity(firstNode).z == 0.0f,
         "SetNodePosition should preserve existing velocity reset behavior");
+
+    world.SetNodeHasRotation(firstNode, true);
+    world.SetNodeOrientation(
+        firstNode,
+        PhysiK::Quaternion{0.5f, 0.5f, 0.5f, 0.5f});
+    world.SetNodeAngularVelocity(firstNode, PhysiK::Vec3{1.0f, 2.0f, 3.0f});
+    world.SetNodeTorque(firstNode, PhysiK::Vec3{4.0f, 5.0f, 6.0f});
+    world.SetNodeInverseInertia(
+        firstNode,
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{1.0f, 0.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 2.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, 3.0f}));
+
+    Require(
+        world.NodeHasRotation(firstNode),
+        "rotational capability flag should be settable");
+    Require(
+        world.GetNodeOrientation(firstNode).w == 0.5f &&
+            world.GetNodeOrientation(firstNode).x == 0.5f &&
+            world.GetNodeOrientation(firstNode).y == 0.5f &&
+            world.GetNodeOrientation(firstNode).z == 0.5f,
+        "orientation accessor should reference WorldState");
+    Require(
+        world.GetNodeAngularVelocity(firstNode).x == 1.0f &&
+            world.GetNodeAngularVelocity(firstNode).y == 2.0f &&
+            world.GetNodeAngularVelocity(firstNode).z == 3.0f,
+        "angular velocity accessor should reference WorldState");
+    Require(
+        world.GetNodeTorque(firstNode).x == 4.0f &&
+            world.GetNodeTorque(firstNode).y == 5.0f &&
+            world.GetNodeTorque(firstNode).z == 6.0f,
+        "torque accessor should reference WorldState");
+    Require(
+        world.GetNodeInverseInertia(firstNode).columns[0].x == 1.0f &&
+            world.GetNodeInverseInertia(firstNode).columns[1].y == 2.0f &&
+            world.GetNodeInverseInertia(firstNode).columns[2].z == 3.0f,
+        "inverse inertia accessor should reference WorldState");
+
+    world.SetNodeFixed(firstNode, true);
+    Require(
+        world.GetNodeAngularVelocity(firstNode).x == 0.0f &&
+            world.GetNodeAngularVelocity(firstNode).y == 0.0f &&
+            world.GetNodeAngularVelocity(firstNode).z == 0.0f &&
+            world.GetNodeTorque(firstNode).x == 0.0f &&
+            world.GetNodeTorque(firstNode).y == 0.0f &&
+            world.GetNodeTorque(firstNode).z == 0.0f,
+        "fixed nodes should clear angular velocity and torque storage");
 }
 
 void WorldFrameConnectionsSurviveEverySubstep()
@@ -799,6 +904,7 @@ int main()
     WorldUnregistersDestroyedComponentsFromExecution();
     WorldReusedSlotRegistersNewComponentOnly();
     WorldComponentHandlesRemainStableWithOrderedExecution();
+    WorldStateAddsRotationalDefaults();
     WorldNodesReferenceWorldStateStorage();
     WorldFrameConnectionsSurviveEverySubstep();
     WorldSubstepConnectionsAreRecreatedAndTrimmed();

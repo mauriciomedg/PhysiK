@@ -222,6 +222,8 @@ namespace
             if (!node.active)
             {
                 world.GetNodeVelocity(globalNodeIndex) = PhysiK::Vec3{};
+                world.GetNodeAngularVelocity(globalNodeIndex) = PhysiK::Vec3{};
+                world.GetNodeTorque(globalNodeIndex) = PhysiK::Vec3{};
             }
         }
     }
