@@ -10,29 +10,29 @@ namespace PhysiK
     namespace
     {
         Vec3 WeightedPoint(
-            const Node& node0,
-            const Node& node1,
-            const Node& node2,
-            const Node& node3,
+            const Vec3& position0,
+            const Vec3& position1,
+            const Vec3& position2,
+            const Vec3& position3,
             const Vec4& weights)
         {
-            return node0.position * weights.x +
-                node1.position * weights.y +
-                node2.position * weights.z +
-                node3.position * weights.w;
+            return position0 * weights.x +
+                position1 * weights.y +
+                position2 * weights.z +
+                position3 * weights.w;
         }
 
         Vec3 WeightedVelocity(
-            const Node& node0,
-            const Node& node1,
-            const Node& node2,
-            const Node& node3,
+            const Vec3& velocity0,
+            const Vec3& velocity1,
+            const Vec3& velocity2,
+            const Vec3& velocity3,
             const Vec4& weights)
         {
-            return node0.velocity * weights.x +
-                node1.velocity * weights.y +
-                node2.velocity * weights.z +
-                node3.velocity * weights.w;
+            return velocity0 * weights.x +
+                velocity1 * weights.y +
+                velocity2 * weights.z +
+                velocity3 * weights.w;
         }
 
         Mat3 ScaledIdentity(float scale)
@@ -64,13 +64,18 @@ namespace PhysiK
             return;
         }
 
-        const Node& n0 = world.GetNode(node0);
-        const Node& n1 = world.GetNode(node1);
-        const Node& n2 = world.GetNode(node2);
-        const Node& n3 = world.GetNode(node3);
-
-        const Vec3 point = WeightedPoint(n0, n1, n2, n3, barycentric);
-        const Vec3 velocity = WeightedVelocity(n0, n1, n2, n3, barycentric);
+        const Vec3 point = WeightedPoint(
+            world.GetNodePosition(node0),
+            world.GetNodePosition(node1),
+            world.GetNodePosition(node2),
+            world.GetNodePosition(node3),
+            barycentric);
+        const Vec3 velocity = WeightedVelocity(
+            world.GetNodeVelocity(node0),
+            world.GetNodeVelocity(node1),
+            world.GetNodeVelocity(node2),
+            world.GetNodeVelocity(node3),
+            barycentric);
         if (!IsFinite(point) || !IsFinite(velocity) || !IsFinite(targetPosition))
         {
             return;

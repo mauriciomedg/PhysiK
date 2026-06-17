@@ -221,7 +221,9 @@ namespace
             node.active = ActiveTetReferencesGlobalNode(world, globalNodeIndex);
             if (!node.active)
             {
-                node.velocity = PhysiK::Vec3{};
+                world.GetNodeVelocity(globalNodeIndex) = PhysiK::Vec3{};
+                world.GetNodeAngularVelocity(globalNodeIndex) = PhysiK::Vec3{};
+                world.GetNodeTorque(globalNodeIndex) = PhysiK::Vec3{};
             }
         }
     }
@@ -1481,21 +1483,21 @@ extern "C"
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            const PhysiK::Node& node = worldPtr->GetNode(nodeIndex);
+            const PhysiK::Vec3& position = worldPtr->GetNodePosition(nodeIndex);
 
             if (outX != nullptr)
             {
-                *outX = node.position.x;
+                *outX = position.x;
             }
 
             if (outY != nullptr)
             {
-                *outY = node.position.y;
+                *outY = position.y;
             }
 
             if (outZ != nullptr)
             {
-                *outZ = node.position.z;
+                *outZ = position.z;
             }
         }
     }
@@ -1509,21 +1511,21 @@ extern "C"
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            const PhysiK::Node& node = worldPtr->GetNode(nodeIndex);
+            const PhysiK::Vec3& velocity = worldPtr->GetNodeVelocity(nodeIndex);
 
             if (outX != nullptr)
             {
-                *outX = node.velocity.x;
+                *outX = velocity.x;
             }
 
             if (outY != nullptr)
             {
-                *outY = node.velocity.y;
+                *outY = velocity.y;
             }
 
             if (outZ != nullptr)
             {
-                *outZ = node.velocity.z;
+                *outZ = velocity.z;
             }
         }
     }
@@ -1550,7 +1552,7 @@ extern "C"
     {
         if (PhysiK::World* worldPtr = AsWorld(world))
         {
-            worldPtr->GetNode(nodeIndex).velocity = PhysiK::Vec3{x, y, z};
+            worldPtr->GetNodeVelocity(nodeIndex) = PhysiK::Vec3{x, y, z};
         }
     }
 }

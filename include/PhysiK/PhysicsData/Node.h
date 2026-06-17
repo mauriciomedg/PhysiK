@@ -1,15 +1,12 @@
 #pragma once
 
-#include "PhysiK/Math/Vec3.h"
-
 namespace PhysiK
 {
     struct Node
     {
-        Vec3 position;
-        Vec3 restPosition;
-        Vec3 velocity;
+        int stateIndex = -1;
         bool active = true;
         bool fixed = false;
+        bool hasRotation = false;
     };
 }

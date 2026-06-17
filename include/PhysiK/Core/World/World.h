@@ -11,8 +11,11 @@
 #include "PhysiK/Core/Events/EventSystem.h"
 #include "PhysiK/Core/PhysicsConnections/PhysicsConnection.h"
 #include "PhysiK/Core/PhysicsConnections/PointConnection.h"
+#include "PhysiK/Core/World/WorldState.h"
 #include "PhysiK/Core/Solvers/SolverData.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
+#include "PhysiK/Math/Mat3.h"
+#include "PhysiK/Math/Quaternion.h"
 #include "PhysiK/Math/Vec3.h"
 #include "PhysiK/PhysicsData/Node.h"
 
@@ -60,6 +63,26 @@ namespace PhysiK
         Node& GetNode(int index);
         const Node& GetNode(int index) const;
         const std::vector<Node>& GetNodes() const;
+        Vec3& GetNodePosition(int nodeIndex);
+        const Vec3& GetNodePosition(int nodeIndex) const;
+        Vec3& GetNodeVelocity(int nodeIndex);
+        const Vec3& GetNodeVelocity(int nodeIndex) const;
+        float& GetNodeMass(int nodeIndex);
+        float GetNodeMass(int nodeIndex) const;
+        bool NodeHasRotation(int nodeIndex) const;
+        void SetNodeHasRotation(int nodeIndex, bool hasRotation);
+        Quaternion& GetNodeOrientation(int nodeIndex);
+        const Quaternion& GetNodeOrientation(int nodeIndex) const;
+        void SetNodeOrientation(int nodeIndex, const Quaternion& orientation);
+        Vec3& GetNodeAngularVelocity(int nodeIndex);
+        const Vec3& GetNodeAngularVelocity(int nodeIndex) const;
+        void SetNodeAngularVelocity(int nodeIndex, const Vec3& angularVelocity);
+        Vec3& GetNodeTorque(int nodeIndex);
+        const Vec3& GetNodeTorque(int nodeIndex) const;
+        void SetNodeTorque(int nodeIndex, const Vec3& torque);
+        Mat3& GetNodeInverseInertia(int nodeIndex);
+        const Mat3& GetNodeInverseInertia(int nodeIndex) const;
+        void SetNodeInverseInertia(int nodeIndex, const Mat3& inverseInertia);
         void SetNodePosition(int index, const Vec3& position);
         void SetNodeFixed(int nodeIndex, bool fixed);
         bool IsNodeFixed(int nodeIndex) const;
@@ -89,6 +112,7 @@ namespace PhysiK
         void ClearFrameConnections();
 
         std::vector<Node> nodes;
+        WorldState state;
 
         std::vector<std::unique_ptr<Component>> components;
         std::multimap<

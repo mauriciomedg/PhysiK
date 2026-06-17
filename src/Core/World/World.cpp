@@ -74,10 +74,11 @@ namespace PhysiK
 
     int World::AddNode(const Vec3& position)
     {
+        const int stateIndex = state.AddNodeState(position);
         Node node;
-        node.position = position;
-        node.restPosition = position;
+        node.stateIndex = stateIndex;
         nodes.push_back(node);
+        assert(stateIndex == static_cast<int>(nodes.size()) - 1);
         return static_cast<int>(nodes.size()) - 1;
     }
 
@@ -246,12 +247,157 @@ namespace PhysiK
         return nodes;
     }
 
+    Vec3& World::GetNodePosition(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.positions[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Vec3& World::GetNodePosition(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.positions[static_cast<std::size_t>(stateIndex)];
+    }
+
+    Vec3& World::GetNodeVelocity(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.velocities[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Vec3& World::GetNodeVelocity(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.velocities[static_cast<std::size_t>(stateIndex)];
+    }
+
+    float& World::GetNodeMass(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.masses[static_cast<std::size_t>(stateIndex)];
+    }
+
+    float World::GetNodeMass(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.masses[static_cast<std::size_t>(stateIndex)];
+    }
+
+    bool World::NodeHasRotation(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        return nodes[static_cast<std::size_t>(nodeIndex)].hasRotation;
+    }
+
+    void World::SetNodeHasRotation(int nodeIndex, bool hasRotation)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        nodes[static_cast<std::size_t>(nodeIndex)].hasRotation = hasRotation;
+    }
+
+    Quaternion& World::GetNodeOrientation(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.orientations[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Quaternion& World::GetNodeOrientation(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.orientations[static_cast<std::size_t>(stateIndex)];
+    }
+
+    void World::SetNodeOrientation(int nodeIndex, const Quaternion& orientation)
+    {
+        GetNodeOrientation(nodeIndex) = orientation;
+    }
+
+    Vec3& World::GetNodeAngularVelocity(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.angularVelocities[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Vec3& World::GetNodeAngularVelocity(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.angularVelocities[static_cast<std::size_t>(stateIndex)];
+    }
+
+    void World::SetNodeAngularVelocity(int nodeIndex, const Vec3& angularVelocity)
+    {
+        GetNodeAngularVelocity(nodeIndex) = angularVelocity;
+    }
+
+    Vec3& World::GetNodeTorque(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.torques[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Vec3& World::GetNodeTorque(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.torques[static_cast<std::size_t>(stateIndex)];
+    }
+
+    void World::SetNodeTorque(int nodeIndex, const Vec3& torque)
+    {
+        GetNodeTorque(nodeIndex) = torque;
+    }
+
+    Mat3& World::GetNodeInverseInertia(int nodeIndex)
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.inverseInertias[static_cast<std::size_t>(stateIndex)];
+    }
+
+    const Mat3& World::GetNodeInverseInertia(int nodeIndex) const
+    {
+        assert(nodeIndex >= 0 && nodeIndex < static_cast<int>(nodes.size()));
+        const int stateIndex = nodes[static_cast<std::size_t>(nodeIndex)].stateIndex;
+        assert(state.IsValidStateIndex(stateIndex));
+        return state.inverseInertias[static_cast<std::size_t>(stateIndex)];
+    }
+
+    void World::SetNodeInverseInertia(int nodeIndex, const Mat3& inverseInertia)
+    {
+        GetNodeInverseInertia(nodeIndex) = inverseInertia;
+    }
+
     void World::SetNodePosition(int index, const Vec3& position)
     {
         assert(index >= 0 && index < static_cast<int>(nodes.size()));
-        Node& node = nodes[static_cast<std::size_t>(index)];
-        node.position = position;
-        node.velocity = Vec3{};
+        GetNodePosition(index) = position;
+        GetNodeVelocity(index) = Vec3{};
+        GetNodeAngularVelocity(index) = Vec3{};
+        GetNodeTorque(index) = Vec3{};
     }
 
     void World::SetNodeFixed(int nodeIndex, bool fixed)
@@ -261,7 +407,9 @@ namespace PhysiK
         if (fixed)
         {
             node.fixed = true;
-            node.velocity = Vec3{};
+            GetNodeVelocity(nodeIndex) = Vec3{};
+            GetNodeAngularVelocity(nodeIndex) = Vec3{};
+            GetNodeTorque(nodeIndex) = Vec3{};
             return;
         }
 
@@ -478,7 +626,7 @@ namespace PhysiK
     {
         solverData.ClearTransientState();
         BuildSolverData(solverData, dt);
-        solverData.PrecomputeImplicitSolve(nodes, dt);
+        solverData.PrecomputeImplicitSolve(nodes, state.velocities, dt);
     }
 
     bool World::SolveImplicitLinearSystem(SolverData& solverData, float dt)
@@ -507,7 +655,8 @@ namespace PhysiK
             }
 
             const int baseDof = dynamicBlock * 3;
-            const Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
+            const Vec3& position = GetNodePosition(nodeIndex);
+            const Vec3& velocity = GetNodeVelocity(nodeIndex);
             const std::vector<float>& deltaVelocity = solverData.GetDeltaVelocity();
             if (baseDof + 2 >= static_cast<int>(deltaVelocity.size()))
             {
@@ -518,13 +667,13 @@ namespace PhysiK
                 deltaVelocity[static_cast<std::size_t>(baseDof + 0)],
                 deltaVelocity[static_cast<std::size_t>(baseDof + 1)],
                 deltaVelocity[static_cast<std::size_t>(baseDof + 2)]};
-            if (!IsFinite(node.position) || !IsFinite(node.velocity) || !IsFinite(velocityChange))
+            if (!IsFinite(position) || !IsFinite(velocity) || !IsFinite(velocityChange))
             {
                 return false;
             }
 
-            const Vec3 updatedVelocity = node.velocity + velocityChange;
-            const Vec3 updatedPosition = node.position + updatedVelocity * dt;
+            const Vec3 updatedVelocity = velocity + velocityChange;
+            const Vec3 updatedPosition = position + updatedVelocity * dt;
             if (!IsFinite(updatedVelocity) || !IsFinite(updatedPosition))
             {
                 return false;
@@ -541,9 +690,8 @@ namespace PhysiK
                 continue;
             }
 
-            Node& node = nodes[static_cast<std::size_t>(nodeIndex)];
-            node.velocity = updatedVelocities[static_cast<std::size_t>(nodeIndex)];
-            node.position = updatedPositions[static_cast<std::size_t>(nodeIndex)];
+            GetNodeVelocity(nodeIndex) = updatedVelocities[static_cast<std::size_t>(nodeIndex)];
+            GetNodePosition(nodeIndex) = updatedPositions[static_cast<std::size_t>(nodeIndex)];
         }
 
         return true;
@@ -572,8 +720,10 @@ namespace PhysiK
             }
 
             const Vec3 acceleration = forces[static_cast<std::size_t>(i)] / mass;
-            node.velocity += acceleration * dt;
-            node.position += node.velocity * dt;
+            Vec3& velocity = GetNodeVelocity(i);
+            Vec3& position = GetNodePosition(i);
+            velocity += acceleration * dt;
+            position += velocity * dt;
         }
     }
 

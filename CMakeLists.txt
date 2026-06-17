@@ -65,6 +65,7 @@ target_sources(
         include/PhysiK/Core/Solvers/Linear/DenseLinearSolver.h
         include/PhysiK/Core/Solvers/Linear/LinearSolver.h
         include/PhysiK/Core/Solvers/SolverData.h
+        include/PhysiK/Core/World/WorldState.h
         include/PhysiK/Core/World/World.h
     PRIVATE
         src/API/PhysiKAPI.cpp
@@ -138,6 +139,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include" PREFIX "Public Headers" 
     include/PhysiK/Core/Solvers/Linear/DenseLinearSolver.h
     include/PhysiK/Core/Solvers/Linear/LinearSolver.h
     include/PhysiK/Core/Solvers/SolverData.h
+    include/PhysiK/Core/World/WorldState.h
     include/PhysiK/Core/World/World.h
 )
 
