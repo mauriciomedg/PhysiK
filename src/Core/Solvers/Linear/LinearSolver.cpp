@@ -1,6 +1,7 @@
 #include "PhysiK/Core/Solvers/Linear/LinearSolver.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
@@ -14,23 +15,19 @@ namespace PhysiK
             return std::isfinite(value);
         }
 
-        float GetBlockValue(const Mat3& matrix, int row, int column)
+        bool IsFinite(const Vec3& value)
         {
-            const Vec3& sourceColumn = matrix.columns[static_cast<std::size_t>(column)];
-            if (row == 0)
-            {
-                return sourceColumn.x;
-            }
-
-            if (row == 1)
-            {
-                return sourceColumn.y;
-            }
-
-            return sourceColumn.z;
+            return IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
         }
 
-        void BuildInversePreconditioner(
+        bool IsFinite(const Mat3& matrix)
+        {
+            return IsFinite(matrix.columns[0]) &&
+                IsFinite(matrix.columns[1]) &&
+                IsFinite(matrix.columns[2]);
+        }
+
+        bool BuildInversePreconditioner(
             const SparseBlockMatrix& matrix,
             bool useJacobiPreconditioner,
             std::vector<Mat3>& inversePreconditioner)
@@ -41,36 +38,43 @@ namespace PhysiK
 
             if (!useJacobiPreconditioner)
             {
-                return;
+                return true;
             }
 
-            constexpr float DiagonalTolerance = 1.0e-8f;
+            constexpr float DeterminantTolerance = 1.0e-8f;
             for (int block = 0; block < matrix.blockCount; ++block)
             {
                 const int blockIndex = matrix.FindBlockIndex(block, block);
                 if (blockIndex < 0)
                 {
-                    continue;
+                    assert(false && "linear solver matrix is missing a diagonal block");
+                    return false;
                 }
 
                 const Mat3& diagonalBlock =
                     matrix.values[static_cast<std::size_t>(blockIndex)];
-                float inverseDiagonal[3] = {1.0f, 1.0f, 1.0f};
-                for (int axis = 0; axis < 3; ++axis)
+                if (!IsFinite(diagonalBlock))
                 {
-                    const float diagonal = GetBlockValue(diagonalBlock, axis, axis);
-                    if (IsFinite(diagonal) && std::abs(diagonal) > DiagonalTolerance)
-                    {
-                        inverseDiagonal[axis] = 1.0f / diagonal;
-                    }
+                    return false;
                 }
 
-                inversePreconditioner[static_cast<std::size_t>(block)] =
-                    Mat3::FromColumns(
-                        Vec3{inverseDiagonal[0], 0.0f, 0.0f},
-                        Vec3{0.0f, inverseDiagonal[1], 0.0f},
-                        Vec3{0.0f, 0.0f, inverseDiagonal[2]});
+                const float determinant = Determinant(diagonalBlock);
+                if (!IsFinite(determinant) ||
+                    std::abs(determinant) <= DeterminantTolerance)
+                {
+                    return false;
+                }
+
+                const Mat3 inverseBlock = Inverse(diagonalBlock);
+                if (!IsFinite(inverseBlock))
+                {
+                    return false;
+                }
+
+                inversePreconditioner[static_cast<std::size_t>(block)] = inverseBlock;
             }
+
+            return true;
         }
 
         CurrentLinearSolver& CurrentSolver()
@@ -91,10 +95,14 @@ namespace PhysiK
         std::vector<Vec3> direction;
         std::vector<Vec3> temp;
 
-        BuildInversePreconditioner(
-            matrix,
-            settings.useJacobiPreconditioner,
-            inversePreconditioner);
+        if (!BuildInversePreconditioner(
+                matrix,
+                settings.useJacobiPreconditioner,
+                inversePreconditioner))
+        {
+            solution.clear();
+            return LinearSolveResult{};
+        }
 
         const ConjugateGradientResult cgResult =
             SolvePreconditionedConjugateGradient(

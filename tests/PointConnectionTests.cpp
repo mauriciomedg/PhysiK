@@ -2202,6 +2202,47 @@ void ConjugateGradientSolvesCoupledSparseSystem()
     }
 }
 
+void ConjugateGradientUsesFullBlockInversePreconditioner()
+{
+    const PhysiK::Mat3 block =
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{4.0f, 1.0f, 0.0f},
+            PhysiK::Vec3{1.0f, 3.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, 2.0f});
+
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(0, 0, block);
+
+    const std::vector<PhysiK::Vec3> expected{
+        PhysiK::Vec3{2.0f, -1.0f, 3.0f}};
+    std::vector<PhysiK::Vec3> rhs;
+    matrix.Multiply(expected, rhs);
+
+    const std::vector<PhysiK::Mat3> inversePreconditioner{
+        PhysiK::Inverse(block)};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
+
+    const PhysiK::ConjugateGradientResult result =
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            8,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
+
+    assert(result.converged);
+    assert(solution.size() == expected.size());
+    assert(NearlyEqual(solution[0], expected[0], 0.0001f));
+}
+
 void ConjugateGradientRejectsInvalidSettings()
 {
     PhysiK::SparseBlockMatrix matrix;
@@ -2254,6 +2295,36 @@ void ConjugateGradientRejectsInvalidSettings()
         temp);
     assert(!result.converged);
     assert(solution.empty());
+}
+
+void ConjugateGradientRejectsMismatchedPreconditioner()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(0, 0, DiagonalBlock(1.0f));
+
+    const std::vector<PhysiK::Vec3> rhs{PhysiK::Vec3{1.0f, 0.0f, 0.0f}};
+    const std::vector<PhysiK::Mat3> inversePreconditioner;
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
+
+    const PhysiK::ConjugateGradientResult result =
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            8,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
+
+    assert(!result.converged);
+    assert(solution.size() == 1);
+    assert(direction.empty());
 }
 
 void ConjugateGradientFailsOnNonPositiveDenominator()
@@ -4578,7 +4649,9 @@ int main()
     TetMeshComponentMapsLocalFemPatternToGlobalSolverNodes();
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
+    ConjugateGradientUsesFullBlockInversePreconditioner();
     ConjugateGradientRejectsInvalidSettings();
+    ConjugateGradientRejectsMismatchedPreconditioner();
     ConjugateGradientFailsOnNonPositiveDenominator();
     ConjugateGradientSettingsAndDiagnosticsAreExposedThroughNativeApi();
     CurrentLinearSolverSolvesKnownSparseSystem();

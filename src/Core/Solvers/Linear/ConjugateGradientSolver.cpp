@@ -30,6 +30,13 @@ namespace PhysiK
             return true;
         }
 
+        bool IsFinite(const Mat3& matrix)
+        {
+            return IsFinite(matrix.columns[0]) &&
+                IsFinite(matrix.columns[1]) &&
+                IsFinite(matrix.columns[2]);
+        }
+
         float Dot(const std::vector<Vec3>& a, const std::vector<Vec3>& b)
         {
             float result = 0.0f;
@@ -56,23 +63,35 @@ namespace PhysiK
             }
         }
 
-        void ApplyPreconditioner(
+        bool ApplyPreconditioner(
             const std::vector<Mat3>& MInv,
             const std::vector<Vec3>& input,
             std::vector<Vec3>& output)
         {
-            output.assign(input.size(), Vec3{});
-
             if (MInv.size() != input.size())
             {
-                output = input;
-                return;
+                output.clear();
+                return false;
             }
 
+            output.assign(input.size(), Vec3{});
             for (std::size_t i = 0; i < input.size(); ++i)
             {
+                if (!IsFinite(MInv[i]))
+                {
+                    output.clear();
+                    return false;
+                }
+
                 output[i] = MInv[i] * input[i];
+                if (!IsFinite(output[i]))
+                {
+                    output.clear();
+                    return false;
+                }
             }
+
+            return true;
         }
 
         float ResidualNorm(const std::vector<Vec3>& residual)
@@ -126,9 +145,7 @@ namespace PhysiK
 
         x.assign(b.size(), Vec3{});
         r = b;
-        ApplyPreconditioner(MInv, r, d);
-
-        if (!IsFinite(d))
+        if (!ApplyPreconditioner(MInv, r, d))
         {
             return result;
         }
@@ -183,7 +200,10 @@ namespace PhysiK
             AddScaled(x, d, alpha);
             AddScaled(r, qOrS, -alpha);
 
-            ApplyPreconditioner(MInv, r, qOrS);
+            if (!ApplyPreconditioner(MInv, r, qOrS))
+            {
+                break;
+            }
 
             const float deltaOld = deltaNew;
             deltaNew = Dot(r, qOrS);

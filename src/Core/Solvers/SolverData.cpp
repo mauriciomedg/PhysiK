@@ -1,6 +1,7 @@
 #include "PhysiK/Core/Solvers/SolverData.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 
 namespace PhysiK
@@ -22,22 +23,6 @@ namespace PhysiK
             return IsFinite(matrix.columns[0]) &&
                 IsFinite(matrix.columns[1]) &&
                 IsFinite(matrix.columns[2]);
-        }
-
-        float GetBlockValue(const Mat3& matrix, int row, int column)
-        {
-            const Vec3& sourceColumn = matrix.columns[static_cast<std::size_t>(column)];
-            if (row == 0)
-            {
-                return sourceColumn.x;
-            }
-
-            if (row == 1)
-            {
-                return sourceColumn.y;
-            }
-
-            return sourceColumn.z;
         }
 
         Mat3 ScaledIdentity(float value)
@@ -180,7 +165,11 @@ namespace PhysiK
             return false;
         }
 
-        BuildInversePreconditioner(cgSettings.useJacobiPreconditioner);
+        if (!BuildInversePreconditioner(cgSettings.useJacobiPreconditioner))
+        {
+            lastLinearSolveResult = LinearSolveResult{};
+            return false;
+        }
 
         const ConjugateGradientResult result =
             SolvePreconditionedConjugateGradient(
@@ -260,7 +249,7 @@ namespace PhysiK
         return dynamicBlockCount > 0;
     }
 
-    void SolverData::BuildInversePreconditioner(bool useJacobiPreconditioner)
+    bool SolverData::BuildInversePreconditioner(bool useJacobiPreconditioner)
     {
         inversePreconditioner.assign(
             static_cast<std::size_t>(std::max(0, dynamicBlockCount)),
@@ -268,37 +257,44 @@ namespace PhysiK
 
         if (!useJacobiPreconditioner)
         {
-            return;
+            return true;
         }
 
-        constexpr float DiagonalTolerance = 1.0e-8f;
+        constexpr float DeterminantTolerance = 1.0e-8f;
         for (int block = 0; block < dynamicBlockCount; ++block)
         {
             const int blockIndex = matrix.FindBlockIndex(block, block);
             if (blockIndex < 0)
             {
-                continue;
+                assert(false && "implicit matrix is missing a diagonal block");
+                return false;
             }
 
             const Mat3& diagonalBlock =
                 matrix.values[static_cast<std::size_t>(blockIndex)];
 
-            float inverseDiagonal[3] = {1.0f, 1.0f, 1.0f};
-            for (int axis = 0; axis < 3; ++axis)
+            if (!IsFinite(diagonalBlock))
             {
-                const float diagonal = GetBlockValue(diagonalBlock, axis, axis);
-                if (IsFinite(diagonal) && std::abs(diagonal) > DiagonalTolerance)
-                {
-                    inverseDiagonal[axis] = 1.0f / diagonal;
-                }
+                return false;
             }
 
-            inversePreconditioner[static_cast<std::size_t>(block)] =
-                Mat3::FromColumns(
-                    Vec3{inverseDiagonal[0], 0.0f, 0.0f},
-                    Vec3{0.0f, inverseDiagonal[1], 0.0f},
-                    Vec3{0.0f, 0.0f, inverseDiagonal[2]});
+            const float determinant = Determinant(diagonalBlock);
+            if (!IsFinite(determinant) ||
+                std::abs(determinant) <= DeterminantTolerance)
+            {
+                return false;
+            }
+
+            const Mat3 inverseBlock = Inverse(diagonalBlock);
+            if (!IsFinite(inverseBlock))
+            {
+                return false;
+            }
+
+            inversePreconditioner[static_cast<std::size_t>(block)] = inverseBlock;
         }
+
+        return true;
     }
 
     bool SolverData::AssembleImplicitMatrixAndRhs(

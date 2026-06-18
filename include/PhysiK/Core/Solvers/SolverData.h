@@ -116,7 +116,7 @@ namespace PhysiK
 
     private:
         bool BuildDynamicNodeMapping(const std::vector<Node>& nodes);
-        void BuildInversePreconditioner(bool useJacobiPreconditioner);
+        bool BuildInversePreconditioner(bool useJacobiPreconditioner);
         bool AssembleImplicitMatrixAndRhs(
             const std::vector<Node>& nodes,
             const std::vector<Vec3>& nodeVelocities,
