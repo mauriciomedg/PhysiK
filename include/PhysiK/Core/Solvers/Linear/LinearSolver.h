@@ -62,6 +62,12 @@ namespace PhysiK
             const std::vector<Vec3>& rhs,
             std::vector<Vec3>& solution,
             const LinearSolveSettings& settings) override;
+
+    private:
+        std::vector<Mat3> inversePreconditioner;
+        std::vector<Vec3> residual;
+        std::vector<Vec3> direction;
+        std::vector<Vec3> temp;
     };
 
     PHYSIK_API LinearSolver& GetCurrentLinearSolver();

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace PhysiK
 {
@@ -74,7 +75,11 @@ namespace PhysiK
                 return false;
             }
 
-            output.assign(input.size(), Vec3{});
+            if (output.size() != input.size())
+            {
+                output.resize(input.size());
+            }
+
             for (std::size_t i = 0; i < input.size(); ++i)
             {
                 if (!IsFinite(MInv[i]))
@@ -99,7 +104,7 @@ namespace PhysiK
             const float squared = Dot(residual, residual);
             if (!IsFinite(squared) || squared < 0.0f)
             {
-                return 0.0f;
+                return std::numeric_limits<float>::infinity();
             }
 
             return std::sqrt(squared);

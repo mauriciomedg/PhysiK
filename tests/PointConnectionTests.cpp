@@ -2417,7 +2417,7 @@ void CurrentLinearSolverSolvesKnownSparseSystem()
 
     PhysiK::CurrentLinearSolver solver;
     PhysiK::LinearSolveSettings settings;
-    settings.maxIterations = 16;
+    settings.maxIterations = 0;
     settings.tolerance = 1.0e-6f;
     settings.useJacobiPreconditioner = true;
 

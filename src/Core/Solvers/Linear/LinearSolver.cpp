@@ -32,12 +32,19 @@ namespace PhysiK
             bool useJacobiPreconditioner,
             std::vector<Mat3>& inversePreconditioner)
         {
-            inversePreconditioner.assign(
-                static_cast<std::size_t>(std::max(0, matrix.blockCount)),
-                Mat3::Identity());
+            const std::size_t blockCount =
+                static_cast<std::size_t>(std::max(0, matrix.blockCount));
+            if (inversePreconditioner.size() != blockCount)
+            {
+                inversePreconditioner.resize(blockCount);
+            }
 
             if (!useJacobiPreconditioner)
             {
+                std::fill(
+                    inversePreconditioner.begin(),
+                    inversePreconditioner.end(),
+                    Mat3::Identity());
                 return true;
             }
 
@@ -90,11 +97,6 @@ namespace PhysiK
         std::vector<Vec3>& solution,
         const LinearSolveSettings& settings)
     {
-        std::vector<Mat3> inversePreconditioner;
-        std::vector<Vec3> residual;
-        std::vector<Vec3> direction;
-        std::vector<Vec3> temp;
-
         if (!BuildInversePreconditioner(
                 matrix,
                 settings.useJacobiPreconditioner,
@@ -104,12 +106,17 @@ namespace PhysiK
             return LinearSolveResult{};
         }
 
+        const int maxIterations =
+            settings.maxIterations > 0
+                ? settings.maxIterations
+                : static_cast<int>(rhs.size()) * 3;
+
         const ConjugateGradientResult cgResult =
             SolvePreconditionedConjugateGradient(
                 solution,
                 matrix,
                 rhs,
-                std::max(1, settings.maxIterations),
+                maxIterations,
                 settings.tolerance,
                 inversePreconditioner,
                 residual,
