@@ -24,6 +24,22 @@ namespace PhysiK
                 IsFinite(matrix.columns[2]);
         }
 
+        float GetBlockValue(const Mat3& matrix, int row, int column)
+        {
+            const Vec3& sourceColumn = matrix.columns[static_cast<std::size_t>(column)];
+            if (row == 0)
+            {
+                return sourceColumn.x;
+            }
+
+            if (row == 1)
+            {
+                return sourceColumn.y;
+            }
+
+            return sourceColumn.z;
+        }
+
         Mat3 ScaledIdentity(float value)
         {
             return Mat3::FromColumns(
@@ -63,6 +79,10 @@ namespace PhysiK
         dynamicBlockCount = 0;
         rhs.clear();
         deltaVelocity.clear();
+        inversePreconditioner.clear();
+        cgResidual.clear();
+        cgDirection.clear();
+        cgTemp.clear();
         lastLinearSolveResult = LinearSolveResult{};
     }
 
@@ -155,27 +175,35 @@ namespace PhysiK
 
     bool SolverData::SolveImplicitLinearSystem(const ConjugateGradientSettings& cgSettings)
     {
-        const std::size_t dimension = static_cast<std::size_t>(dynamicBlockCount * 3);
-        if (dimension == 0)
+        if (dynamicBlockCount <= 0)
         {
             return false;
         }
 
-        LinearSolveSettings settings;
-        settings.maxIterations = cgSettings.maxIterations;
-        settings.tolerance = cgSettings.tolerance;
-        settings.useJacobiPreconditioner = cgSettings.useJacobiPreconditioner;
+        BuildInversePreconditioner(cgSettings.useJacobiPreconditioner);
 
-        const LinearSolveResult result =
-            GetCurrentLinearSolver().Solve(matrix, rhs, deltaVelocity, settings);
-        lastLinearSolveResult = result;
+        const ConjugateGradientResult result =
+            SolvePreconditionedConjugateGradient(
+                deltaVelocity,
+                matrix,
+                rhs,
+                cgSettings.maxIterations,
+                cgSettings.tolerance,
+                inversePreconditioner,
+                cgResidual,
+                cgDirection,
+                cgTemp);
 
-        if (deltaVelocity.size() != dimension)
+        lastLinearSolveResult.iterations = result.iterations;
+        lastLinearSolveResult.residualNorm = result.residualNorm;
+        lastLinearSolveResult.converged = result.converged;
+
+        if (deltaVelocity.size() != static_cast<std::size_t>(dynamicBlockCount))
         {
             return false;
         }
 
-        for (float value : deltaVelocity)
+        for (const Vec3& value : deltaVelocity)
         {
             if (!IsFinite(value))
             {
@@ -232,13 +260,53 @@ namespace PhysiK
         return dynamicBlockCount > 0;
     }
 
+    void SolverData::BuildInversePreconditioner(bool useJacobiPreconditioner)
+    {
+        inversePreconditioner.assign(
+            static_cast<std::size_t>(std::max(0, dynamicBlockCount)),
+            Mat3::Identity());
+
+        if (!useJacobiPreconditioner)
+        {
+            return;
+        }
+
+        constexpr float DiagonalTolerance = 1.0e-8f;
+        for (int block = 0; block < dynamicBlockCount; ++block)
+        {
+            const int blockIndex = matrix.FindBlockIndex(block, block);
+            if (blockIndex < 0)
+            {
+                continue;
+            }
+
+            const Mat3& diagonalBlock =
+                matrix.values[static_cast<std::size_t>(blockIndex)];
+
+            float inverseDiagonal[3] = {1.0f, 1.0f, 1.0f};
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                const float diagonal = GetBlockValue(diagonalBlock, axis, axis);
+                if (IsFinite(diagonal) && std::abs(diagonal) > DiagonalTolerance)
+                {
+                    inverseDiagonal[axis] = 1.0f / diagonal;
+                }
+            }
+
+            inversePreconditioner[static_cast<std::size_t>(block)] =
+                Mat3::FromColumns(
+                    Vec3{inverseDiagonal[0], 0.0f, 0.0f},
+                    Vec3{0.0f, inverseDiagonal[1], 0.0f},
+                    Vec3{0.0f, 0.0f, inverseDiagonal[2]});
+        }
+    }
+
     bool SolverData::AssembleImplicitMatrixAndRhs(
         const std::vector<Node>& nodes,
         const std::vector<Vec3>& nodeVelocities,
         float dt)
     {
-        const std::size_t dimension = static_cast<std::size_t>(dynamicBlockCount * 3);
-        rhs.assign(dimension, 0.0f);
+        rhs.assign(static_cast<std::size_t>(dynamicBlockCount), Vec3{});
 
         std::vector<std::pair<int, int>> blockCoordinates;
         blockCoordinates.reserve(
@@ -298,10 +366,8 @@ namespace PhysiK
                 return false;
             }
 
-            const int rowBase = rowBlock * 3;
-            rhs[static_cast<std::size_t>(rowBase + 0)] -= stiffnessScale * stiffnessVelocity.x;
-            rhs[static_cast<std::size_t>(rowBase + 1)] -= stiffnessScale * stiffnessVelocity.y;
-            rhs[static_cast<std::size_t>(rowBase + 2)] -= stiffnessScale * stiffnessVelocity.z;
+            rhs[static_cast<std::size_t>(rowBlock)] -=
+                stiffnessVelocity * stiffnessScale;
 
             const int columnBlock = GetDynamicBlockForNode(block.nodeB);
             if (columnBlock < 0)
@@ -378,10 +444,7 @@ namespace PhysiK
             }
 
             const Vec3& force = assembledForces[static_cast<std::size_t>(nodeIndex)];
-            const int baseDof = dynamicBlock * 3;
-            rhs[static_cast<std::size_t>(baseDof + 0)] += dt * force.x;
-            rhs[static_cast<std::size_t>(baseDof + 1)] += dt * force.y;
-            rhs[static_cast<std::size_t>(baseDof + 2)] += dt * force.z;
+            rhs[static_cast<std::size_t>(dynamicBlock)] += force * dt;
         }
 
         return true;

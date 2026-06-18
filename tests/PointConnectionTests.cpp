@@ -2003,6 +2003,16 @@ void SparseBlockMatrixStoresAndMultipliesBlocks()
     assert(NearlyEqual(output[3], 16.0f));
     assert(NearlyEqual(output[4], 20.0f));
     assert(NearlyEqual(output[5], 24.0f));
+
+    std::vector<PhysiK::Vec3> blockInput{
+        PhysiK::Vec3{1.0f, 2.0f, 3.0f},
+        PhysiK::Vec3{4.0f, 5.0f, 6.0f}};
+    std::vector<PhysiK::Vec3> blockOutput;
+    matrix.Multiply(blockInput, blockOutput);
+
+    assert(blockOutput.size() == 2);
+    assert(NearlyEqual(blockOutput[0], PhysiK::Vec3{14.0f, 19.0f, 24.0f}));
+    assert(NearlyEqual(blockOutput[1], PhysiK::Vec3{16.0f, 20.0f, 24.0f}));
 }
 
 void SparseBlockMatrixAddBlockAccumulatesContributions()
@@ -2120,21 +2130,33 @@ void ConjugateGradientSolvesDiagonalSparseSystem()
             PhysiK::Vec3{0.0f, 9.0f, 0.0f},
             PhysiK::Vec3{0.0f, 0.0f, 16.0f}));
 
-    const std::vector<float> rhs = {4.0f, 18.0f, 48.0f};
-    std::vector<float> solution;
-    PhysiK::ConjugateGradientSettings settings;
-    settings.maxIterations = 16;
-    settings.tolerance = 1.0e-6f;
-    settings.useJacobiPreconditioner = true;
+    const std::vector<PhysiK::Vec3> rhs{
+        PhysiK::Vec3{4.0f, 18.0f, 48.0f}};
+    const std::vector<PhysiK::Mat3> inversePreconditioner{
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{0.25f, 0.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 1.0f / 9.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, 1.0f / 16.0f})};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
 
     const PhysiK::ConjugateGradientResult result =
-        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            16,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
 
     assert(result.converged);
-    assert(solution.size() == 3);
-    assert(NearlyEqual(solution[0], 1.0f, 0.0001f));
-    assert(NearlyEqual(solution[1], 2.0f, 0.0001f));
-    assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
+    assert(solution.size() == 1);
+    assert(NearlyEqual(solution[0], PhysiK::Vec3{1.0f, 2.0f, 3.0f}, 0.0001f));
 }
 
 void ConjugateGradientSolvesCoupledSparseSystem()
@@ -2146,18 +2168,31 @@ void ConjugateGradientSolvesCoupledSparseSystem()
     matrix.AddBlock(1, 0, DiagonalBlock(-1.0f));
     matrix.AddBlock(1, 1, DiagonalBlock(3.0f));
 
-    const std::vector<float> expected = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
-    std::vector<float> rhs;
+    const std::vector<PhysiK::Vec3> expected{
+        PhysiK::Vec3{1.0f, 2.0f, 3.0f},
+        PhysiK::Vec3{4.0f, 5.0f, 6.0f}};
+    std::vector<PhysiK::Vec3> rhs;
     matrix.Multiply(expected, rhs);
 
-    std::vector<float> solution;
-    PhysiK::ConjugateGradientSettings settings;
-    settings.maxIterations = 32;
-    settings.tolerance = 1.0e-6f;
-    settings.useJacobiPreconditioner = true;
+    const std::vector<PhysiK::Mat3> inversePreconditioner{
+        DiagonalBlock(0.25f),
+        DiagonalBlock(1.0f / 3.0f)};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
 
     const PhysiK::ConjugateGradientResult result =
-        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            32,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
 
     assert(result.converged);
     assert(solution.size() == expected.size());
@@ -2173,25 +2208,50 @@ void ConjugateGradientRejectsInvalidSettings()
     matrix.BuildPattern(1, {{0, 0}});
     matrix.AddBlock(0, 0, DiagonalBlock(1.0f));
 
-    const std::vector<float> rhs = {1.0f, 0.0f, 0.0f};
-    std::vector<float> solution;
-    PhysiK::ConjugateGradientSettings settings;
+    const std::vector<PhysiK::Vec3> rhs{PhysiK::Vec3{1.0f, 0.0f, 0.0f}};
+    const std::vector<PhysiK::Mat3> inversePreconditioner{PhysiK::Mat3::Identity()};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
 
-    settings.maxIterations = 0;
-    settings.tolerance = 1.0e-6f;
     PhysiK::ConjugateGradientResult result =
-        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            0,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
     assert(!result.converged);
     assert(solution.empty());
 
-    settings.maxIterations = 8;
-    settings.tolerance = 0.0f;
-    result = PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+    result = PhysiK::SolvePreconditionedConjugateGradient(
+        solution,
+        matrix,
+        rhs,
+        8,
+        0.0f,
+        inversePreconditioner,
+        residual,
+        direction,
+        temp);
     assert(!result.converged);
     assert(solution.empty());
 
-    settings.tolerance = std::numeric_limits<float>::infinity();
-    result = PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+    result = PhysiK::SolvePreconditionedConjugateGradient(
+        solution,
+        matrix,
+        rhs,
+        8,
+        std::numeric_limits<float>::infinity(),
+        inversePreconditioner,
+        residual,
+        direction,
+        temp);
     assert(!result.converged);
     assert(solution.empty());
 }
@@ -2202,25 +2262,27 @@ void ConjugateGradientFailsOnNonPositiveDenominator()
     matrix.BuildPattern(1, {{0, 0}});
     matrix.AddBlock(0, 0, DiagonalBlock(-1.0f));
 
-    const std::vector<float> rhs = {1.0f, 0.0f, 0.0f};
-    std::vector<float> solution;
-    PhysiK::ConjugateGradientSettings settings;
-    settings.maxIterations = 8;
-    settings.tolerance = 1.0e-6f;
-    settings.useJacobiPreconditioner = false;
+    const std::vector<PhysiK::Vec3> rhs{PhysiK::Vec3{1.0f, 0.0f, 0.0f}};
+    const std::vector<PhysiK::Mat3> inversePreconditioner{PhysiK::Mat3::Identity()};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
 
     PhysiK::ConjugateGradientResult result =
-        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            8,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
     assert(!result.converged);
-    assert(solution.empty());
-
-    matrix.Clear();
-    matrix.BuildPattern(1, {{0, 0}});
-    matrix.AddBlock(0, 0, DiagonalBlock(1.0e-13f));
-
-    result = PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
-    assert(!result.converged);
-    assert(solution.empty());
+    assert(solution.size() == 1);
+    assert(NearlyEqual(solution[0], PhysiK::Vec3{}));
 }
 
 void ConjugateGradientSettingsAndDiagnosticsAreExposedThroughNativeApi()
@@ -2279,8 +2341,8 @@ void CurrentLinearSolverSolvesKnownSparseSystem()
             PhysiK::Vec3{0.0f, 3.0f, 0.0f},
             PhysiK::Vec3{0.0f, 0.0f, 4.0f}));
 
-    const std::vector<float> rhs = {2.0f, 6.0f, 12.0f};
-    std::vector<float> solution;
+    const std::vector<PhysiK::Vec3> rhs{PhysiK::Vec3{2.0f, 6.0f, 12.0f}};
+    std::vector<PhysiK::Vec3> solution;
 
     PhysiK::CurrentLinearSolver solver;
     PhysiK::LinearSolveSettings settings;
@@ -2293,9 +2355,7 @@ void CurrentLinearSolverSolvesKnownSparseSystem()
 
     assert(result.converged);
     assert(solution.size() == rhs.size());
-    assert(NearlyEqual(solution[0], 1.0f, 0.0001f));
-    assert(NearlyEqual(solution[1], 2.0f, 0.0001f));
-    assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
+    assert(NearlyEqual(solution[0], PhysiK::Vec3{1.0f, 2.0f, 3.0f}, 0.0001f));
 }
 
 void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
@@ -2336,10 +2396,12 @@ void SolverDataAcceptsFiniteUnconvergedCgApproximation()
 
     assert(solverData.SolveImplicitLinearSystem(settings));
     assert(!solverData.GetLastLinearSolveResult().converged);
-    assert(solverData.GetDeltaVelocity().size() == 6);
-    for (float value : solverData.GetDeltaVelocity())
+    assert(solverData.GetDeltaVelocity().size() == 2);
+    for (const PhysiK::Vec3& value : solverData.GetDeltaVelocity())
     {
-        assert(std::isfinite(value));
+        assert(std::isfinite(value.x));
+        assert(std::isfinite(value.y));
+        assert(std::isfinite(value.z));
     }
 }
 

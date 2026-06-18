@@ -197,6 +197,55 @@ namespace PhysiK
 #endif
     }
 
+    void SparseBlockMatrix::Multiply(
+        const std::vector<Vec3>& input,
+        std::vector<Vec3>& output) const
+    {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        const bool recordTiming = timingEnabled;
+        const Clock::time_point start = recordTiming ? Clock::now() : Clock::time_point{};
+#endif
+        const std::size_t blockDimension =
+            static_cast<std::size_t>(std::max(0, blockCount));
+        output.assign(blockDimension, Vec3{});
+
+        if (input.size() < blockDimension ||
+            rowStart.size() != static_cast<std::size_t>(blockCount + 1))
+        {
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            if (recordTiming)
+            {
+                multiplyMilliseconds += ElapsedMilliseconds(start);
+            }
+#endif
+            return;
+        }
+
+        for (int rowBlock = 0; rowBlock < blockCount; ++rowBlock)
+        {
+            Vec3 rowValue{};
+            const int rowBegin = rowStart[static_cast<std::size_t>(rowBlock)];
+            const int rowEnd = rowStart[static_cast<std::size_t>(rowBlock + 1)];
+
+            for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
+            {
+                const int columnBlock = colIndex[static_cast<std::size_t>(blockIndex)];
+                rowValue +=
+                    values[static_cast<std::size_t>(blockIndex)] *
+                    input[static_cast<std::size_t>(columnBlock)];
+            }
+
+            output[static_cast<std::size_t>(rowBlock)] = rowValue;
+        }
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        if (recordTiming)
+        {
+            multiplyMilliseconds += ElapsedMilliseconds(start);
+        }
+#endif
+    }
+
     int SparseBlockMatrix::FindBlockIndex(int rowBlock, int colBlock) const
     {
         const auto it = blockLookup.find(MakeKey(rowBlock, colBlock));

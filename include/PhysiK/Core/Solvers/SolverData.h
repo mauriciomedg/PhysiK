@@ -87,7 +87,7 @@ namespace PhysiK
             return dynamicBlockCount;
         }
 
-        const std::vector<float>& GetDeltaVelocity() const
+        const std::vector<Vec3>& GetDeltaVelocity() const
         {
             return deltaVelocity;
         }
@@ -116,6 +116,7 @@ namespace PhysiK
 
     private:
         bool BuildDynamicNodeMapping(const std::vector<Node>& nodes);
+        void BuildInversePreconditioner(bool useJacobiPreconditioner);
         bool AssembleImplicitMatrixAndRhs(
             const std::vector<Node>& nodes,
             const std::vector<Vec3>& nodeVelocities,
@@ -129,9 +130,13 @@ namespace PhysiK
         std::vector<Vec3> assembledForces;
         std::vector<int> nodeToDynamicBlock;
         int dynamicBlockCount = 0;
-        std::vector<float> rhs;
+        std::vector<Vec3> rhs;
         SparseBlockMatrix matrix;
-        std::vector<float> deltaVelocity;
+        std::vector<Vec3> deltaVelocity;
+        std::vector<Mat3> inversePreconditioner;
+        std::vector<Vec3> cgResidual;
+        std::vector<Vec3> cgDirection;
+        std::vector<Vec3> cgTemp;
         LinearSolveResult lastLinearSolveResult;
 
         bool implicitPatternDirty = true;

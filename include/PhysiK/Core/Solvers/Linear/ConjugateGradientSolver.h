@@ -3,7 +3,9 @@
 #include <vector>
 
 #include "PhysiK/API/PhysiKAPI.h"
+#include "PhysiK/Math/Mat3.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
+#include "PhysiK/Math/Vec3.h"
 
 namespace PhysiK
 {
@@ -21,29 +23,14 @@ namespace PhysiK
         bool converged = false;
     };
 
-    struct ConjugateGradientScratch
-    {
-        std::vector<float> residual;
-        std::vector<float> direction;
-        std::vector<float> matrixDirection;
-        std::vector<float> preconditionedResidual;
-        std::vector<float> inverseDiagonal;
-        std::vector<int> diagonalBlockIndices;
-        std::vector<int> cachedRowStart;
-        std::vector<int> cachedColumnIndex;
-        int cachedBlockCount = -1;
-    };
-
-    PHYSIK_API ConjugateGradientResult SolveConjugateGradient(
-        const SparseBlockMatrix& matrix,
-        const std::vector<float>& rhs,
-        std::vector<float>& solution,
-        const ConjugateGradientSettings& settings = ConjugateGradientSettings{});
-
-    PHYSIK_API ConjugateGradientResult SolveConjugateGradient(
-        const SparseBlockMatrix& matrix,
-        const std::vector<float>& rhs,
-        std::vector<float>& solution,
-        ConjugateGradientScratch& scratch,
-        const ConjugateGradientSettings& settings = ConjugateGradientSettings{});
+    PHYSIK_API ConjugateGradientResult SolvePreconditionedConjugateGradient(
+        std::vector<Vec3>& x,
+        const SparseBlockMatrix& A,
+        const std::vector<Vec3>& b,
+        int maxIterations,
+        float tolerance,
+        const std::vector<Mat3>& MInv,
+        std::vector<Vec3>& r,
+        std::vector<Vec3>& d,
+        std::vector<Vec3>& qOrS);
 }

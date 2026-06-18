@@ -4,7 +4,9 @@
 
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
+#include "PhysiK/Math/Mat3.h"
 #include "PhysiK/Math/SparseBlockMatrix.h"
+#include "PhysiK/Math/Vec3.h"
 
 namespace PhysiK
 {
@@ -47,8 +49,8 @@ namespace PhysiK
 
         virtual LinearSolveResult Solve(
             const SparseBlockMatrix& matrix,
-            const std::vector<float>& rhs,
-            std::vector<float>& solution,
+            const std::vector<Vec3>& rhs,
+            std::vector<Vec3>& solution,
             const LinearSolveSettings& settings) = 0;
     };
 
@@ -57,12 +59,9 @@ namespace PhysiK
     public:
         LinearSolveResult Solve(
             const SparseBlockMatrix& matrix,
-            const std::vector<float>& rhs,
-            std::vector<float>& solution,
+            const std::vector<Vec3>& rhs,
+            std::vector<Vec3>& solution,
             const LinearSolveSettings& settings) override;
-
-    private:
-        ConjugateGradientScratch scratch;
     };
 
     PHYSIK_API LinearSolver& GetCurrentLinearSolver();
