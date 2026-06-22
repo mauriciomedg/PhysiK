@@ -2,13 +2,22 @@
 
 #include <algorithm>
 #include <cassert>
-#include <chrono>
 #include <cmath>
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING) || defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+#include <chrono>
+#define PHYSIK_COLLECT_CG_TIMING 1
+#endif
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+#include "PhysiK/Core/Performance/PerformanceLogger.h"
+#endif
 
 namespace PhysiK
 {
     namespace
     {
+#if defined(PHYSIK_COLLECT_CG_TIMING)
         using Clock = std::chrono::steady_clock;
 
         double ElapsedMilliseconds(Clock::time_point start)
@@ -16,6 +25,31 @@ namespace PhysiK
             return std::chrono::duration<double, std::milli>(
                 Clock::now() - start).count();
         }
+#endif
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        void LogCgProfileSample(
+            const SparseBlockMatrix& matrix,
+            const ConjugateGradientSettings& settings,
+            const LinearSolveResult& result)
+        {
+            CgProfileRecord record;
+            record.blockCount = matrix.blockCount;
+            record.nonZeroBlockCount = static_cast<int>(matrix.values.size());
+            record.maxIterations = settings.maxIterations;
+            record.iterations = result.iterations;
+            record.converged = result.converged;
+            record.residualNorm = result.residualNorm;
+            record.tolerance = settings.tolerance;
+            record.preconditionerBuildMs = result.preconditionerBuildMs;
+            record.cgTotalMs = result.cgTotalMs;
+            record.cgMultiplyMs = result.cgMultiplyMs;
+            record.cgApplyPreconditionerMs =
+                result.cgApplyPreconditionerMs;
+            record.cgDotVectorOpsMs = result.cgDotVectorOpsMs;
+            GetCgProfileCsvLogger().Log(record);
+        }
+#endif
 
         bool IsFinite(float value)
         {
@@ -174,19 +208,28 @@ namespace PhysiK
             return false;
         }
 
+#if defined(PHYSIK_COLLECT_CG_TIMING)
         Clock::time_point timerStart = Clock::now();
+#endif
         if (!BuildInversePreconditioner(cgSettings.useJacobiPreconditioner))
         {
             lastLinearSolveResult = LinearSolveResult{};
+#if defined(PHYSIK_COLLECT_CG_TIMING)
             lastLinearSolveResult.preconditionerBuildMs =
                 ElapsedMilliseconds(timerStart);
+#endif
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+            LogCgProfileSample(matrix, cgSettings, lastLinearSolveResult);
+#endif
             return false;
         }
         lastLinearSolveResult = LinearSolveResult{};
+#if defined(PHYSIK_COLLECT_CG_TIMING)
         lastLinearSolveResult.preconditionerBuildMs =
             ElapsedMilliseconds(timerStart);
 
         timerStart = Clock::now();
+#endif
         const ConjugateGradientResult result =
             SolvePreconditionedConjugateGradient(
                 deltaVelocity,
@@ -198,15 +241,22 @@ namespace PhysiK
                 cgResidual,
                 cgDirection,
                 cgTemp);
+#if defined(PHYSIK_COLLECT_CG_TIMING)
         lastLinearSolveResult.cgTotalMs = ElapsedMilliseconds(timerStart);
+#endif
 
         lastLinearSolveResult.iterations = result.iterations;
         lastLinearSolveResult.residualNorm = result.residualNorm;
         lastLinearSolveResult.converged = result.converged;
+#if defined(PHYSIK_COLLECT_CG_TIMING)
         lastLinearSolveResult.cgMultiplyMs = result.cgMultiplyMs;
         lastLinearSolveResult.cgApplyPreconditionerMs =
             result.cgApplyPreconditionerMs;
         lastLinearSolveResult.cgDotVectorOpsMs = result.cgDotVectorOpsMs;
+#endif
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        LogCgProfileSample(matrix, cgSettings, lastLinearSolveResult);
+#endif
 
         if (deltaVelocity.size() != static_cast<std::size_t>(dynamicBlockCount))
         {

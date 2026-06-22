@@ -5,6 +5,11 @@
 
 namespace PhysiK
 {
+    namespace
+    {
+        constexpr std::size_t CgProfileFlushThreshold = 64u;
+    }
+
     PerformanceTimer::PerformanceTimer()
         : start(Clock::now())
     {
@@ -156,5 +161,99 @@ namespace PhysiK
             file.close();
         }
         headerWritten = false;
+    }
+
+    CgProfileCsvLogger::~CgProfileCsvLogger()
+    {
+        Flush();
+    }
+
+    void CgProfileCsvLogger::Log(const CgProfileRecord& record)
+    {
+        if (!EnsureOpen())
+        {
+            return;
+        }
+
+        pendingRecords.push_back(record);
+        FlushIfNeeded();
+    }
+
+    bool CgProfileCsvLogger::EnsureOpen()
+    {
+        if (file.is_open())
+        {
+            return true;
+        }
+
+        constexpr const char* ProfilePath = "PhysiK_CG_Profile.csv";
+        std::error_code error;
+        const bool writeHeader =
+            !std::filesystem::exists(ProfilePath, error) ||
+            std::filesystem::file_size(ProfilePath, error) == 0u;
+
+        file.open(ProfilePath, std::ios::out | std::ios::app);
+        if (!file.is_open())
+        {
+            return false;
+        }
+
+        if (writeHeader)
+        {
+            file
+                << "solve,blocks,nonZeroBlocks,maxIterations,iterations,"
+                << "converged,residualNorm,tolerance,preconditionerBuildMs,"
+                << "cgTotalMs,cgMultiplyMs,cgApplyPreconditionerMs,"
+                << "cgDotVectorOpsMs\n";
+        }
+
+        headerWritten = true;
+        return true;
+    }
+
+    void CgProfileCsvLogger::FlushIfNeeded()
+    {
+        if (pendingRecords.size() >= CgProfileFlushThreshold)
+        {
+            Flush();
+        }
+    }
+
+    void CgProfileCsvLogger::Flush()
+    {
+        if (!file.is_open())
+        {
+            pendingRecords.clear();
+            return;
+        }
+
+        for (const CgProfileRecord& record : pendingRecords)
+        {
+            ++solveCount;
+            file
+                << solveCount << ','
+                << record.blockCount << ','
+                << record.nonZeroBlockCount << ','
+                << record.maxIterations << ','
+                << record.iterations << ','
+                << (record.converged ? 1 : 0) << ','
+                << record.residualNorm << ','
+                << record.tolerance << ','
+                << record.preconditionerBuildMs << ','
+                << record.cgTotalMs << ','
+                << record.cgMultiplyMs << ','
+                << record.cgApplyPreconditionerMs << ','
+                << record.cgDotVectorOpsMs
+                << '\n';
+        }
+
+        pendingRecords.clear();
+        file.flush();
+    }
+
+    CgProfileCsvLogger& GetCgProfileCsvLogger()
+    {
+        static CgProfileCsvLogger logger;
+        return logger;
     }
 }

@@ -220,31 +220,6 @@ namespace PhysiK
         return lastConjugateGradientResult.converged;
     }
 
-    double World::GetLastConjugateGradientPreconditionerBuildMilliseconds() const
-    {
-        return lastConjugateGradientResult.preconditionerBuildMs;
-    }
-
-    double World::GetLastConjugateGradientTotalMilliseconds() const
-    {
-        return lastConjugateGradientResult.cgTotalMs;
-    }
-
-    double World::GetLastConjugateGradientMultiplyMilliseconds() const
-    {
-        return lastConjugateGradientResult.cgMultiplyMs;
-    }
-
-    double World::GetLastConjugateGradientApplyPreconditionerMilliseconds() const
-    {
-        return lastConjugateGradientResult.cgApplyPreconditionerMs;
-    }
-
-    double World::GetLastConjugateGradientDotVectorOpsMilliseconds() const
-    {
-        return lastConjugateGradientResult.cgDotVectorOpsMs;
-    }
-
     void World::SetGravity(const Vec3& value)
     {
         gravity = value;
@@ -663,14 +638,6 @@ namespace PhysiK
         lastConjugateGradientResult.iterations = result.iterations;
         lastConjugateGradientResult.residualNorm = result.residualNorm;
         lastConjugateGradientResult.converged = result.converged;
-        lastConjugateGradientResult.preconditionerBuildMs =
-            result.preconditionerBuildMs;
-        lastConjugateGradientResult.cgTotalMs = result.cgTotalMs;
-        lastConjugateGradientResult.cgMultiplyMs = result.cgMultiplyMs;
-        lastConjugateGradientResult.cgApplyPreconditionerMs =
-            result.cgApplyPreconditionerMs;
-        lastConjugateGradientResult.cgDotVectorOpsMs =
-            result.cgDotVectorOpsMs;
         return solved;
     }
 

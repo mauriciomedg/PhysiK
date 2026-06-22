@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include "PhysiK/API/PhysiKAPI.h"
 
@@ -91,4 +92,40 @@ namespace PhysiK
         std::string path = "logs/physik_performance.csv";
         std::ofstream file;
     };
+
+    struct CgProfileRecord
+    {
+        int blockCount = 0;
+        int nonZeroBlockCount = 0;
+        int maxIterations = 0;
+        int iterations = 0;
+        bool converged = false;
+        float residualNorm = 0.0f;
+        float tolerance = 0.0f;
+        double preconditionerBuildMs = 0.0;
+        double cgTotalMs = 0.0;
+        double cgMultiplyMs = 0.0;
+        double cgApplyPreconditionerMs = 0.0;
+        double cgDotVectorOpsMs = 0.0;
+    };
+
+    class CgProfileCsvLogger
+    {
+    public:
+        ~CgProfileCsvLogger();
+
+        void Log(const CgProfileRecord& record);
+
+    private:
+        bool EnsureOpen();
+        void FlushIfNeeded();
+        void Flush();
+
+        std::uint64_t solveCount = 0;
+        bool headerWritten = false;
+        std::ofstream file;
+        std::vector<CgProfileRecord> pendingRecords;
+    };
+
+    CgProfileCsvLogger& GetCgProfileCsvLogger();
 }

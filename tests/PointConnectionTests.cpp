@@ -2392,18 +2392,12 @@ void ConjugateGradientSettingsAndDiagnosticsAreExposedThroughNativeApi()
     assert(PHYSIK_DidLastConjugateGradientSolveConverge(world));
     assert(PHYSIK_GetLastConjugateGradientIterations(world) > 0);
     assert(std::isfinite(PHYSIK_GetLastConjugateGradientResidualNorm(world)));
-    assert(PHYSIK_GetLastConjugateGradientPreconditionerBuildMs(world) >= 0.0);
-    assert(PHYSIK_GetLastConjugateGradientTotalMs(world) >= 0.0);
-    assert(PHYSIK_GetLastConjugateGradientMultiplyMs(world) >= 0.0);
-    assert(PHYSIK_GetLastConjugateGradientApplyPreconditionerMs(world) >= 0.0);
-    assert(PHYSIK_GetLastConjugateGradientDotVectorOpsMs(world) >= 0.0);
 
     PHYSIK_DestroyWorld(world);
 
     assert(PHYSIK_GetConjugateGradientMaxIterations(nullptr) == 0);
     assert(PHYSIK_GetLastConjugateGradientIterations(nullptr) == 0);
     assert(!PHYSIK_DidLastConjugateGradientSolveConverge(nullptr));
-    assert(PHYSIK_GetLastConjugateGradientTotalMs(nullptr) == 0.0);
 }
 
 void CurrentLinearSolverSolvesKnownSparseSystem()
