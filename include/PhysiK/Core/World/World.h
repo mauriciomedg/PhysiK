@@ -57,6 +57,11 @@ namespace PhysiK
         int GetLastConjugateGradientIterations() const;
         float GetLastConjugateGradientResidualNorm() const;
         bool DidLastConjugateGradientSolveConverge() const;
+        double GetLastConjugateGradientPreconditionerBuildMilliseconds() const;
+        double GetLastConjugateGradientTotalMilliseconds() const;
+        double GetLastConjugateGradientMultiplyMilliseconds() const;
+        double GetLastConjugateGradientApplyPreconditionerMilliseconds() const;
+        double GetLastConjugateGradientDotVectorOpsMilliseconds() const;
         void SetGravity(const Vec3& value);
         const Vec3& GetGravity() const;
 
@@ -132,6 +137,6 @@ namespace PhysiK
         int substepCount = 1;
         SolverMode solverMode = SolverMode::Explicit;
         ConjugateGradientSettings conjugateGradientSettings;
-        ConjugateGradientResult lastConjugateGradientResult;
+        LinearSolveResult lastConjugateGradientResult;
     };
 }

@@ -76,6 +76,16 @@ extern "C"
         PhysiK::WorldHandle world);
     PHYSIK_API int PHYSIK_DidLastConjugateGradientSolveConverge(
         PhysiK::WorldHandle world);
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientPreconditionerBuildMs(
+        PhysiK::WorldHandle world);
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientTotalMs(
+        PhysiK::WorldHandle world);
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientMultiplyMs(
+        PhysiK::WorldHandle world);
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientApplyPreconditionerMs(
+        PhysiK::WorldHandle world);
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientDotVectorOpsMs(
+        PhysiK::WorldHandle world);
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,

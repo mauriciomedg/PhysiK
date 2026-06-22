@@ -54,6 +54,11 @@ namespace
         TimingStats vectorUpdate;
         TimingStats preconditionerSetup;
         TimingStats preconditionerApply;
+        TimingStats preconditionerBuild;
+        TimingStats cgApplyPreconditioner;
+        TimingStats cgTotal;
+        TimingStats cgMultiply;
+        TimingStats cgDotVectorOps;
         TimingStats iterations;
         TimingStats residualNorm;
 
@@ -65,6 +70,11 @@ namespace
             vectorUpdate.Add(profile.vectorUpdateMilliseconds);
             preconditionerSetup.Add(profile.preconditionerSetupMilliseconds);
             preconditionerApply.Add(profile.preconditionerApplyMilliseconds);
+            preconditionerBuild.Add(profile.preconditionerBuildMs);
+            cgApplyPreconditioner.Add(profile.cgApplyPreconditionerMs);
+            cgTotal.Add(profile.cgTotalMs);
+            cgMultiply.Add(profile.cgMultiplyMs);
+            cgDotVectorOps.Add(profile.cgDotVectorOpsMs);
             iterations.Add(static_cast<double>(profile.iterations));
             residualNorm.Add(static_cast<double>(profile.residualNorm));
         }
@@ -296,6 +306,14 @@ int main(int argc, char** argv)
     PrintStats("vector update", profileStats.vectorUpdate, "ms");
     PrintStats("preconditioner setup", profileStats.preconditionerSetup, "ms");
     PrintStats("preconditioner apply", profileStats.preconditionerApply, "ms");
+    PrintStats("preconditionerBuildMs", profileStats.preconditionerBuild, "ms");
+    PrintStats("cgTotalMs", profileStats.cgTotal, "ms");
+    PrintStats("cgMultiplyMs", profileStats.cgMultiply, "ms");
+    PrintStats(
+        "cgApplyPreconditionerMs",
+        profileStats.cgApplyPreconditioner,
+        "ms");
+    PrintStats("cgDotVectorOpsMs", profileStats.cgDotVectorOps, "ms");
     PrintStats("iterations", profileStats.iterations, "");
     PrintStats("residual norm", profileStats.residualNorm, "");
 #else

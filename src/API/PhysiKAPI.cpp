@@ -423,6 +423,63 @@ extern "C"
             : 0;
     }
 
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientPreconditionerBuildMs(
+        PhysiK::WorldHandle world)
+    {
+        if (const PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr
+                ->GetLastConjugateGradientPreconditionerBuildMilliseconds();
+        }
+
+        return 0.0;
+    }
+
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientTotalMs(
+        PhysiK::WorldHandle world)
+    {
+        if (const PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetLastConjugateGradientTotalMilliseconds();
+        }
+
+        return 0.0;
+    }
+
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientMultiplyMs(
+        PhysiK::WorldHandle world)
+    {
+        if (const PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetLastConjugateGradientMultiplyMilliseconds();
+        }
+
+        return 0.0;
+    }
+
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientApplyPreconditionerMs(
+        PhysiK::WorldHandle world)
+    {
+        if (const PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr
+                ->GetLastConjugateGradientApplyPreconditionerMilliseconds();
+        }
+
+        return 0.0;
+    }
+
+    PHYSIK_API double PHYSIK_GetLastConjugateGradientDotVectorOpsMs(
+        PhysiK::WorldHandle world)
+    {
+        if (const PhysiK::World* worldPtr = AsWorld(world))
+        {
+            return worldPtr->GetLastConjugateGradientDotVectorOpsMilliseconds();
+        }
+
+        return 0.0;
+    }
+
     PHYSIK_API void PHYSIK_SetGravity(
         PhysiK::WorldHandle world,
         float x,

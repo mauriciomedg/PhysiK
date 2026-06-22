@@ -83,8 +83,14 @@ namespace PhysiK
             << record.polarEarlyExitCount << ','
             << record.conjugateGradientSolveMs << ','
             << record.sparseMultiplyMs << ','
+            << record.preconditionerBuildMs << ','
+            << record.cgTotalMs << ','
+            << record.cgMultiplyMs << ','
+            << record.cgApplyPreconditionerMs << ','
+            << record.cgDotVectorOpsMs << ','
             << record.cgIterations << ','
             << record.cgResidual << ','
+            << record.cgConverged << ','
             << record.dynamicBlockCount << ','
             << record.tetCount << ','
             << record.activeTetCount << ','
@@ -132,7 +138,10 @@ namespace PhysiK
                 << "averageExtractRotationPolarMs,rotateElementStiffnessMs,"
                 << "computeElasticForcesMs,tetMatrixWriteMs,polarCallCount,"
                 << "averagePolarIterations,maxPolarIterationsObserved,polarEarlyExitCount,"
-                << "conjugateGradientSolveMs,sparseMultiplyMs,cgIterations,cgResidual,"
+                << "conjugateGradientSolveMs,sparseMultiplyMs,"
+                << "preconditionerBuildMs,cgTotalMs,cgMultiplyMs,"
+                << "cgApplyPreconditionerMs,cgDotVectorOpsMs,"
+                << "cgIterations,cgResidual,cgConverged,"
                 << "dynamicBlockCount,tetCount,activeTetCount,transientConnectionCount\n";
         }
         headerWritten = true;

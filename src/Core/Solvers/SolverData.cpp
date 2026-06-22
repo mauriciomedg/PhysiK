@@ -2,12 +2,21 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cmath>
 
 namespace PhysiK
 {
     namespace
     {
+        using Clock = std::chrono::steady_clock;
+
+        double ElapsedMilliseconds(Clock::time_point start)
+        {
+            return std::chrono::duration<double, std::milli>(
+                Clock::now() - start).count();
+        }
+
         bool IsFinite(float value)
         {
             return std::isfinite(value);
@@ -165,12 +174,19 @@ namespace PhysiK
             return false;
         }
 
+        Clock::time_point timerStart = Clock::now();
         if (!BuildInversePreconditioner(cgSettings.useJacobiPreconditioner))
         {
             lastLinearSolveResult = LinearSolveResult{};
+            lastLinearSolveResult.preconditionerBuildMs =
+                ElapsedMilliseconds(timerStart);
             return false;
         }
+        lastLinearSolveResult = LinearSolveResult{};
+        lastLinearSolveResult.preconditionerBuildMs =
+            ElapsedMilliseconds(timerStart);
 
+        timerStart = Clock::now();
         const ConjugateGradientResult result =
             SolvePreconditionedConjugateGradient(
                 deltaVelocity,
@@ -182,10 +198,15 @@ namespace PhysiK
                 cgResidual,
                 cgDirection,
                 cgTemp);
+        lastLinearSolveResult.cgTotalMs = ElapsedMilliseconds(timerStart);
 
         lastLinearSolveResult.iterations = result.iterations;
         lastLinearSolveResult.residualNorm = result.residualNorm;
         lastLinearSolveResult.converged = result.converged;
+        lastLinearSolveResult.cgMultiplyMs = result.cgMultiplyMs;
+        lastLinearSolveResult.cgApplyPreconditionerMs =
+            result.cgApplyPreconditionerMs;
+        lastLinearSolveResult.cgDotVectorOpsMs = result.cgDotVectorOpsMs;
 
         if (deltaVelocity.size() != static_cast<std::size_t>(dynamicBlockCount))
         {

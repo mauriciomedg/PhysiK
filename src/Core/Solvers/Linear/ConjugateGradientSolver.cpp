@@ -1,6 +1,7 @@
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 
@@ -8,6 +9,14 @@ namespace PhysiK
 {
     namespace
     {
+        using Clock = std::chrono::steady_clock;
+
+        double ElapsedMilliseconds(Clock::time_point start)
+        {
+            return std::chrono::duration<double, std::milli>(
+                Clock::now() - start).count();
+        }
+
         bool IsFinite(float value)
         {
             return std::isfinite(value);
@@ -150,12 +159,17 @@ namespace PhysiK
 
         x.assign(b.size(), Vec3{});
         r = b;
+        Clock::time_point timerStart = Clock::now();
         if (!ApplyPreconditioner(MInv, r, d))
         {
+            result.cgApplyPreconditionerMs += ElapsedMilliseconds(timerStart);
             return result;
         }
+        result.cgApplyPreconditionerMs += ElapsedMilliseconds(timerStart);
 
+        timerStart = Clock::now();
         float deltaNew = Dot(r, d);
+        result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
         if (!IsFinite(deltaNew) || deltaNew < 0.0f)
         {
             return result;
@@ -172,7 +186,9 @@ namespace PhysiK
         if (deltaNew <= target)
         {
             result.converged = true;
+            timerStart = Clock::now();
             result.residualNorm = ResidualNorm(r);
+            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
             return result;
         }
 
@@ -184,13 +200,17 @@ namespace PhysiK
                 break;
             }
 
+            timerStart = Clock::now();
             A.Multiply(d, qOrS);
+            result.cgMultiplyMs += ElapsedMilliseconds(timerStart);
             if (qOrS.size() != b.size() || !IsFinite(qOrS))
             {
                 break;
             }
 
+            timerStart = Clock::now();
             const float dDotQ = Dot(d, qOrS);
+            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
             if (!IsFinite(dDotQ) || dDotQ <= 0.0f)
             {
                 break;
@@ -202,16 +222,23 @@ namespace PhysiK
                 break;
             }
 
+            timerStart = Clock::now();
             AddScaled(x, d, alpha);
             AddScaled(r, qOrS, -alpha);
+            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
 
+            timerStart = Clock::now();
             if (!ApplyPreconditioner(MInv, r, qOrS))
             {
+                result.cgApplyPreconditionerMs += ElapsedMilliseconds(timerStart);
                 break;
             }
+            result.cgApplyPreconditionerMs += ElapsedMilliseconds(timerStart);
 
             const float deltaOld = deltaNew;
+            timerStart = Clock::now();
             deltaNew = Dot(r, qOrS);
+            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
             if (!IsFinite(deltaNew) ||
                 !IsFinite(deltaOld) ||
                 deltaOld <= 0.0f)
@@ -225,10 +252,12 @@ namespace PhysiK
                 break;
             }
 
+            timerStart = Clock::now();
             for (std::size_t i = 0; i < d.size(); ++i)
             {
                 d[i] = qOrS[i] + d[i] * beta;
             }
+            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
 
             result.iterations = iteration + 1;
         }
@@ -238,7 +267,9 @@ namespace PhysiK
             result.converged = true;
         }
 
+        timerStart = Clock::now();
         result.residualNorm = ResidualNorm(r);
+        result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
         return result;
     }
 }

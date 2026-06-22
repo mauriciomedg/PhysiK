@@ -22,6 +22,11 @@ namespace PhysiK
         int iterations = 0;
         float residualNorm = 0.0f;
         bool converged = false;
+        double preconditionerBuildMs = 0.0;
+        double cgTotalMs = 0.0;
+        double cgMultiplyMs = 0.0;
+        double cgApplyPreconditionerMs = 0.0;
+        double cgDotVectorOpsMs = 0.0;
     };
 
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
@@ -33,6 +38,11 @@ namespace PhysiK
         double vectorUpdateMilliseconds = 0.0;
         double preconditionerSetupMilliseconds = 0.0;
         double preconditionerApplyMilliseconds = 0.0;
+        double preconditionerBuildMs = 0.0;
+        double cgTotalMs = 0.0;
+        double cgMultiplyMs = 0.0;
+        double cgApplyPreconditionerMs = 0.0;
+        double cgDotVectorOpsMs = 0.0;
         int iterations = 0;
         float residualNorm = 0.0f;
         bool converged = false;

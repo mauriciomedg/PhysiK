@@ -44,8 +44,14 @@ namespace PhysiK
         int polarEarlyExitCount = 0;
         double conjugateGradientSolveMs = 0.0;
         double sparseMultiplyMs = 0.0;
+        double preconditionerBuildMs = 0.0;
+        double cgTotalMs = 0.0;
+        double cgMultiplyMs = 0.0;
+        double cgApplyPreconditionerMs = 0.0;
+        double cgDotVectorOpsMs = 0.0;
         int cgIterations = 0;
         float cgResidual = 0.0f;
+        int cgConverged = 0;
         int dynamicBlockCount = 0;
         int tetCount = 0;
         int activeTetCount = 0;
