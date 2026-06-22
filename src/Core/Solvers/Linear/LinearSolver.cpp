@@ -6,13 +6,9 @@
 
 #include "PhysiK/Core/Solvers/Linear/ConjugateGradientSolver.h"
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING) || defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
 #include <chrono>
 #define PHYSIK_COLLECT_CG_TIMING 1
-#endif
-
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-#include "PhysiK/Core/Performance/PerformanceLogger.h"
 #endif
 
 namespace PhysiK
@@ -26,31 +22,6 @@ namespace PhysiK
         {
             return std::chrono::duration<double, std::milli>(
                 Clock::now() - start).count();
-        }
-#endif
-
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        void LogCgProfileSample(
-            const SparseBlockMatrix& matrix,
-            int maxIterations,
-            float tolerance,
-            const LinearSolveResult& result)
-        {
-            CgProfileRecord record;
-            record.blockCount = matrix.blockCount;
-            record.nonZeroBlockCount = static_cast<int>(matrix.values.size());
-            record.maxIterations = maxIterations;
-            record.iterations = result.iterations;
-            record.converged = result.converged;
-            record.residualNorm = result.residualNorm;
-            record.tolerance = tolerance;
-            record.preconditionerBuildMs = result.preconditionerBuildMs;
-            record.cgTotalMs = result.cgTotalMs;
-            record.cgMultiplyMs = result.cgMultiplyMs;
-            record.cgApplyPreconditionerMs =
-                result.cgApplyPreconditionerMs;
-            record.cgDotVectorOpsMs = result.cgDotVectorOpsMs;
-            GetCgProfileCsvLogger().Log(record);
         }
 #endif
 
@@ -187,13 +158,6 @@ namespace PhysiK
                 result.preconditionerBuildMs;
             profile.preconditionerBuildMs = result.preconditionerBuildMs;
 #endif
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            LogCgProfileSample(
-                matrix,
-                maxIterations,
-                settings.tolerance,
-                result);
-#endif
             return result;
         }
 #if defined(PHYSIK_COLLECT_CG_TIMING)
@@ -245,9 +209,6 @@ namespace PhysiK
         profile.iterations = result.iterations;
         profile.residualNorm = result.residualNorm;
         profile.converged = result.converged;
-#endif
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        LogCgProfileSample(matrix, maxIterations, settings.tolerance, result);
 #endif
         return result;
     }

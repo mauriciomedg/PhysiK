@@ -4,13 +4,9 @@
 #include <cassert>
 #include <cmath>
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING) || defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
 #include <chrono>
 #define PHYSIK_COLLECT_CG_TIMING 1
-#endif
-
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-#include "PhysiK/Core/Performance/PerformanceLogger.h"
 #endif
 
 namespace PhysiK
@@ -24,30 +20,6 @@ namespace PhysiK
         {
             return std::chrono::duration<double, std::milli>(
                 Clock::now() - start).count();
-        }
-#endif
-
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        void LogCgProfileSample(
-            const SparseBlockMatrix& matrix,
-            const ConjugateGradientSettings& settings,
-            const LinearSolveResult& result)
-        {
-            CgProfileRecord record;
-            record.blockCount = matrix.blockCount;
-            record.nonZeroBlockCount = static_cast<int>(matrix.values.size());
-            record.maxIterations = settings.maxIterations;
-            record.iterations = result.iterations;
-            record.converged = result.converged;
-            record.residualNorm = result.residualNorm;
-            record.tolerance = settings.tolerance;
-            record.preconditionerBuildMs = result.preconditionerBuildMs;
-            record.cgTotalMs = result.cgTotalMs;
-            record.cgMultiplyMs = result.cgMultiplyMs;
-            record.cgApplyPreconditionerMs =
-                result.cgApplyPreconditionerMs;
-            record.cgDotVectorOpsMs = result.cgDotVectorOpsMs;
-            GetCgProfileCsvLogger().Log(record);
         }
 #endif
 
@@ -218,9 +190,6 @@ namespace PhysiK
             lastLinearSolveResult.preconditionerBuildMs =
                 ElapsedMilliseconds(timerStart);
 #endif
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            LogCgProfileSample(matrix, cgSettings, lastLinearSolveResult);
-#endif
             return false;
         }
         lastLinearSolveResult = LinearSolveResult{};
@@ -253,9 +222,6 @@ namespace PhysiK
         lastLinearSolveResult.cgApplyPreconditionerMs =
             result.cgApplyPreconditionerMs;
         lastLinearSolveResult.cgDotVectorOpsMs = result.cgDotVectorOpsMs;
-#endif
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        LogCgProfileSample(matrix, cgSettings, lastLinearSolveResult);
 #endif
 
         if (deltaVelocity.size() != static_cast<std::size_t>(dynamicBlockCount))

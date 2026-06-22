@@ -4,7 +4,7 @@
 #include <cmath>
 #include <limits>
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING) || defined(PHYSIK_ENABLE_SOLVER_PROFILING)
+#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
 #include <chrono>
 #define PHYSIK_COLLECT_CG_TIMING 1
 #endif
