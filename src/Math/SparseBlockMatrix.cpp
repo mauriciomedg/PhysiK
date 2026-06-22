@@ -3,6 +3,9 @@
 #include <algorithm>
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <system_error>
 #endif
 
 namespace PhysiK
@@ -18,6 +21,87 @@ namespace PhysiK
         double ElapsedMilliseconds(Clock::time_point start)
         {
             return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+        }
+
+        void LogStorageDiagnostic(const SparseBlockMatrix& matrix)
+        {
+            int offDiagonalBlocks = 0;
+            int symmetricPairsFound = 0;
+            int missingSymmetricPairs = 0;
+
+            for (int rowBlock = 0; rowBlock < matrix.blockCount; ++rowBlock)
+            {
+                const int rowBegin =
+                    matrix.rowStart[static_cast<std::size_t>(rowBlock)];
+                const int rowEnd =
+                    matrix.rowStart[static_cast<std::size_t>(rowBlock + 1)];
+
+                for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
+                {
+                    const int columnBlock =
+                        matrix.colIndex[static_cast<std::size_t>(blockIndex)];
+                    if (rowBlock == columnBlock)
+                    {
+                        continue;
+                    }
+
+                    ++offDiagonalBlocks;
+                    if (matrix.FindBlockIndex(columnBlock, rowBlock) >= 0)
+                    {
+                        ++symmetricPairsFound;
+                    }
+                    else
+                    {
+                        ++missingSymmetricPairs;
+                    }
+                }
+            }
+
+            constexpr const char* DiagnosticPath =
+                "PhysiK_SparseBlockMatrix_Storage.csv";
+            static std::uint64_t patternCount = 0;
+            static std::ofstream file;
+
+            if (!file.is_open())
+            {
+                std::error_code error;
+                const bool writeHeader =
+                    !std::filesystem::exists(DiagnosticPath, error) ||
+                    std::filesystem::file_size(DiagnosticPath, error) == 0u;
+                file.open(DiagnosticPath, std::ios::out | std::ios::app);
+                if (!file.is_open())
+                {
+                    return;
+                }
+
+                if (writeHeader)
+                {
+                    file
+                        << "pattern,blocks,nonZeroBlocks,offDiagonalBlocks,"
+                        << "symmetricPairsFound,missingSymmetricPairs,storageMode\n";
+                }
+            }
+
+            const char* storageMode = "diagonal-only";
+            if (offDiagonalBlocks > 0)
+            {
+                storageMode =
+                    missingSymmetricPairs == 0
+                        ? "full-symmetric-pairs"
+                        : "half-or-missing-pairs";
+            }
+
+            ++patternCount;
+            file
+                << patternCount << ','
+                << matrix.blockCount << ','
+                << matrix.values.size() << ','
+                << offDiagonalBlocks << ','
+                << symmetricPairsFound << ','
+                << missingSymmetricPairs << ','
+                << storageMode
+                << '\n';
+            file.flush();
         }
 #endif
 
@@ -116,6 +200,10 @@ namespace PhysiK
                 blockLookup[MakeKey(row, column)] = blockIndex;
             }
         }
+
+#if defined(PHYSIK_ENABLE_PERF_LOGGING)
+        LogStorageDiagnostic(*this);
+#endif
     }
 
     bool SparseBlockMatrix::AddBlock(int rowBlock, int colBlock, const Mat3& block)
@@ -207,11 +295,11 @@ namespace PhysiK
 #endif
         const std::size_t blockDimension =
             static_cast<std::size_t>(std::max(0, blockCount));
-        output.assign(blockDimension, Vec3{});
 
         if (input.size() < blockDimension ||
             rowStart.size() != static_cast<std::size_t>(blockCount + 1))
         {
+            output.assign(blockDimension, Vec3{});
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
             if (recordTiming)
             {
@@ -221,21 +309,43 @@ namespace PhysiK
             return;
         }
 
+        if (output.size() != blockDimension)
+        {
+            output.resize(blockDimension);
+        }
+
+        const Vec3* inputValues = input.data();
+        Vec3* outputValues = output.data();
+        const int* rowStarts = rowStart.data();
+        const int* columnIndices = colIndex.data();
+        const Mat3* blockValues = values.data();
+
         for (int rowBlock = 0; rowBlock < blockCount; ++rowBlock)
         {
-            Vec3 rowValue{};
-            const int rowBegin = rowStart[static_cast<std::size_t>(rowBlock)];
-            const int rowEnd = rowStart[static_cast<std::size_t>(rowBlock + 1)];
+            float rowX = 0.0f;
+            float rowY = 0.0f;
+            float rowZ = 0.0f;
+            const int rowBegin = rowStarts[rowBlock];
+            const int rowEnd = rowStarts[rowBlock + 1];
 
             for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
             {
-                const int columnBlock = colIndex[static_cast<std::size_t>(blockIndex)];
-                rowValue +=
-                    values[static_cast<std::size_t>(blockIndex)] *
-                    input[static_cast<std::size_t>(columnBlock)];
+                const int columnBlock = columnIndices[blockIndex];
+                const Vec3& inputValue = inputValues[columnBlock];
+                const float x = inputValue.x;
+                const float y = inputValue.y;
+                const float z = inputValue.z;
+                const Mat3& block = blockValues[blockIndex];
+                const Vec3& column0 = block.columns[0];
+                const Vec3& column1 = block.columns[1];
+                const Vec3& column2 = block.columns[2];
+
+                rowX += column0.x * x + column1.x * y + column2.x * z;
+                rowY += column0.y * x + column1.y * y + column2.y * z;
+                rowZ += column0.z * x + column1.z * y + column2.z * z;
             }
 
-            output[static_cast<std::size_t>(rowBlock)] = rowValue;
+            outputValues[rowBlock] = Vec3{rowX, rowY, rowZ};
         }
 
 #if defined(PHYSIK_ENABLE_PERF_LOGGING)
