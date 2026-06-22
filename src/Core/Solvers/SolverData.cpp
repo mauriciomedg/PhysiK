@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
+#include <unordered_set>
 
 #if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
 #include <chrono>
@@ -38,6 +40,12 @@ namespace PhysiK
             return IsFinite(matrix.columns[0]) &&
                 IsFinite(matrix.columns[1]) &&
                 IsFinite(matrix.columns[2]);
+        }
+
+        std::uint64_t MakeBlockPairKey(int rowBlock, int columnBlock)
+        {
+            return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(rowBlock)) << 32u) |
+                static_cast<std::uint32_t>(columnBlock);
         }
 
         Mat3 ScaledIdentity(float value)
@@ -344,6 +352,8 @@ namespace PhysiK
         std::vector<std::pair<int, int>> blockCoordinates;
         blockCoordinates.reserve(
             static_cast<std::size_t>(dynamicBlockCount) + stiffnessBlocks.size());
+        std::unordered_set<std::uint64_t> dynamicStiffnessCoordinates;
+        dynamicStiffnessCoordinates.reserve(stiffnessBlocks.size());
 
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)
         {
@@ -408,6 +418,8 @@ namespace PhysiK
                 continue;
             }
 
+            dynamicStiffnessCoordinates.insert(
+                MakeBlockPairKey(rowBlock, columnBlock));
             blockCoordinates.push_back({rowBlock, columnBlock});
         }
 
@@ -458,6 +470,14 @@ namespace PhysiK
             const int rowBlock = GetDynamicBlockForNode(block.nodeA);
             const int columnBlock = GetDynamicBlockForNode(block.nodeB);
             if (rowBlock < 0 || columnBlock < 0)
+            {
+                continue;
+            }
+
+            if (rowBlock > columnBlock &&
+                dynamicStiffnessCoordinates.find(
+                    MakeBlockPairKey(columnBlock, rowBlock)) !=
+                    dynamicStiffnessCoordinates.end())
             {
                 continue;
             }

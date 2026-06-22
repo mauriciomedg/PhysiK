@@ -1986,11 +1986,11 @@ void SparseBlockMatrixStoresAndMultipliesBlocks()
     matrix.BuildPattern(2, {{0, 0}, {0, 1}, {1, 1}});
     assert(matrix.blockCount == 2);
     assert(matrix.values.size() == 3);
+    assert(matrix.FindBlockIndex(0, 1) == matrix.FindBlockIndex(1, 0));
 
     assert(matrix.AddBlock(0, 0, DiagonalBlock(2.0f)));
     assert(matrix.AddBlock(0, 1, DiagonalBlock(3.0f)));
     assert(matrix.AddBlock(1, 1, DiagonalBlock(4.0f)));
-    assert(!matrix.AddBlock(1, 0, DiagonalBlock(5.0f)));
 
     std::vector<float> input = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
     std::vector<float> output;
@@ -2000,9 +2000,9 @@ void SparseBlockMatrixStoresAndMultipliesBlocks()
     assert(NearlyEqual(output[0], 14.0f));
     assert(NearlyEqual(output[1], 19.0f));
     assert(NearlyEqual(output[2], 24.0f));
-    assert(NearlyEqual(output[3], 16.0f));
-    assert(NearlyEqual(output[4], 20.0f));
-    assert(NearlyEqual(output[5], 24.0f));
+    assert(NearlyEqual(output[3], 19.0f));
+    assert(NearlyEqual(output[4], 26.0f));
+    assert(NearlyEqual(output[5], 33.0f));
 
     std::vector<PhysiK::Vec3> blockInput{
         PhysiK::Vec3{1.0f, 2.0f, 3.0f},
@@ -2012,7 +2012,41 @@ void SparseBlockMatrixStoresAndMultipliesBlocks()
 
     assert(blockOutput.size() == 2);
     assert(NearlyEqual(blockOutput[0], PhysiK::Vec3{14.0f, 19.0f, 24.0f}));
-    assert(NearlyEqual(blockOutput[1], PhysiK::Vec3{16.0f, 20.0f, 24.0f}));
+    assert(NearlyEqual(blockOutput[1], PhysiK::Vec3{19.0f, 26.0f, 33.0f}));
+}
+
+void SparseBlockMatrixMultipliesCanonicalOffDiagonalBlocks()
+{
+    const PhysiK::Mat3 offDiagonal =
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{1.0f, 4.0f, 7.0f},
+            PhysiK::Vec3{2.0f, 5.0f, 8.0f},
+            PhysiK::Vec3{3.0f, 6.0f, 9.0f});
+
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(2, {{0, 0}, {1, 0}, {0, 1}, {1, 1}});
+    assert(matrix.values.size() == 3);
+
+    assert(matrix.AddBlock(0, 0, DiagonalBlock(2.0f)));
+    assert(matrix.AddBlock(1, 0, PhysiK::Transpose(offDiagonal)));
+    assert(matrix.AddBlock(1, 1, DiagonalBlock(3.0f)));
+
+    const int offDiagonalIndex = matrix.FindBlockIndex(0, 1);
+    assert(offDiagonalIndex == matrix.FindBlockIndex(1, 0));
+    assert(offDiagonalIndex >= 0);
+    assert(NearlyEqual(
+        GetMat3Value(matrix.values[static_cast<std::size_t>(offDiagonalIndex)], 2, 1),
+        8.0f));
+
+    const std::vector<PhysiK::Vec3> input{
+        PhysiK::Vec3{1.0f, 2.0f, 3.0f},
+        PhysiK::Vec3{4.0f, 5.0f, 6.0f}};
+    std::vector<PhysiK::Vec3> output;
+    matrix.Multiply(input, output);
+
+    assert(output.size() == 2);
+    assert(NearlyEqual(output[0], PhysiK::Vec3{34.0f, 81.0f, 128.0f}));
+    assert(NearlyEqual(output[1], PhysiK::Vec3{42.0f, 51.0f, 60.0f}));
 }
 
 void SparseBlockMatrixAddBlockAccumulatesContributions()
@@ -2042,11 +2076,11 @@ void SparseBlockMatrixSingleTetPatternContainsAllCouplings()
     matrix.BuildPattern(4, BuildSparsePatternFromTetConnectivity({tet}));
 
     assert(matrix.blockCount == 4);
-    assert(matrix.values.size() == 16);
+    assert(matrix.values.size() == 10);
     for (int row = 0; row < 4; ++row)
     {
         assert(matrix.rowStart[static_cast<std::size_t>(row + 1)] -
-            matrix.rowStart[static_cast<std::size_t>(row)] == 4);
+            matrix.rowStart[static_cast<std::size_t>(row)] == 4 - row);
         for (int column = 0; column < 4; ++column)
         {
             assert(HasSparseBlock(matrix, row, column));
@@ -2071,7 +2105,7 @@ void SparseBlockMatrixAdjacentTetsReuseSharedBlocks()
     matrix.BuildPattern(5, BuildSparsePatternFromTetConnectivity({tetA, tetB}));
 
     assert(matrix.blockCount == 5);
-    assert(matrix.values.size() == 23);
+    assert(matrix.values.size() == 14);
     assert(HasSparseBlock(matrix, 1, 2));
     assert(HasSparseBlock(matrix, 2, 1));
     assert(HasSparseBlock(matrix, 4, 4));
@@ -2089,10 +2123,10 @@ void TetMeshComponentCachesFemSparsePattern()
 
     assert(!component.femSparsePatternDirty);
     assert(component.GetFemSparseMatrix().blockCount == 4);
-    assert(component.GetFemSparseMatrix().values.size() == 16);
+    assert(component.GetFemSparseMatrix().values.size() == 10);
 
     component.EnsureFemSparsePattern(4);
-    assert(component.GetFemSparseMatrix().values.size() == 16);
+    assert(component.GetFemSparseMatrix().values.size() == 10);
 
     component.MarkFemSparsePatternDirty();
     assert(component.femSparsePatternDirty);
@@ -2111,7 +2145,7 @@ void TetMeshComponentMapsLocalFemPatternToGlobalSolverNodes()
 
     const PhysiK::SparseBlockMatrix& matrix = component.GetFemSparseMatrix();
     assert(matrix.blockCount == 6);
-    assert(matrix.values.size() == 16);
+    assert(matrix.values.size() == 10);
     assert(HasSparseBlock(matrix, 2, 3));
     assert(HasSparseBlock(matrix, 5, 4));
     assert(!HasSparseBlock(matrix, 0, 1));
@@ -2165,7 +2199,6 @@ void ConjugateGradientSolvesCoupledSparseSystem()
     matrix.BuildPattern(2, {{0, 0}, {0, 1}, {1, 0}, {1, 1}});
     matrix.AddBlock(0, 0, DiagonalBlock(4.0f));
     matrix.AddBlock(0, 1, DiagonalBlock(-1.0f));
-    matrix.AddBlock(1, 0, DiagonalBlock(-1.0f));
     matrix.AddBlock(1, 1, DiagonalBlock(3.0f));
 
     const std::vector<PhysiK::Vec3> expected{
@@ -4642,6 +4675,7 @@ int main()
     CollisionSphereOverlapQueryCountAndFillAreConsistent();
     CollisionSphereOverlapQueryInvalidInputsReturnZero();
     SparseBlockMatrixStoresAndMultipliesBlocks();
+    SparseBlockMatrixMultipliesCanonicalOffDiagonalBlocks();
     SparseBlockMatrixAddBlockAccumulatesContributions();
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
