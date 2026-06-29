@@ -4,25 +4,10 @@
 #include <cmath>
 #include <limits>
 
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-#include <chrono>
-#define PHYSIK_COLLECT_CG_TIMING 1
-#endif
-
 namespace PhysiK
 {
     namespace
     {
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        using Clock = std::chrono::steady_clock;
-
-        double ElapsedMilliseconds(Clock::time_point start)
-        {
-            return std::chrono::duration<double, std::milli>(
-                Clock::now() - start).count();
-        }
-#endif
-
         bool IsFinite(float value)
         {
             return std::isfinite(value);
@@ -165,25 +150,11 @@ namespace PhysiK
 
         x.assign(b.size(), Vec3{});
         r = b;
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        Clock::time_point timerStart = Clock::now();
-#endif
         if (!ApplyPreconditioner(MInv, r, d))
         {
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            result.cgApplyPreconditionerMs += ElapsedMilliseconds(timerStart);
-#endif
             return result;
         }
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        result.cgApplyPreconditionerMs += ElapsedMilliseconds(timerStart);
-
-        timerStart = Clock::now();
-#endif
         float deltaNew = Dot(r, d);
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
-#endif
         if (!IsFinite(deltaNew) || deltaNew < 0.0f)
         {
             return result;
@@ -200,13 +171,7 @@ namespace PhysiK
         if (deltaNew <= target)
         {
             result.converged = true;
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            timerStart = Clock::now();
-#endif
             result.residualNorm = ResidualNorm(r);
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
-#endif
             return result;
         }
 
@@ -218,25 +183,13 @@ namespace PhysiK
                 break;
             }
 
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            timerStart = Clock::now();
-#endif
             A.Multiply(d, qOrS);
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            result.cgMultiplyMs += ElapsedMilliseconds(timerStart);
-#endif
             if (qOrS.size() != b.size() || !IsFinite(qOrS))
             {
                 break;
             }
 
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            timerStart = Clock::now();
-#endif
             const float dDotQ = Dot(d, qOrS);
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
-#endif
             if (!IsFinite(dDotQ) || dDotQ <= 0.0f)
             {
                 break;
@@ -248,35 +201,15 @@ namespace PhysiK
                 break;
             }
 
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            timerStart = Clock::now();
-#endif
             AddScaled(x, d, alpha);
             AddScaled(r, qOrS, -alpha);
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
-
-            timerStart = Clock::now();
-#endif
             if (!ApplyPreconditioner(MInv, r, qOrS))
             {
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-                result.cgApplyPreconditionerMs += ElapsedMilliseconds(timerStart);
-#endif
                 break;
             }
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            result.cgApplyPreconditionerMs += ElapsedMilliseconds(timerStart);
-#endif
 
             const float deltaOld = deltaNew;
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            timerStart = Clock::now();
-#endif
             deltaNew = Dot(r, qOrS);
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
-#endif
             if (!IsFinite(deltaNew) ||
                 !IsFinite(deltaOld) ||
                 deltaOld <= 0.0f)
@@ -290,16 +223,10 @@ namespace PhysiK
                 break;
             }
 
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            timerStart = Clock::now();
-#endif
             for (std::size_t i = 0; i < d.size(); ++i)
             {
                 d[i] = qOrS[i] + d[i] * beta;
             }
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
-#endif
 
             result.iterations = iteration + 1;
         }
@@ -309,13 +236,7 @@ namespace PhysiK
             result.converged = true;
         }
 
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        timerStart = Clock::now();
-#endif
         result.residualNorm = ResidualNorm(r);
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        result.cgDotVectorOpsMs += ElapsedMilliseconds(timerStart);
-#endif
         return result;
     }
 }

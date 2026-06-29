@@ -102,18 +102,6 @@ namespace PhysiK
             return assembledForces;
         }
 
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-        int GetImplicitPatternRebuildCount() const
-        {
-            return implicitPatternRebuildCount;
-        }
-
-        int GetImplicitPatternReuseCount() const
-        {
-            return implicitPatternReuseCount;
-        }
-#endif
-
     private:
         bool BuildDynamicNodeMapping(const std::vector<Node>& nodes);
         bool BuildInversePreconditioner(bool useJacobiPreconditioner);
@@ -143,7 +131,5 @@ namespace PhysiK
         int cachedDynamicBlockCount = 0;
         std::vector<int> cachedNodeToDynamicBlock;
         std::vector<std::pair<int, int>> cachedBlockCoordinates;
-        int implicitPatternRebuildCount = 0;
-        int implicitPatternReuseCount = 0;
     };
 }

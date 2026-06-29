@@ -6,25 +6,10 @@
 #include <cstdint>
 #include <unordered_set>
 
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-#include <chrono>
-#define PHYSIK_COLLECT_CG_TIMING 1
-#endif
-
 namespace PhysiK
 {
     namespace
     {
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        using Clock = std::chrono::steady_clock;
-
-        double ElapsedMilliseconds(Clock::time_point start)
-        {
-            return std::chrono::duration<double, std::milli>(
-                Clock::now() - start).count();
-        }
-#endif
-
         bool IsFinite(float value)
         {
             return std::isfinite(value);
@@ -188,25 +173,12 @@ namespace PhysiK
             return false;
         }
 
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        Clock::time_point timerStart = Clock::now();
-#endif
         if (!BuildInversePreconditioner(cgSettings.useJacobiPreconditioner))
         {
             lastLinearSolveResult = LinearSolveResult{};
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-            lastLinearSolveResult.preconditionerBuildMs =
-                ElapsedMilliseconds(timerStart);
-#endif
             return false;
         }
         lastLinearSolveResult = LinearSolveResult{};
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        lastLinearSolveResult.preconditionerBuildMs =
-            ElapsedMilliseconds(timerStart);
-
-        timerStart = Clock::now();
-#endif
         const ConjugateGradientResult result =
             SolvePreconditionedConjugateGradient(
                 deltaVelocity,
@@ -218,19 +190,10 @@ namespace PhysiK
                 cgResidual,
                 cgDirection,
                 cgTemp);
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        lastLinearSolveResult.cgTotalMs = ElapsedMilliseconds(timerStart);
-#endif
 
         lastLinearSolveResult.iterations = result.iterations;
         lastLinearSolveResult.residualNorm = result.residualNorm;
         lastLinearSolveResult.converged = result.converged;
-#if defined(PHYSIK_COLLECT_CG_TIMING)
-        lastLinearSolveResult.cgMultiplyMs = result.cgMultiplyMs;
-        lastLinearSolveResult.cgApplyPreconditionerMs =
-            result.cgApplyPreconditionerMs;
-        lastLinearSolveResult.cgDotVectorOpsMs = result.cgDotVectorOpsMs;
-#endif
 
         if (deltaVelocity.size() != static_cast<std::size_t>(dynamicBlockCount))
         {
@@ -435,12 +398,10 @@ namespace PhysiK
             cachedNodeToDynamicBlock = nodeToDynamicBlock;
             cachedBlockCoordinates = blockCoordinates;
             implicitPatternDirty = false;
-            ++implicitPatternRebuildCount;
         }
         else
         {
             matrix.ClearValues();
-            ++implicitPatternReuseCount;
         }
 
         for (int nodeIndex = 0; nodeIndex < static_cast<int>(nodes.size()); ++nodeIndex)

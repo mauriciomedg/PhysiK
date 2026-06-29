@@ -1,26 +1,11 @@
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <algorithm>
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-#include <chrono>
-#endif
 
 namespace PhysiK
 {
     namespace
     {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        thread_local bool timingEnabled = false;
-        thread_local double multiplyMilliseconds = 0.0;
-
-        using Clock = std::chrono::steady_clock;
-
-        double ElapsedMilliseconds(Clock::time_point start)
-        {
-            return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
-        }
-#endif
-
         Mat3 Add(const Mat3& a, const Mat3& b)
         {
             return Mat3::FromColumns(
@@ -79,31 +64,6 @@ namespace PhysiK
             rowY += column1.x * x + column1.y * y + column1.z * z;
             rowZ += column2.x * x + column2.y * y + column2.z * z;
         }
-    }
-
-    void SetSparseBlockMatrixTimingEnabled(bool enabled)
-    {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        timingEnabled = enabled;
-#else
-        (void)enabled;
-#endif
-    }
-
-    void ResetSparseBlockMatrixTiming()
-    {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        multiplyMilliseconds = 0.0;
-#endif
-    }
-
-    double GetSparseBlockMatrixMultiplyMilliseconds()
-    {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        return multiplyMilliseconds;
-#else
-        return 0.0;
-#endif
     }
 
     void SparseBlockMatrix::Clear()
@@ -187,20 +147,10 @@ namespace PhysiK
         const std::vector<float>& input,
         std::vector<float>& output) const
     {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        const bool recordTiming = timingEnabled;
-        const Clock::time_point start = recordTiming ? Clock::now() : Clock::time_point{};
-#endif
         const std::size_t dimension = static_cast<std::size_t>(std::max(0, blockCount) * 3);
         if (input.size() < dimension || rowStart.size() != static_cast<std::size_t>(blockCount + 1))
         {
             output.assign(dimension, 0.0f);
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (recordTiming)
-            {
-                multiplyMilliseconds += ElapsedMilliseconds(start);
-            }
-#endif
             return;
         }
 
@@ -254,22 +204,12 @@ namespace PhysiK
             }
         }
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        if (recordTiming)
-        {
-            multiplyMilliseconds += ElapsedMilliseconds(start);
-        }
-#endif
     }
 
     void SparseBlockMatrix::Multiply(
         const std::vector<Vec3>& input,
         std::vector<Vec3>& output) const
     {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        const bool recordTiming = timingEnabled;
-        const Clock::time_point start = recordTiming ? Clock::now() : Clock::time_point{};
-#endif
         const std::size_t blockDimension =
             static_cast<std::size_t>(std::max(0, blockCount));
 
@@ -277,12 +217,6 @@ namespace PhysiK
             rowStart.size() != static_cast<std::size_t>(blockCount + 1))
         {
             output.assign(blockDimension, Vec3{});
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (recordTiming)
-            {
-                multiplyMilliseconds += ElapsedMilliseconds(start);
-            }
-#endif
             return;
         }
 
@@ -331,12 +265,6 @@ namespace PhysiK
             }
         }
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        if (recordTiming)
-        {
-            multiplyMilliseconds += ElapsedMilliseconds(start);
-        }
-#endif
     }
 
     int SparseBlockMatrix::FindBlockIndex(int rowBlock, int colBlock) const

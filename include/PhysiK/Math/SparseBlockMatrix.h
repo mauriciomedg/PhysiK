@@ -11,10 +11,6 @@
 
 namespace PhysiK
 {
-    PHYSIK_API void SetSparseBlockMatrixTimingEnabled(bool enabled);
-    PHYSIK_API void ResetSparseBlockMatrixTiming();
-    PHYSIK_API double GetSparseBlockMatrixMultiplyMilliseconds();
-
     class PHYSIK_API SparseBlockMatrix
     {
     public:

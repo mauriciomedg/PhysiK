@@ -21,9 +21,6 @@ namespace PhysiK
         int iterations = 0;
         float residualNorm = 0.0f;
         bool converged = false;
-        double cgMultiplyMs = 0.0;
-        double cgApplyPreconditionerMs = 0.0;
-        double cgDotVectorOpsMs = 0.0;
     };
 
     PHYSIK_API ConjugateGradientResult SolvePreconditionedConjugateGradient(

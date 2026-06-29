@@ -45,42 +45,6 @@ namespace
         }
     };
 
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-    struct ProfileStats
-    {
-        TimingStats totalSolve;
-        TimingStats sparseMultiply;
-        TimingStats dotProduct;
-        TimingStats vectorUpdate;
-        TimingStats preconditionerSetup;
-        TimingStats preconditionerApply;
-        TimingStats preconditionerBuild;
-        TimingStats cgApplyPreconditioner;
-        TimingStats cgTotal;
-        TimingStats cgMultiply;
-        TimingStats cgDotVectorOps;
-        TimingStats iterations;
-        TimingStats residualNorm;
-
-        void Add(const PhysiK::LinearSolverProfileData& profile)
-        {
-            totalSolve.Add(profile.totalSolveMilliseconds);
-            sparseMultiply.Add(profile.sparseMatrixMultiplyMilliseconds);
-            dotProduct.Add(profile.dotProductMilliseconds);
-            vectorUpdate.Add(profile.vectorUpdateMilliseconds);
-            preconditionerSetup.Add(profile.preconditionerSetupMilliseconds);
-            preconditionerApply.Add(profile.preconditionerApplyMilliseconds);
-            preconditionerBuild.Add(profile.preconditionerBuildMs);
-            cgApplyPreconditioner.Add(profile.cgApplyPreconditionerMs);
-            cgTotal.Add(profile.cgTotalMs);
-            cgMultiply.Add(profile.cgMultiplyMs);
-            cgDotVectorOps.Add(profile.cgDotVectorOpsMs);
-            iterations.Add(static_cast<double>(profile.iterations));
-            residualNorm.Add(static_cast<double>(profile.residualNorm));
-        }
-    };
-#endif
-
     void Fail(const char* message)
     {
         std::fprintf(stderr, "PhysiKStressTest failed: %s\n", message);
@@ -114,10 +78,7 @@ namespace
                 {
                     const int nodeIndex = NodeIndex(x, y, z, width, height);
                     PhysiK::Node& node = system.nodes[static_cast<std::size_t>(nodeIndex)];
-                    node.position = PhysiK::Vec3{
-                        static_cast<float>(x),
-                        static_cast<float>(y),
-                        static_cast<float>(z)};
+                    node.stateIndex = nodeIndex;
                     node.fixed = x == 0;
 
                     if (!node.fixed)
@@ -169,12 +130,14 @@ namespace
         return system;
     }
 
-    double DeltaVelocityNorm(const std::vector<float>& values)
+    double DeltaVelocityNorm(const std::vector<PhysiK::Vec3>& values)
     {
         double sum = 0.0;
-        for (float value : values)
+        for (const PhysiK::Vec3& value : values)
         {
-            sum += static_cast<double>(value) * static_cast<double>(value);
+            sum += static_cast<double>(value.x) * static_cast<double>(value.x);
+            sum += static_cast<double>(value.y) * static_cast<double>(value.y);
+            sum += static_cast<double>(value.z) * static_cast<double>(value.z);
         }
         return std::sqrt(sum);
     }
@@ -186,13 +149,15 @@ namespace
         double& outDeltaVelocityNorm)
     {
         constexpr float dt = 0.016f;
-        if (!solverData.PrecomputeImplicitSolve(nodes, dt))
+        std::vector<PhysiK::Vec3> nodeVelocities(nodes.size(), PhysiK::Vec3{});
+        if (!solverData.PrecomputeImplicitSolve(nodes, nodeVelocities, dt))
         {
             Fail("could not precompute implicit solve");
         }
 
         const auto start = std::chrono::steady_clock::now();
-        const bool solved = solverData.SolveImplicitLinearSystem();
+        PhysiK::ConjugateGradientSettings settings;
+        const bool solved = solverData.SolveImplicitLinearSystem(settings);
         const auto end = std::chrono::steady_clock::now();
         if (!solved)
         {
@@ -273,10 +238,6 @@ int main(int argc, char** argv)
 
     TimingStats wallClockStats;
     TimingStats deltaVelocityNormStats;
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-    ProfileStats profileStats;
-#endif
-
     for (int i = 0; i < iterations; ++i)
     {
         double milliseconds = 0.0;
@@ -289,36 +250,11 @@ int main(int argc, char** argv)
 
         wallClockStats.Add(milliseconds);
         deltaVelocityNormStats.Add(norm);
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-        profileStats.Add(PhysiK::GetCurrentLinearSolverProfile());
-#endif
     }
 
     std::printf("CurrentLinearSolver wall-clock solve timing:\n");
     PrintStats("solve", wallClockStats, "ms");
     PrintStats("delta velocity norm", deltaVelocityNormStats, "");
-
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-    std::printf("CurrentLinearSolver internal profiling:\n");
-    PrintStats("total solve", profileStats.totalSolve, "ms");
-    PrintStats("SparseBlockMatrix multiply", profileStats.sparseMultiply, "ms");
-    PrintStats("dot product", profileStats.dotProduct, "ms");
-    PrintStats("vector update", profileStats.vectorUpdate, "ms");
-    PrintStats("preconditioner setup", profileStats.preconditionerSetup, "ms");
-    PrintStats("preconditioner apply", profileStats.preconditionerApply, "ms");
-    PrintStats("preconditionerBuildMs", profileStats.preconditionerBuild, "ms");
-    PrintStats("cgTotalMs", profileStats.cgTotal, "ms");
-    PrintStats("cgMultiplyMs", profileStats.cgMultiply, "ms");
-    PrintStats(
-        "cgApplyPreconditionerMs",
-        profileStats.cgApplyPreconditioner,
-        "ms");
-    PrintStats("cgDotVectorOpsMs", profileStats.cgDotVectorOps, "ms");
-    PrintStats("iterations", profileStats.iterations, "");
-    PrintStats("residual norm", profileStats.residualNorm, "");
-#else
-    std::printf("Internal profiling is disabled in this build.\n");
-#endif
 
     return 0;
 }
