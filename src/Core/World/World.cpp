@@ -654,19 +654,16 @@ namespace PhysiK
                 continue;
             }
 
-            const int baseDof = dynamicBlock * 3;
             const Vec3& position = GetNodePosition(nodeIndex);
             const Vec3& velocity = GetNodeVelocity(nodeIndex);
-            const std::vector<float>& deltaVelocity = solverData.GetDeltaVelocity();
-            if (baseDof + 2 >= static_cast<int>(deltaVelocity.size()))
+            const std::vector<Vec3>& deltaVelocity = solverData.GetDeltaVelocity();
+            if (dynamicBlock >= static_cast<int>(deltaVelocity.size()))
             {
                 return false;
             }
 
-            const Vec3 velocityChange{
-                deltaVelocity[static_cast<std::size_t>(baseDof + 0)],
-                deltaVelocity[static_cast<std::size_t>(baseDof + 1)],
-                deltaVelocity[static_cast<std::size_t>(baseDof + 2)]};
+            const Vec3& velocityChange =
+                deltaVelocity[static_cast<std::size_t>(dynamicBlock)];
             if (!IsFinite(position) || !IsFinite(velocity) || !IsFinite(velocityChange))
             {
                 return false;

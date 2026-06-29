@@ -59,6 +59,22 @@ namespace PhysiK
             return globalCoordinates;
         }
 
+        void AddCachedStiffnessToSolverData(
+            SolverData& solverData,
+            int rowBlock,
+            int columnBlock,
+            const Mat3& block)
+        {
+            solverData.AddStiffnessBlock(rowBlock, columnBlock, block);
+            if (rowBlock != columnBlock)
+            {
+                solverData.AddStiffnessBlock(
+                    columnBlock,
+                    rowBlock,
+                    Transpose(block));
+            }
+        }
+
         void ApplyElementContribution(
             const TetElementContribution& contribution,
             SparseBlockMatrix& femSparseMatrix,
@@ -97,10 +113,13 @@ namespace PhysiK
                         continue;
                     }
 
-                    femSparseMatrix.AddBlock(
-                        globalRow,
-                        globalColumn,
-                        contribution.stiffness[rowNode][columnNode]);
+                    if (globalRow <= globalColumn)
+                    {
+                        femSparseMatrix.AddBlock(
+                            globalRow,
+                            globalColumn,
+                            contribution.stiffness[rowNode][columnNode]);
+                    }
                 }
             }
         }
@@ -325,7 +344,8 @@ namespace PhysiK
             const int rowEnd = femSparseMatrix.rowStart[static_cast<std::size_t>(rowBlock + 1)];
             for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
             {
-                solverData.AddStiffnessBlock(
+                AddCachedStiffnessToSolverData(
+                    solverData,
                     rowBlock,
                     femSparseMatrix.colIndex[static_cast<std::size_t>(blockIndex)],
                     femSparseMatrix.values[static_cast<std::size_t>(blockIndex)]);

@@ -1,26 +1,11 @@
 #include "PhysiK/Math/SparseBlockMatrix.h"
 
 #include <algorithm>
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-#include <chrono>
-#endif
 
 namespace PhysiK
 {
     namespace
     {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        thread_local bool timingEnabled = false;
-        thread_local double multiplyMilliseconds = 0.0;
-
-        using Clock = std::chrono::steady_clock;
-
-        double ElapsedMilliseconds(Clock::time_point start)
-        {
-            return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
-        }
-#endif
-
         Mat3 Add(const Mat3& a, const Mat3& b)
         {
             return Mat3::FromColumns(
@@ -34,31 +19,51 @@ namespace PhysiK
             return rowBlock >= 0 && rowBlock < blockCount &&
                 colBlock >= 0 && colBlock < blockCount;
         }
-    }
 
-    void SetSparseBlockMatrixTimingEnabled(bool enabled)
-    {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        timingEnabled = enabled;
-#else
-        (void)enabled;
-#endif
-    }
+        std::pair<int, int> CanonicalCoordinate(int rowBlock, int colBlock)
+        {
+            return rowBlock <= colBlock
+                ? std::pair<int, int>{rowBlock, colBlock}
+                : std::pair<int, int>{colBlock, rowBlock};
+        }
 
-    void ResetSparseBlockMatrixTiming()
-    {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        multiplyMilliseconds = 0.0;
-#endif
-    }
+        void AddMatVec(
+            const Mat3& block,
+            const Vec3& input,
+            float& rowX,
+            float& rowY,
+            float& rowZ)
+        {
+            const float x = input.x;
+            const float y = input.y;
+            const float z = input.z;
+            const Vec3& column0 = block.columns[0];
+            const Vec3& column1 = block.columns[1];
+            const Vec3& column2 = block.columns[2];
 
-    double GetSparseBlockMatrixMultiplyMilliseconds()
-    {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        return multiplyMilliseconds;
-#else
-        return 0.0;
-#endif
+            rowX += column0.x * x + column1.x * y + column2.x * z;
+            rowY += column0.y * x + column1.y * y + column2.y * z;
+            rowZ += column0.z * x + column1.z * y + column2.z * z;
+        }
+
+        void AddTransposeMatVec(
+            const Mat3& block,
+            const Vec3& input,
+            float& rowX,
+            float& rowY,
+            float& rowZ)
+        {
+            const float x = input.x;
+            const float y = input.y;
+            const float z = input.z;
+            const Vec3& column0 = block.columns[0];
+            const Vec3& column1 = block.columns[1];
+            const Vec3& column2 = block.columns[2];
+
+            rowX += column0.x * x + column0.y * y + column0.z * z;
+            rowY += column1.x * x + column1.y * y + column1.z * z;
+            rowZ += column2.x * x + column2.y * y + column2.z * z;
+        }
     }
 
     void SparseBlockMatrix::Clear()
@@ -89,13 +94,17 @@ namespace PhysiK
         std::vector<std::vector<int>> rows(static_cast<std::size_t>(blockCount));
         for (const std::pair<int, int>& coordinate : blockCoordinates)
         {
-            const int rowBlock = coordinate.first;
-            const int colBlock = coordinate.second;
+            int rowBlock = coordinate.first;
+            int colBlock = coordinate.second;
             if (!IsValidCoordinate(rowBlock, colBlock, blockCount))
             {
                 continue;
             }
 
+            const std::pair<int, int> canonicalCoordinate =
+                CanonicalCoordinate(rowBlock, colBlock);
+            rowBlock = canonicalCoordinate.first;
+            colBlock = canonicalCoordinate.second;
             rows[static_cast<std::size_t>(rowBlock)].push_back(colBlock);
         }
 
@@ -116,6 +125,7 @@ namespace PhysiK
                 blockLookup[MakeKey(row, column)] = blockIndex;
             }
         }
+
     }
 
     bool SparseBlockMatrix::AddBlock(int rowBlock, int colBlock, const Mat3& block)
@@ -126,8 +136,10 @@ namespace PhysiK
             return false;
         }
 
+        const Mat3 contribution =
+            rowBlock <= colBlock ? block : Transpose(block);
         values[static_cast<std::size_t>(blockIndex)] =
-            Add(values[static_cast<std::size_t>(blockIndex)], block);
+            Add(values[static_cast<std::size_t>(blockIndex)], contribution);
         return true;
     }
 
@@ -135,24 +147,15 @@ namespace PhysiK
         const std::vector<float>& input,
         std::vector<float>& output) const
     {
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        const bool recordTiming = timingEnabled;
-        const Clock::time_point start = recordTiming ? Clock::now() : Clock::time_point{};
-#endif
         const std::size_t dimension = static_cast<std::size_t>(std::max(0, blockCount) * 3);
         if (input.size() < dimension || rowStart.size() != static_cast<std::size_t>(blockCount + 1))
         {
             output.assign(dimension, 0.0f);
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-            if (recordTiming)
-            {
-                multiplyMilliseconds += ElapsedMilliseconds(start);
-            }
-#endif
             return;
         }
 
         output.resize(dimension);
+        std::fill(output.begin(), output.end(), 0.0f);
 
         const float* inputValues = input.data();
         float* outputValues = output.data();
@@ -162,44 +165,114 @@ namespace PhysiK
 
         for (int rowBlock = 0; rowBlock < blockCount; ++rowBlock)
         {
-            float rowX = 0.0f;
-            float rowY = 0.0f;
-            float rowZ = 0.0f;
             const int rowBegin = rowStarts[rowBlock];
             const int rowEnd = rowStarts[rowBlock + 1];
             for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
             {
-                const int columnBase = columnIndices[blockIndex] * 3;
-                const float x = inputValues[columnBase + 0];
-                const float y = inputValues[columnBase + 1];
-                const float z = inputValues[columnBase + 2];
+                const int columnBlock = columnIndices[blockIndex];
+                const int rowBase = rowBlock * 3;
+                const int columnBase = columnBlock * 3;
                 const Mat3& block = blockValues[blockIndex];
                 const Vec3& column0 = block.columns[0];
                 const Vec3& column1 = block.columns[1];
                 const Vec3& column2 = block.columns[2];
+                const float columnX = inputValues[columnBase + 0];
+                const float columnY = inputValues[columnBase + 1];
+                const float columnZ = inputValues[columnBase + 2];
 
-                rowX += column0.x * x + column1.x * y + column2.x * z;
-                rowY += column0.y * x + column1.y * y + column2.y * z;
-                rowZ += column0.z * x + column1.z * y + column2.z * z;
+                outputValues[rowBase + 0] +=
+                    column0.x * columnX + column1.x * columnY + column2.x * columnZ;
+                outputValues[rowBase + 1] +=
+                    column0.y * columnX + column1.y * columnY + column2.y * columnZ;
+                outputValues[rowBase + 2] +=
+                    column0.z * columnX + column1.z * columnY + column2.z * columnZ;
+
+                if (rowBlock == columnBlock)
+                {
+                    continue;
+                }
+
+                const float rowX = inputValues[rowBase + 0];
+                const float rowY = inputValues[rowBase + 1];
+                const float rowZ = inputValues[rowBase + 2];
+                outputValues[columnBase + 0] +=
+                    column0.x * rowX + column0.y * rowY + column0.z * rowZ;
+                outputValues[columnBase + 1] +=
+                    column1.x * rowX + column1.y * rowY + column1.z * rowZ;
+                outputValues[columnBase + 2] +=
+                    column2.x * rowX + column2.y * rowY + column2.z * rowZ;
             }
-
-            const int rowBase = rowBlock * 3;
-            outputValues[rowBase + 0] = rowX;
-            outputValues[rowBase + 1] = rowY;
-            outputValues[rowBase + 2] = rowZ;
         }
 
-#if defined(PHYSIK_ENABLE_PERF_LOGGING)
-        if (recordTiming)
+    }
+
+    void SparseBlockMatrix::Multiply(
+        const std::vector<Vec3>& input,
+        std::vector<Vec3>& output) const
+    {
+        const std::size_t blockDimension =
+            static_cast<std::size_t>(std::max(0, blockCount));
+
+        if (input.size() < blockDimension ||
+            rowStart.size() != static_cast<std::size_t>(blockCount + 1))
         {
-            multiplyMilliseconds += ElapsedMilliseconds(start);
+            output.assign(blockDimension, Vec3{});
+            return;
         }
-#endif
+
+        if (output.size() != blockDimension)
+        {
+            output.resize(blockDimension);
+        }
+        std::fill(output.begin(), output.end(), Vec3{});
+
+        const Vec3* inputValues = input.data();
+        Vec3* outputValues = output.data();
+        const int* rowStarts = rowStart.data();
+        const int* columnIndices = colIndex.data();
+        const Mat3* blockValues = values.data();
+
+        for (int rowBlock = 0; rowBlock < blockCount; ++rowBlock)
+        {
+            const int rowBegin = rowStarts[rowBlock];
+            const int rowEnd = rowStarts[rowBlock + 1];
+
+            for (int blockIndex = rowBegin; blockIndex < rowEnd; ++blockIndex)
+            {
+                const int columnBlock = columnIndices[blockIndex];
+                const Mat3& block = blockValues[blockIndex];
+                float rowX = outputValues[rowBlock].x;
+                float rowY = outputValues[rowBlock].y;
+                float rowZ = outputValues[rowBlock].z;
+                AddMatVec(block, inputValues[columnBlock], rowX, rowY, rowZ);
+                outputValues[rowBlock] = Vec3{rowX, rowY, rowZ};
+
+                if (rowBlock == columnBlock)
+                {
+                    continue;
+                }
+
+                float columnX = outputValues[columnBlock].x;
+                float columnY = outputValues[columnBlock].y;
+                float columnZ = outputValues[columnBlock].z;
+                AddTransposeMatVec(
+                    block,
+                    inputValues[rowBlock],
+                    columnX,
+                    columnY,
+                    columnZ);
+                outputValues[columnBlock] = Vec3{columnX, columnY, columnZ};
+            }
+        }
+
     }
 
     int SparseBlockMatrix::FindBlockIndex(int rowBlock, int colBlock) const
     {
-        const auto it = blockLookup.find(MakeKey(rowBlock, colBlock));
+        const std::pair<int, int> canonicalCoordinate =
+            CanonicalCoordinate(rowBlock, colBlock);
+        const auto it = blockLookup.find(
+            MakeKey(canonicalCoordinate.first, canonicalCoordinate.second));
         if (it == blockLookup.end())
         {
             return -1;

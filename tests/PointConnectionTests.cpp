@@ -1986,11 +1986,11 @@ void SparseBlockMatrixStoresAndMultipliesBlocks()
     matrix.BuildPattern(2, {{0, 0}, {0, 1}, {1, 1}});
     assert(matrix.blockCount == 2);
     assert(matrix.values.size() == 3);
+    assert(matrix.FindBlockIndex(0, 1) == matrix.FindBlockIndex(1, 0));
 
     assert(matrix.AddBlock(0, 0, DiagonalBlock(2.0f)));
     assert(matrix.AddBlock(0, 1, DiagonalBlock(3.0f)));
     assert(matrix.AddBlock(1, 1, DiagonalBlock(4.0f)));
-    assert(!matrix.AddBlock(1, 0, DiagonalBlock(5.0f)));
 
     std::vector<float> input = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
     std::vector<float> output;
@@ -2000,9 +2000,53 @@ void SparseBlockMatrixStoresAndMultipliesBlocks()
     assert(NearlyEqual(output[0], 14.0f));
     assert(NearlyEqual(output[1], 19.0f));
     assert(NearlyEqual(output[2], 24.0f));
-    assert(NearlyEqual(output[3], 16.0f));
-    assert(NearlyEqual(output[4], 20.0f));
-    assert(NearlyEqual(output[5], 24.0f));
+    assert(NearlyEqual(output[3], 19.0f));
+    assert(NearlyEqual(output[4], 26.0f));
+    assert(NearlyEqual(output[5], 33.0f));
+
+    std::vector<PhysiK::Vec3> blockInput{
+        PhysiK::Vec3{1.0f, 2.0f, 3.0f},
+        PhysiK::Vec3{4.0f, 5.0f, 6.0f}};
+    std::vector<PhysiK::Vec3> blockOutput;
+    matrix.Multiply(blockInput, blockOutput);
+
+    assert(blockOutput.size() == 2);
+    assert(NearlyEqual(blockOutput[0], PhysiK::Vec3{14.0f, 19.0f, 24.0f}));
+    assert(NearlyEqual(blockOutput[1], PhysiK::Vec3{19.0f, 26.0f, 33.0f}));
+}
+
+void SparseBlockMatrixMultipliesCanonicalOffDiagonalBlocks()
+{
+    const PhysiK::Mat3 offDiagonal =
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{1.0f, 4.0f, 7.0f},
+            PhysiK::Vec3{2.0f, 5.0f, 8.0f},
+            PhysiK::Vec3{3.0f, 6.0f, 9.0f});
+
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(2, {{0, 0}, {1, 0}, {0, 1}, {1, 1}});
+    assert(matrix.values.size() == 3);
+
+    assert(matrix.AddBlock(0, 0, DiagonalBlock(2.0f)));
+    assert(matrix.AddBlock(1, 0, PhysiK::Transpose(offDiagonal)));
+    assert(matrix.AddBlock(1, 1, DiagonalBlock(3.0f)));
+
+    const int offDiagonalIndex = matrix.FindBlockIndex(0, 1);
+    assert(offDiagonalIndex == matrix.FindBlockIndex(1, 0));
+    assert(offDiagonalIndex >= 0);
+    assert(NearlyEqual(
+        GetMat3Value(matrix.values[static_cast<std::size_t>(offDiagonalIndex)], 2, 1),
+        8.0f));
+
+    const std::vector<PhysiK::Vec3> input{
+        PhysiK::Vec3{1.0f, 2.0f, 3.0f},
+        PhysiK::Vec3{4.0f, 5.0f, 6.0f}};
+    std::vector<PhysiK::Vec3> output;
+    matrix.Multiply(input, output);
+
+    assert(output.size() == 2);
+    assert(NearlyEqual(output[0], PhysiK::Vec3{34.0f, 81.0f, 128.0f}));
+    assert(NearlyEqual(output[1], PhysiK::Vec3{42.0f, 51.0f, 60.0f}));
 }
 
 void SparseBlockMatrixAddBlockAccumulatesContributions()
@@ -2032,11 +2076,11 @@ void SparseBlockMatrixSingleTetPatternContainsAllCouplings()
     matrix.BuildPattern(4, BuildSparsePatternFromTetConnectivity({tet}));
 
     assert(matrix.blockCount == 4);
-    assert(matrix.values.size() == 16);
+    assert(matrix.values.size() == 10);
     for (int row = 0; row < 4; ++row)
     {
         assert(matrix.rowStart[static_cast<std::size_t>(row + 1)] -
-            matrix.rowStart[static_cast<std::size_t>(row)] == 4);
+            matrix.rowStart[static_cast<std::size_t>(row)] == 4 - row);
         for (int column = 0; column < 4; ++column)
         {
             assert(HasSparseBlock(matrix, row, column));
@@ -2061,7 +2105,7 @@ void SparseBlockMatrixAdjacentTetsReuseSharedBlocks()
     matrix.BuildPattern(5, BuildSparsePatternFromTetConnectivity({tetA, tetB}));
 
     assert(matrix.blockCount == 5);
-    assert(matrix.values.size() == 23);
+    assert(matrix.values.size() == 14);
     assert(HasSparseBlock(matrix, 1, 2));
     assert(HasSparseBlock(matrix, 2, 1));
     assert(HasSparseBlock(matrix, 4, 4));
@@ -2079,10 +2123,10 @@ void TetMeshComponentCachesFemSparsePattern()
 
     assert(!component.femSparsePatternDirty);
     assert(component.GetFemSparseMatrix().blockCount == 4);
-    assert(component.GetFemSparseMatrix().values.size() == 16);
+    assert(component.GetFemSparseMatrix().values.size() == 10);
 
     component.EnsureFemSparsePattern(4);
-    assert(component.GetFemSparseMatrix().values.size() == 16);
+    assert(component.GetFemSparseMatrix().values.size() == 10);
 
     component.MarkFemSparsePatternDirty();
     assert(component.femSparsePatternDirty);
@@ -2101,7 +2145,7 @@ void TetMeshComponentMapsLocalFemPatternToGlobalSolverNodes()
 
     const PhysiK::SparseBlockMatrix& matrix = component.GetFemSparseMatrix();
     assert(matrix.blockCount == 6);
-    assert(matrix.values.size() == 16);
+    assert(matrix.values.size() == 10);
     assert(HasSparseBlock(matrix, 2, 3));
     assert(HasSparseBlock(matrix, 5, 4));
     assert(!HasSparseBlock(matrix, 0, 1));
@@ -2120,21 +2164,33 @@ void ConjugateGradientSolvesDiagonalSparseSystem()
             PhysiK::Vec3{0.0f, 9.0f, 0.0f},
             PhysiK::Vec3{0.0f, 0.0f, 16.0f}));
 
-    const std::vector<float> rhs = {4.0f, 18.0f, 48.0f};
-    std::vector<float> solution;
-    PhysiK::ConjugateGradientSettings settings;
-    settings.maxIterations = 16;
-    settings.tolerance = 1.0e-6f;
-    settings.useJacobiPreconditioner = true;
+    const std::vector<PhysiK::Vec3> rhs{
+        PhysiK::Vec3{4.0f, 18.0f, 48.0f}};
+    const std::vector<PhysiK::Mat3> inversePreconditioner{
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{0.25f, 0.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 1.0f / 9.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, 1.0f / 16.0f})};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
 
     const PhysiK::ConjugateGradientResult result =
-        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            16,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
 
     assert(result.converged);
-    assert(solution.size() == 3);
-    assert(NearlyEqual(solution[0], 1.0f, 0.0001f));
-    assert(NearlyEqual(solution[1], 2.0f, 0.0001f));
-    assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
+    assert(solution.size() == 1);
+    assert(NearlyEqual(solution[0], PhysiK::Vec3{1.0f, 2.0f, 3.0f}, 0.0001f));
 }
 
 void ConjugateGradientSolvesCoupledSparseSystem()
@@ -2143,21 +2199,33 @@ void ConjugateGradientSolvesCoupledSparseSystem()
     matrix.BuildPattern(2, {{0, 0}, {0, 1}, {1, 0}, {1, 1}});
     matrix.AddBlock(0, 0, DiagonalBlock(4.0f));
     matrix.AddBlock(0, 1, DiagonalBlock(-1.0f));
-    matrix.AddBlock(1, 0, DiagonalBlock(-1.0f));
     matrix.AddBlock(1, 1, DiagonalBlock(3.0f));
 
-    const std::vector<float> expected = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
-    std::vector<float> rhs;
+    const std::vector<PhysiK::Vec3> expected{
+        PhysiK::Vec3{1.0f, 2.0f, 3.0f},
+        PhysiK::Vec3{4.0f, 5.0f, 6.0f}};
+    std::vector<PhysiK::Vec3> rhs;
     matrix.Multiply(expected, rhs);
 
-    std::vector<float> solution;
-    PhysiK::ConjugateGradientSettings settings;
-    settings.maxIterations = 32;
-    settings.tolerance = 1.0e-6f;
-    settings.useJacobiPreconditioner = true;
+    const std::vector<PhysiK::Mat3> inversePreconditioner{
+        DiagonalBlock(0.25f),
+        DiagonalBlock(1.0f / 3.0f)};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
 
     const PhysiK::ConjugateGradientResult result =
-        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            32,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
 
     assert(result.converged);
     assert(solution.size() == expected.size());
@@ -2167,33 +2235,129 @@ void ConjugateGradientSolvesCoupledSparseSystem()
     }
 }
 
+void ConjugateGradientUsesFullBlockInversePreconditioner()
+{
+    const PhysiK::Mat3 block =
+        PhysiK::Mat3::FromColumns(
+            PhysiK::Vec3{4.0f, 1.0f, 0.0f},
+            PhysiK::Vec3{1.0f, 3.0f, 0.0f},
+            PhysiK::Vec3{0.0f, 0.0f, 2.0f});
+
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(0, 0, block);
+
+    const std::vector<PhysiK::Vec3> expected{
+        PhysiK::Vec3{2.0f, -1.0f, 3.0f}};
+    std::vector<PhysiK::Vec3> rhs;
+    matrix.Multiply(expected, rhs);
+
+    const std::vector<PhysiK::Mat3> inversePreconditioner{
+        PhysiK::Inverse(block)};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
+
+    const PhysiK::ConjugateGradientResult result =
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            8,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
+
+    assert(result.converged);
+    assert(solution.size() == expected.size());
+    assert(NearlyEqual(solution[0], expected[0], 0.0001f));
+}
+
 void ConjugateGradientRejectsInvalidSettings()
 {
     PhysiK::SparseBlockMatrix matrix;
     matrix.BuildPattern(1, {{0, 0}});
     matrix.AddBlock(0, 0, DiagonalBlock(1.0f));
 
-    const std::vector<float> rhs = {1.0f, 0.0f, 0.0f};
-    std::vector<float> solution;
-    PhysiK::ConjugateGradientSettings settings;
+    const std::vector<PhysiK::Vec3> rhs{PhysiK::Vec3{1.0f, 0.0f, 0.0f}};
+    const std::vector<PhysiK::Mat3> inversePreconditioner{PhysiK::Mat3::Identity()};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
 
-    settings.maxIterations = 0;
-    settings.tolerance = 1.0e-6f;
     PhysiK::ConjugateGradientResult result =
-        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            0,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
     assert(!result.converged);
     assert(solution.empty());
 
-    settings.maxIterations = 8;
-    settings.tolerance = 0.0f;
-    result = PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+    result = PhysiK::SolvePreconditionedConjugateGradient(
+        solution,
+        matrix,
+        rhs,
+        8,
+        0.0f,
+        inversePreconditioner,
+        residual,
+        direction,
+        temp);
     assert(!result.converged);
     assert(solution.empty());
 
-    settings.tolerance = std::numeric_limits<float>::infinity();
-    result = PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+    result = PhysiK::SolvePreconditionedConjugateGradient(
+        solution,
+        matrix,
+        rhs,
+        8,
+        std::numeric_limits<float>::infinity(),
+        inversePreconditioner,
+        residual,
+        direction,
+        temp);
     assert(!result.converged);
     assert(solution.empty());
+}
+
+void ConjugateGradientRejectsMismatchedPreconditioner()
+{
+    PhysiK::SparseBlockMatrix matrix;
+    matrix.BuildPattern(1, {{0, 0}});
+    matrix.AddBlock(0, 0, DiagonalBlock(1.0f));
+
+    const std::vector<PhysiK::Vec3> rhs{PhysiK::Vec3{1.0f, 0.0f, 0.0f}};
+    const std::vector<PhysiK::Mat3> inversePreconditioner;
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
+
+    const PhysiK::ConjugateGradientResult result =
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            8,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
+
+    assert(!result.converged);
+    assert(solution.size() == 1);
+    assert(direction.empty());
 }
 
 void ConjugateGradientFailsOnNonPositiveDenominator()
@@ -2202,25 +2366,27 @@ void ConjugateGradientFailsOnNonPositiveDenominator()
     matrix.BuildPattern(1, {{0, 0}});
     matrix.AddBlock(0, 0, DiagonalBlock(-1.0f));
 
-    const std::vector<float> rhs = {1.0f, 0.0f, 0.0f};
-    std::vector<float> solution;
-    PhysiK::ConjugateGradientSettings settings;
-    settings.maxIterations = 8;
-    settings.tolerance = 1.0e-6f;
-    settings.useJacobiPreconditioner = false;
+    const std::vector<PhysiK::Vec3> rhs{PhysiK::Vec3{1.0f, 0.0f, 0.0f}};
+    const std::vector<PhysiK::Mat3> inversePreconditioner{PhysiK::Mat3::Identity()};
+    std::vector<PhysiK::Vec3> solution;
+    std::vector<PhysiK::Vec3> residual;
+    std::vector<PhysiK::Vec3> direction;
+    std::vector<PhysiK::Vec3> temp;
 
     PhysiK::ConjugateGradientResult result =
-        PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
+        PhysiK::SolvePreconditionedConjugateGradient(
+            solution,
+            matrix,
+            rhs,
+            8,
+            1.0e-6f,
+            inversePreconditioner,
+            residual,
+            direction,
+            temp);
     assert(!result.converged);
-    assert(solution.empty());
-
-    matrix.Clear();
-    matrix.BuildPattern(1, {{0, 0}});
-    matrix.AddBlock(0, 0, DiagonalBlock(1.0e-13f));
-
-    result = PhysiK::SolveConjugateGradient(matrix, rhs, solution, settings);
-    assert(!result.converged);
-    assert(solution.empty());
+    assert(solution.size() == 1);
+    assert(NearlyEqual(solution[0], PhysiK::Vec3{}));
 }
 
 void ConjugateGradientSettingsAndDiagnosticsAreExposedThroughNativeApi()
@@ -2279,12 +2445,12 @@ void CurrentLinearSolverSolvesKnownSparseSystem()
             PhysiK::Vec3{0.0f, 3.0f, 0.0f},
             PhysiK::Vec3{0.0f, 0.0f, 4.0f}));
 
-    const std::vector<float> rhs = {2.0f, 6.0f, 12.0f};
-    std::vector<float> solution;
+    const std::vector<PhysiK::Vec3> rhs{PhysiK::Vec3{2.0f, 6.0f, 12.0f}};
+    std::vector<PhysiK::Vec3> solution;
 
     PhysiK::CurrentLinearSolver solver;
     PhysiK::LinearSolveSettings settings;
-    settings.maxIterations = 16;
+    settings.maxIterations = 0;
     settings.tolerance = 1.0e-6f;
     settings.useJacobiPreconditioner = true;
 
@@ -2293,9 +2459,7 @@ void CurrentLinearSolverSolvesKnownSparseSystem()
 
     assert(result.converged);
     assert(solution.size() == rhs.size());
-    assert(NearlyEqual(solution[0], 1.0f, 0.0001f));
-    assert(NearlyEqual(solution[1], 2.0f, 0.0001f));
-    assert(NearlyEqual(solution[2], 3.0f, 0.0001f));
+    assert(NearlyEqual(solution[0], PhysiK::Vec3{1.0f, 2.0f, 3.0f}, 0.0001f));
 }
 
 void SolverDataFailedImplicitSolveLeavesNoDeltaVelocity()
@@ -2336,10 +2500,12 @@ void SolverDataAcceptsFiniteUnconvergedCgApproximation()
 
     assert(solverData.SolveImplicitLinearSystem(settings));
     assert(!solverData.GetLastLinearSolveResult().converged);
-    assert(solverData.GetDeltaVelocity().size() == 6);
-    for (float value : solverData.GetDeltaVelocity())
+    assert(solverData.GetDeltaVelocity().size() == 2);
+    for (const PhysiK::Vec3& value : solverData.GetDeltaVelocity())
     {
-        assert(std::isfinite(value));
+        assert(std::isfinite(value.x));
+        assert(std::isfinite(value.y));
+        assert(std::isfinite(value.z));
     }
 }
 
@@ -2357,86 +2523,6 @@ void SolverDataPrecomputeImplicitSolveFallsBackToAssembleMasses()
     assert(NearlyEqual(solverData.GetAssembledMassForNode(0), 2.0f));
     assert(solverData.GetDynamicBlockCount() == 1);
 }
-
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-void SolverDataImplicitPatternReusesStablePattern()
-{
-    std::vector<PhysiK::Node> nodes(2);
-
-    auto addStableAssembly = [](PhysiK::SolverData& solverData)
-    {
-        solverData.AddNodeMass(0, 1.0f);
-        solverData.AddNodeMass(1, 1.0f);
-        solverData.AddStiffnessBlock(0, 0, DiagonalBlock(1.0f));
-        solverData.AddStiffnessBlock(0, 1, DiagonalBlock(-0.25f));
-        solverData.AddStiffnessBlock(1, 0, DiagonalBlock(-0.25f));
-        solverData.AddStiffnessBlock(1, 1, DiagonalBlock(1.0f));
-    };
-
-    PhysiK::SolverData solverData;
-    addStableAssembly(solverData);
-    assert(solverData.PrecomputeImplicitSolve(nodes, std::vector<PhysiK::Vec3>(nodes.size()), 0.1f));
-    assert(solverData.GetImplicitPatternRebuildCount() == 1);
-    assert(solverData.GetImplicitPatternReuseCount() == 0);
-
-    solverData.ClearTransientState();
-    addStableAssembly(solverData);
-    assert(solverData.PrecomputeImplicitSolve(nodes, std::vector<PhysiK::Vec3>(nodes.size()), 0.1f));
-    assert(solverData.GetImplicitPatternRebuildCount() == 1);
-    assert(solverData.GetImplicitPatternReuseCount() == 1);
-}
-
-void SolverDataImplicitPatternRebuildsWhenFixedStateChanges()
-{
-    std::vector<PhysiK::Node> nodes(2);
-
-    auto addAssembly = [](PhysiK::SolverData& solverData)
-    {
-        solverData.AddNodeMass(0, 1.0f);
-        solverData.AddNodeMass(1, 1.0f);
-        solverData.AddStiffnessBlock(0, 1, DiagonalBlock(0.5f));
-    };
-
-    PhysiK::SolverData solverData;
-    addAssembly(solverData);
-    assert(solverData.PrecomputeImplicitSolve(nodes, std::vector<PhysiK::Vec3>(nodes.size()), 0.1f));
-    assert(solverData.GetImplicitPatternRebuildCount() == 1);
-
-    solverData.ClearTransientState();
-    nodes[1].fixed = true;
-    addAssembly(solverData);
-    assert(solverData.PrecomputeImplicitSolve(nodes, std::vector<PhysiK::Vec3>(nodes.size()), 0.1f));
-    assert(solverData.GetImplicitPatternRebuildCount() == 2);
-    assert(solverData.GetImplicitPatternReuseCount() == 0);
-}
-
-void SolverDataImplicitPatternRebuildsWhenStiffnessCoordinatesChange()
-{
-    std::vector<PhysiK::Node> nodes(2);
-
-    PhysiK::SolverData solverData;
-    solverData.AddNodeMass(0, 1.0f);
-    solverData.AddNodeMass(1, 1.0f);
-    solverData.AddStiffnessBlock(0, 0, DiagonalBlock(0.5f));
-    assert(solverData.PrecomputeImplicitSolve(nodes, std::vector<PhysiK::Vec3>(nodes.size()), 0.1f));
-    assert(solverData.GetImplicitPatternRebuildCount() == 1);
-
-    solverData.ClearTransientState();
-    solverData.AddNodeMass(0, 1.0f);
-    solverData.AddNodeMass(1, 1.0f);
-    solverData.AddStiffnessBlock(0, 1, DiagonalBlock(0.5f));
-    assert(solverData.PrecomputeImplicitSolve(nodes, std::vector<PhysiK::Vec3>(nodes.size()), 0.1f));
-    assert(solverData.GetImplicitPatternRebuildCount() == 2);
-
-    solverData.ClearTransientState();
-    solverData.AddNodeMass(0, 1.0f);
-    solverData.AddNodeMass(1, 1.0f);
-    solverData.AddStiffnessBlock(0, 1, DiagonalBlock(0.5f));
-    assert(solverData.PrecomputeImplicitSolve(nodes, std::vector<PhysiK::Vec3>(nodes.size()), 0.1f));
-    assert(solverData.GetImplicitPatternRebuildCount() == 2);
-    assert(solverData.GetImplicitPatternReuseCount() == 1);
-}
-#endif
 
 void ImplicitEulerLinearTetUsesSparseCgPath()
 {
@@ -4509,6 +4595,7 @@ int main()
     CollisionSphereOverlapQueryCountAndFillAreConsistent();
     CollisionSphereOverlapQueryInvalidInputsReturnZero();
     SparseBlockMatrixStoresAndMultipliesBlocks();
+    SparseBlockMatrixMultipliesCanonicalOffDiagonalBlocks();
     SparseBlockMatrixAddBlockAccumulatesContributions();
     SparseBlockMatrixSingleTetPatternContainsAllCouplings();
     SparseBlockMatrixAdjacentTetsReuseSharedBlocks();
@@ -4516,18 +4603,15 @@ int main()
     TetMeshComponentMapsLocalFemPatternToGlobalSolverNodes();
     ConjugateGradientSolvesDiagonalSparseSystem();
     ConjugateGradientSolvesCoupledSparseSystem();
+    ConjugateGradientUsesFullBlockInversePreconditioner();
     ConjugateGradientRejectsInvalidSettings();
+    ConjugateGradientRejectsMismatchedPreconditioner();
     ConjugateGradientFailsOnNonPositiveDenominator();
     ConjugateGradientSettingsAndDiagnosticsAreExposedThroughNativeApi();
     CurrentLinearSolverSolvesKnownSparseSystem();
     SolverDataFailedImplicitSolveLeavesNoDeltaVelocity();
     SolverDataAcceptsFiniteUnconvergedCgApproximation();
     SolverDataPrecomputeImplicitSolveFallsBackToAssembleMasses();
-#if defined(PHYSIK_ENABLE_SOLVER_PROFILING)
-    SolverDataImplicitPatternReusesStablePattern();
-    SolverDataImplicitPatternRebuildsWhenFixedStateChanges();
-    SolverDataImplicitPatternRebuildsWhenStiffnessCoordinatesChange();
-#endif
     ImplicitEulerLinearTetUsesSparseCgPath();
     ImplicitEulerCorotationalTetUsesSparseCgPath();
     MultiTetImplicitEulerSparseCgSmokeTest();

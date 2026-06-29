@@ -7,13 +7,10 @@
 
 #include "PhysiK/API/PhysiKAPI.h"
 #include "PhysiK/Math/Mat3.h"
+#include "PhysiK/Math/Vec3.h"
 
 namespace PhysiK
 {
-    PHYSIK_API void SetSparseBlockMatrixTimingEnabled(bool enabled);
-    PHYSIK_API void ResetSparseBlockMatrixTiming();
-    PHYSIK_API double GetSparseBlockMatrixMultiplyMilliseconds();
-
     class PHYSIK_API SparseBlockMatrix
     {
     public:
@@ -32,6 +29,9 @@ namespace PhysiK
         void Multiply(
             const std::vector<float>& input,
             std::vector<float>& output) const;
+        void Multiply(
+            const std::vector<Vec3>& input,
+            std::vector<Vec3>& output) const;
 
         int FindBlockIndex(int rowBlock, int colBlock) const;
 

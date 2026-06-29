@@ -132,6 +132,6 @@ namespace PhysiK
         int substepCount = 1;
         SolverMode solverMode = SolverMode::Explicit;
         ConjugateGradientSettings conjugateGradientSettings;
-        ConjugateGradientResult lastConjugateGradientResult;
+        LinearSolveResult lastConjugateGradientResult;
     };
 }
